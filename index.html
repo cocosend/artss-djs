@@ -2,9 +2,9 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#050609"><meta name="color-scheme" content="dark">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ARTSS DJS">
-<meta name="description" content="ARTSS DJS 7 — clean low-latency studio, playable DJ pads, sequencer, techno presets, live recording and WAV export.">
+<meta name="description" content="ARTSS DJS Creator — clean low-latency studio, playable DJ pads, sequencer, techno presets, live recording and WAV export.">
 <link rel="icon" href="./icons/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="./icons/icon-180.png"><link rel="manifest" href="./manifest.webmanifest">
-<title>ARTSS DJS — PERFORMANCE 7.0</title><link rel="stylesheet" href="./styles.css?v=7.0.0"></head>
+<title>ARTSS DJS — DJ CREATOR 7.1</title><link rel="stylesheet" href="./styles.css?v=7.1.0"></head>
 <body><div class="app" id="app">
  <header class="topbar">
   <div class="identity"><div class="identity-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></div><div><div class="brand">ARTSS<span>DJS</span><sup>7</sup></div><div class="brand-sub">PERFORMANCE AUDIO SYSTEM</div></div></div>
@@ -30,7 +30,7 @@
       <div class="transport-footer"><div class="tempo-slider"><label for="tempoRange">TEMPO RANGE</label><input type="range" min="60" max="200" id="tempoRange" value="128"></div><div class="meter-wrap"><span>OUTPUT</span><div class="meter" id="meter" aria-hidden="true"></div><strong id="level">−∞ dB</strong></div><button class="secondary stop-btn" id="stopBtn" type="button">■ STOP</button></div>
     </section>
     <section class="bank-panel panel"><div class="section-heading"><div><div class="section-code">03 / LIVE PERFORMANCE</div><h2>DRUM & SYNTH PADS</h2></div><span class="section-note">INSTANT TRIGGER · 16 VOICES</span></div><div class="bank-tabs" id="banks"></div><div class="pads" id="pads" aria-label="16 ударных и синтезаторных пэдов"></div><div class="pads-foot"><span><kbd>1—4</kbd> <kbd>Q—R</kbd> <kbd>A—F</kbd> <kbd>Z—V</kbd> KEYBOARD</span><span>TOUCH · PRESS · PLAY</span></div></section>
-    <section class="sequence-panel panel"><div class="section-heading"><div><div class="section-code">04 / TRACK ARCHITECT</div><h2>STEP SEQUENCER</h2></div><button type="button" id="toggleTracks" class="text-btn">ALL 16 TRACKS ↗</button></div><div class="scene-tabs" id="sceneTabs"></div><div class="sequence-viewport"><div id="sequence" class="sequence" role="group" aria-label="16 шагов по инструментам"></div></div><div class="sequence-actions"><label class="toggle"><input type="checkbox" id="autoArrange"><span class="toggle-ui"></span>AUTO ARRANGE</label><button type="button" class="text-btn" id="clearPattern">CLEAR PATTERN</button><button type="button" class="text-btn" id="randomFill">GENERATE FILL</button></div></section>
+    <section class="sequence-panel panel"><div class="section-heading"><div><div class="section-code">04 / TRACK ARCHITECT</div><h2>STEP SEQUENCER</h2></div><div class="sequence-toolbar"><button type="button" id="undoPattern" class="text-btn" disabled aria-label="Отменить последнее изменение паттерна">UNDO ↶</button><button type="button" id="toggleTracks" class="text-btn">ALL 16 TRACKS ↗</button></div></div><div class="scene-tabs" id="sceneTabs"></div><div class="sequence-viewport"><div id="sequence" class="sequence" role="group" aria-label="16 шагов по инструментам"></div></div><div class="sequence-actions"><label class="toggle"><input type="checkbox" id="autoArrange"><span class="toggle-ui"></span>AUTO ARRANGE</label><button type="button" class="text-btn" id="clearPattern">CLEAR PATTERN</button><button type="button" class="text-btn" id="randomFill">GENERATE FILL</button></div></section>
   </main>
   <aside class="rack">
     <section class="panel effects-panel"><div class="sidebar-heading"><div><small>05 / SOUND DESIGN</small><h2>MASTER & FX</h2></div><span class="silver-mark">DSP</span></div>
@@ -48,5 +48,12 @@
  </div>
  <footer class="footer"><span>ARTSS / ORIGINAL SOUND ENGINE</span><span>V7.0 · BUILT FOR PLAY</span></footer>
  <input hidden type="file" id="projectFile" accept=".json,application/json"><input hidden type="file" id="sampleFile" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg">
+ <nav class="mobile-navigation" id="mobileNavigation" aria-label="Навигация DJ Creator">
+  <button type="button" data-mobile-view="live" aria-pressed="true"><span aria-hidden="true">◉</span><b>LIVE</b></button>
+  <button type="button" data-mobile-view="sequence" aria-pressed="false"><span aria-hidden="true">▦</span><b>CREATE</b></button>
+  <button type="button" data-mobile-view="sounds" aria-pressed="false"><span aria-hidden="true">♫</span><b>SOUNDS</b></button>
+  <button type="button" data-mobile-view="effects" aria-pressed="false"><span aria-hidden="true">◈</span><b>FX</b></button>
+  <button type="button" data-mobile-view="export" aria-pressed="false"><span aria-hidden="true">↗</span><b>EXPORT</b></button>
+ </nav>
  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
-</div><script type="module" src="./app.js?v=7.0.0"></script></body></html>
+</div><script type="module" src="./app.js?v=7.1.0"></script></body></html>
