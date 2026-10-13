@@ -1,0 +1,37 @@
+name: DJ Creator Quality Gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dj-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Check source syntax
+        run: node --check app.js && node --check sw.js
+      - name: Validate package and PWA metadata
+        run: |
+          node -e "for (const p of ['package.json','manifest.webmanifest']) { const d=JSON.parse(require('node:fs').readFileSync(p,'utf8')); if (!d.name) throw Error(p+' missing name') }"
+      - name: Ensure one audio runtime and stable entrypoint
+        run: |
+          test -f index.html
+          test -f app.js
+          test -f styles.css
+          test -f sw.js
+          test -d icons
+          test -z "$(find . -path './.git' -prune -o -type f \( -iname '*backup*.js' -o -iname '*old*.js' \) -print)"
