@@ -233,8 +233,11 @@ function encodeWav(buffer){const n=buffer.length,ch=2,bytes=44+n*ch*2,out=new Ar
 }
 class SoundEngine{
  constructor(state=blankState()){this.state=state;this.ctx=null;this.graph=null;this.buffers=new Map();this.custom=new Map();this.active=new Set();this.running=false;this.timer=null;this.next=0;this.count=0;this.onStep=()=>{};this.onTransport=()=>{};this.recorder=null;this.recordChunks=[];this.recording=false;this.recordingStopping=false;this.recordedMime='';this.transportEpoch=0;this.starting=false;}
- async unlock(){if(!this.ctx){const C=window.AudioContext||window.webkitAudioContext;if(!C)throw Error('Web Audio не поддерживается');this.ctx=new C({latencyHint:'interactive'});this.out=this.ctx.createMediaStreamDestination();this.graph=chain(this.ctx,this.ctx.destination,this.state);this.graph.main.connect(this.out);}
- if(this.ctx.state!=='running')await this.ctx.resume();return this.ctx;}
+ async unlock(){if(this.ctx?.state==='closed'){this.ctx=null;this.graph=null;this.out=null;this.buffers.clear()}
+ if(!this.ctx){const C=window.AudioContext||window.webkitAudioContext;if(!C)throw Error('Web Audio не поддерживается');this.ctx=new C({latencyHint:'interactive'});this.out=this.ctx.createMediaStreamDestination();this.graph=chain(this.ctx,this.ctx.destination,this.state);this.graph.main.connect(this.out);}
+ if(this.ctx.state!=='running')await this.ctx.resume();
+ if(this.ctx.state!=='running')throw Error('Audio is suspended. Tap PLAY to enable sound in Safari.');
+ return this.ctx;}
  setState(state){this.state=state;if(this.graph)this.graph.set(state);}
  getBuffer(ctx,slot,semitones=0){const own=this.custom.get(slot);if(own)return own;const key=`${ctx.sampleRate}:${slot}:${semitones}:${this.state.kick}:${this.state.presetId}`;let b=this.buffers.get(key);if(!b){const p=this.state.presetId;const bass=({ 'neon-pressure-146':'acid', 'chrome-bounce-150':'rave', 'infra-phonk-152':'phonk', 'heat-rave-148':'rave' }[p])||(p.includes('phonk')?'phonk':p.includes('rave')||p.includes('trance')?'rave':p.includes('acid')?'acid':p.includes('industrial')||p.includes('raw')?'dark':'smooth');b=pcmToAudioBuffer(ctx,synthPCM(slot,this.state.kick,bass,ctx.sampleRate,17,semitones));this.buffers.set(key,b);if(this.buffers.size>180){const oldest=this.buffers.keys().next().value;this.buffers.delete(oldest)}}return b;}
  playBuffer(ctx,out,slot,when,velocity=1,step=0,trackVoices=true){
