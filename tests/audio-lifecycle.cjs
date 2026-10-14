@@ -16,6 +16,12 @@ vm.runInNewContext(prefix+'\n globalThis.EngineTest=SoundEngine;globalThis.State
 const Engine=ctx.EngineTest;
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 async function main(){
+ // Safari may resolve resume() while playback is still suspended: never show AUDIO ACTIVE.
+ const ios=new Engine();
+ ios.ctx={state:'suspended',currentTime:0,resume:async()=>{}};
+ await assert.rejects(ios.unlock(),/Audio is suspended/);
+ ios.ctx.resume=async()=>{ios.ctx.state='running'};
+ assert.equal(await ios.unlock(),ios.ctx,'a later user gesture may resume the same context');
  const engine=new Engine();
  let release;const gate=new Promise(resolve=>{release=resolve});
  engine.unlock=()=>gate;
