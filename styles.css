@@ -68,3 +68,18 @@
   .pad{padding:7px}
   .pad-title{font-size:12px}
 }
+
+/* v7.2 — accessible install affordance and compact iPhone dialog. */
+.install-app{margin-left:auto;flex-shrink:0;min-height:44px;padding:8px 12px;border:1px solid #35434d;border-radius:8px;background:#111922;color:#78e7dc;font:800 11px var(--mono);letter-spacing:.07em}
+.install-app:active{transform:scale(.97)}
+.install-app[hidden]{display:none!important}
+.install-help{width:min(92vw,420px);max-height:85dvh;overflow-y:auto;color:#f2f3f6;background:#0d1018;border:1px solid #39414f;border-radius:16px;padding:0;box-shadow:0 24px 80px #000a}
+.install-help::backdrop{background:rgba(0,0,0,.8);backdrop-filter:blur(7px)}
+.install-dialog-body{padding:26px;line-height:1.6}
+.install-eyebrow{color:#5fd9d2;font-weight:800;font-size:10px;letter-spacing:.16em}
+.install-dialog-body h2{font:800 30px var(--display);margin:10px 0 16px}
+.install-dialog-body p{font-size:14px;color:#d0d4df;margin:12px 0}
+.install-dialog-body strong{color:#fff}
+.install-close{width:100%;min-height:48px;margin-top:15px;background:#ff3e51;border:0;border-radius:9px;color:#fff;font-weight:800}
+@media(max-width:580px){.install-app{font-size:10px;padding:8px 9px;margin-left:auto}.top-rec{margin-left:0}.topbar{gap:5px}.brand{font-size:25px}.identity-mark{width:30px;height:30px}}
+@media(display-mode:standalone){.install-app{display:none}}
