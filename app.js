@@ -1,7 +1,7 @@
 // ARTSS DJS V7 - optimized single JS request
 
 // === music.js ===
-const VERSION='7.0.0';
+const VERSION='7.2.0';
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,Number.isFinite(+n)?+n:a));
 const SLOTS=[
  ['KICK','Kick','01','kick'],['SUB','Sub Bass','02','sub'],['CLAP','Clap','03','clap'],['HAT','Closed Hat','04','hat'],
@@ -232,7 +232,7 @@ function encodeWav(buffer){const n=buffer.length,ch=2,bytes=44+n*ch*2,out=new Ar
  for(let i=0;i<n;i++){for(const x of [l[i],r[i]]){const s=clamp(x*makeup,-.95,.95);v.setInt16(p,s<0?s*32768:s*32767,true);p+=2}}return new Blob([out],{type:'audio/wav'});
 }
 class SoundEngine{
- constructor(state=blankState()){this.state=state;this.ctx=null;this.graph=null;this.buffers=new Map();this.custom=new Map();this.active=new Set();this.running=false;this.timer=null;this.next=0;this.count=0;this.onStep=()=>{};this.onTransport=()=>{};this.recorder=null;this.recordChunks=[];this.recording=false;this.recordedMime='';}
+ constructor(state=blankState()){this.state=state;this.ctx=null;this.graph=null;this.buffers=new Map();this.custom=new Map();this.active=new Set();this.running=false;this.timer=null;this.next=0;this.count=0;this.onStep=()=>{};this.onTransport=()=>{};this.recorder=null;this.recordChunks=[];this.recording=false;this.recordingStopping=false;this.recordedMime='';this.transportEpoch=0;this.starting=false;}
  async unlock(){if(!this.ctx){const C=window.AudioContext||window.webkitAudioContext;if(!C)throw Error('Web Audio не поддерживается');this.ctx=new C({latencyHint:'interactive'});this.out=this.ctx.createMediaStreamDestination();this.graph=chain(this.ctx,this.ctx.destination,this.state);this.graph.main.connect(this.out);}
  if(this.ctx.state!=='running')await this.ctx.resume();return this.ctx;}
  setState(state){this.state=state;if(this.graph)this.graph.set(state);}
@@ -250,24 +250,52 @@ class SoundEngine{
  }
  async hit(slot,velocity=1){await this.unlock();this.playBuffer(this.ctx,this.graph.bus,slot,this.ctx.currentTime+.003,velocity);}
  getScene(bar){return this.state.autoScene?sceneForBar(bar):this.state.scene}
- schedule(){if(!this.running||!this.ctx)return;const limit=this.ctx.currentTime+.11;let safety=0;
+ schedule(){if(!this.running||!this.ctx)return;
+  // Safari background throttling: skip missed beats rather than burst-play them on resume.
+  if(this.next<this.ctx.currentTime-.1){const beat=60/clamp(this.state.bpm,60,210)/4;const skipped=Math.floor((this.ctx.currentTime-this.next)/beat)+1;this.count+=skipped;this.next+=skipped*beat;}
+  const limit=this.ctx.currentTime+.11;let safety=0;
  while(this.next<limit&&safety++<48){const step=this.count%16,bar=Math.floor(this.count/16),scene=this.getScene(bar),grid=this.state.patterns[scene]||this.state.patterns.GROOVE;
  const swing=(step%2===1?clamp(this.state.swing,0,.5)*60/this.state.bpm/4:0);
  for(let row=0;row<16;row++){const v=grid[row]?.[step]||0;if(v>.01&&!this.state.muted[row])this.playBuffer(this.ctx,this.graph.bus,row,this.next+swing,v,step);}
  this.onStep(step,scene,bar);this.count++;this.next+=60/clamp(this.state.bpm,60,210)/4;
  }
  }
- async start(){await this.unlock();if(this.running)return;this.running=true;this.next=this.ctx.currentTime+.052;this.count=0;this.graph.set(this.state);this.schedule();this.timer=setInterval(()=>this.schedule(),25);this.onTransport(true);}
- stop(){this.running=false;clearInterval(this.timer);this.timer=null;this.count=0;this.onStep(-1,this.state.scene,0);if(this.ctx){const stopAt=this.ctx.currentTime+.045;for(const source of this.active){try{source.stop(stopAt)}catch{}}this.active.clear()}if(this.graph&&this.ctx){const t=this.ctx.currentTime;this.graph.main.gain.cancelScheduledValues(t);this.graph.main.gain.setTargetAtTime(0,t,.025);setTimeout(()=>{if(!this.running&&this.graph){this.graph.set(this.state)}},140);}this.onTransport(false);}
- async toggle(){if(this.running){this.stop();return false}await this.start();return true}
+ async start(){if(this.running||this.starting)return false;
+  const epoch=this.transportEpoch;this.starting=true;
+  try{await this.unlock();if(epoch!==this.transportEpoch||this.running)return false;
+    this.running=true;this.next=this.ctx.currentTime+.052;this.count=0;this.graph.set(this.state);
+    this.schedule();this.timer=setInterval(()=>this.schedule(),25);this.onTransport(true);return true;
+  }finally{this.starting=false}
+ }
+ stop(){this.transportEpoch++;this.running=false;clearInterval(this.timer);this.timer=null;this.count=0;this.onStep(-1,this.state.scene,0);if(this.ctx){const stopAt=this.ctx.currentTime+.045;for(const source of this.active){try{source.stop(stopAt)}catch{}}this.active.clear()}if(this.graph&&this.ctx){const t=this.ctx.currentTime;this.graph.main.gain.cancelScheduledValues(t);this.graph.main.gain.setTargetAtTime(0,t,.025);setTimeout(()=>{if(!this.running&&this.graph){this.graph.set(this.state)}},140);}this.onTransport(false);}
+ async toggle(){if(this.running){this.stop();return false}return this.start()}
  async importSample(slot,file){if(!file||file.size>25*1024*1024)throw Error('Максимальный размер сэмпла 25 МБ');await this.unlock();const copy=await file.arrayBuffer();let buf;try{buf=await this.ctx.decodeAudioData(copy)}catch{throw Error('Не удалось декодировать файл. Выбери WAV, MP3 или M4A.')}if(buf.duration>8)throw Error('Сэмпл должен быть не длиннее 8 секунд');this.custom.set(slot,buf);return buf.duration;}
  resetSample(slot){this.custom.delete(slot)}
- async toggleRecording(){await this.unlock();if(this.recording){this.recorder.stop();this.recording=false;return false}
- if(typeof MediaRecorder==='undefined')throw Error('Запись недоступна в этом браузере');const options=['audio/mp4;codecs=mp4a.40.2','audio/mp4','audio/webm;codecs=opus','audio/webm'].find(s=>MediaRecorder.isTypeSupported(s));
- try{this.recorder=new MediaRecorder(this.out.stream,options?{mimeType:options}:undefined)}catch{this.recorder=new MediaRecorder(this.out.stream)}
- this.recordChunks=[];this.recorder.ondataavailable=e=>{if(e.data?.size)this.recordChunks.push(e.data)};
- this.recorder.onstop=()=>{const type=this.recorder.mimeType||options||'audio/webm',ext=type.includes('mp4')?'m4a':'webm';if(this.recordChunks.length){const blob=new Blob(this.recordChunks,{type});this.onRecordingReady?.(blob,ext)}this.recording=false;this.onRecordingChange?.(false)};
- this.recorder.start(300);this.recording=true;this.onRecordingChange?.(true);return true;}
+ async toggleRecording(){
+  if(this.recordingStopping)return false;
+  if(this.recording){
+    this.recordingStopping=true;
+    try{this.recorder.stop()}catch(e){this.recordingStopping=false;throw e}
+    return false;
+  }
+  await this.unlock();
+  if(typeof MediaRecorder==='undefined')throw Error('Запись недоступна в этом браузере');
+  const options=['audio/mp4;codecs=mp4a.40.2','audio/mp4','audio/webm;codecs=opus','audio/webm'].find(s=>MediaRecorder.isTypeSupported(s));
+  let recorder;try{recorder=new MediaRecorder(this.out.stream,options?{mimeType:options}:undefined)}
+  catch{recorder=new MediaRecorder(this.out.stream)}
+  const chunks=[];this.recorder=recorder;this.recordChunks=chunks;
+  recorder.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data)};
+  recorder.onstop=()=>{
+    const type=recorder.mimeType||options||'audio/webm',ext=type.includes('mp4')?'m4a':'webm';
+    if(this.recorder===recorder)this.recorder=null;
+    this.recording=false;this.recordingStopping=false;this.onRecordingChange?.(false);
+    if(chunks.length)this.onRecordingReady?.(new Blob(chunks,{type}),ext);
+    else this.onRecordingError?.(Error('Не удалось получить аудиозапись'));
+  };
+  recorder.onerror=()=>this.onRecordingError?.(Error('Ошибка записи аудио'));
+  try{recorder.start(300)}catch(e){this.recorder=null;throw e}
+  this.recording=true;this.onRecordingChange?.(true);return true;
+ }
  async renderWav(bars=16){if(this.running)throw Error('Останови воспроизведение перед WAV-экспортом');const barCount=bars===32?32:16;
  const sampleRate=44100,lenSec=(60/clamp(this.state.bpm,60,210))*4*barCount+1.2;
  const O=window.OfflineAudioContext||window.webkitOfflineAudioContext;if(!O)throw Error('WAV-экспорт недоступен в браузере');
@@ -299,7 +327,7 @@ const MAPS={
 };
 const COLORS=['#ff576e','#7bd2ca','#ffc67e','#b0b9c6','#bb9afe','#e97788','#b0b8c6','#86a9fa','#5ad8ce','#ff7e85','#e1b37c','#b9c6d7','#b9a7ff','#f2bd78','#a7abb9','#ff5d6c'];
 const PAD_KEYS=['1','2','3','4','q','w','e','r','a','s','d','f','z','x','c','v'];
-let bank='TECHNO',category='ALL',search='',fullTracks=false,selectedSlot=0,stepNow=-1,playing=false,startStamp=0,meterRaf=0,lastUi=0,tapTimes=[],pendingSave=0,toastTimer=0,echoReset=0,echoPrev=null;
+let bank='TECHNO',category='ALL',search='',fullTracks=false,selectedSlot=0,stepNow=-1,playing=false,transportPending=false,startStamp=0,meterRaf=0,lastUi=0,tapTimes=[],pendingSave=0,toastTimer=0,echoReset=0,echoPrev=null;
 let state=loadState(),engine=new SoundEngine(state);
 const patternHistory=[];
 function rememberPattern(){patternHistory.push({scene:state.scene,rows:state.patterns[state.scene].map(row=>row.slice())});if(patternHistory.length>24)patternHistory.shift();refreshUndo()}
@@ -333,7 +361,7 @@ function renderSequence(){const root=$('#sequence');root.replaceChildren();const
  for(let j=0;j<16;j++){const b=document.createElement('button');b.type='button';b.dataset.row=i;b.dataset.step=j;b.className='seq-cell'+(state.patterns[state.scene][i][j]>0?' on':'')+(j%4===0?' quarter':'');b.setAttribute('aria-label',`${SLOTS[i][1]} step ${j+1}`);b.setAttribute('aria-pressed',String(state.patterns[state.scene][i][j]>0));row.append(b)}root.append(row)}
  $('#toggleTracks').textContent=fullTracks?'SHOW 8 TRACKS ↘':'ALL 16 TRACKS ↗';
 }
-function renderTempo(){const p=presetById(state.presetId);$('#bpmDisplay').innerHTML=Math.round(state.bpm)+'<span>.0</span>';$('#tempoRange').value=state.bpm;$('#genreLabel').textContent=p.category+' TECHNO';$('#presetTitle').textContent=p.name;$('#transportLabel').textContent=playing?'PLAYING':'STANDBY';$('#transportDot').parentElement.classList.toggle('active',playing);$('#playBtn').classList.toggle('on',playing);$('#playBtn').setAttribute('aria-pressed',String(playing));$('#playLabel').textContent=playing?'PAUSE':'PLAY';$('#playIcon').textContent=playing?'Ⅱ':'▶';$('#clock').textContent=playing?$('#clock').textContent:'00:00'}
+function renderTempo(){const p=presetById(state.presetId);$('#bpmDisplay').innerHTML=Math.round(state.bpm)+'<span>.0</span>';$('#tempoRange').value=state.bpm;$('#genreLabel').textContent=p.category+' TECHNO';$('#presetTitle').textContent=p.name;$('#transportLabel').textContent=playing?'PLAYING':'STANDBY';$('#transportDot').parentElement.classList.toggle('active',playing);$('#playBtn').classList.toggle('on',playing);$('#playBtn').setAttribute('aria-pressed',String(playing));$('#playBtn').setAttribute('aria-label',playing?'Приостановить воспроизведение':'Запустить воспроизведение');$('#playLabel').textContent=playing?'PAUSE':'PLAY';$('#playIcon').textContent=playing?'Ⅱ':'▶';$('#clock').textContent=playing?$('#clock').textContent:'00:00'}
 function renderRack(){for(const key of ['filter','drive','space','delay','master','swing']){const s=$('#'+key);if(!s)continue;const v=key==='swing'?state.swing:state[key];s.value=Math.round(v*100);$('#'+key+'Value').textContent=key==='filter'&&v>=.98?'OPEN':Math.round(v*100)+'%'}$('#kickKit').value=state.kick;$('#autoArrange').checked=state.autoScene}
 function renderAll(){renderTempo();renderRack();renderCategories();renderPresets();renderBanks();renderPads();renderScenes();renderSequence()}
 function firePad(i){const slot=MAPS[bank]?.[i];if(slot===undefined)return;selectedSlot=slot;const b=$(`[data-pad="${i}"]`);if(b){b.classList.add('fired');clearTimeout(b._flash);b._flash=setTimeout(()=>b.classList.remove('fired'),105)}engine.hit(slot,1).then(()=>{$('#audioStatus').textContent='AUDIO ACTIVE'}).catch(error)}
@@ -343,7 +371,7 @@ function updateStep(step){if(step===stepNow)return;stepNow=step;$$('[data-beat]'
 function meterStart(){if(meterRaf)return;lastUi=0;meterRaf=requestAnimationFrame(drawMeter)}
 function drawMeter(now){meterRaf=0;if(!playing||document.hidden)return;meterRaf=requestAnimationFrame(drawMeter);if(now-lastUi<75)return;lastUi=now;const level=engine.meter();let lit=Math.min(16,Math.floor(level*20));$$('#meter i').forEach((el,i)=>{el.classList.toggle('on',i<lit);el.classList.toggle('hot',i<lit&&i>12)});$('#level').textContent=level>.001?Math.round(20*Math.log10(level))+' dB':'−∞ dB';$('#clock').textContent=formatTime((now-startStamp)/1000)}
 function meterStop(){if(meterRaf)cancelAnimationFrame(meterRaf);meterRaf=0;$$('#meter i').forEach(x=>x.className='');$('#level').textContent='−∞ dB'}
-async function playToggle(){try{playing=await engine.toggle();if(playing){startStamp=performance.now();meterStart();$('#audioStatus').textContent='AUDIO ACTIVE'}else meterStop();renderTempo()}catch(e){error(e)}}
+async function playToggle(){if(transportPending)return;transportPending=true;try{playing=await engine.toggle();if(playing){startStamp=performance.now();meterStart();$('#audioStatus').textContent='AUDIO ACTIVE'}else meterStop();renderTempo()}catch(e){error(e)}finally{transportPending=false}}
 function stop(){engine.stop();playing=false;meterStop();updateStep(-1);renderTempo()}
 function djFill(){const btn=$('#fillBtn');btn.classList.add('active');setTimeout(()=>btn.classList.remove('active'),170);engine.unlock().then(()=>{const t=engine.ctx.currentTime+.007,step=60/state.bpm/4;for(let i=0;i<6;i++){engine.playBuffer(engine.ctx,engine.graph.bus,i===5?6:3,t+step*.5*i,.44,i,false);if(i%2===0)engine.playBuffer(engine.ctx,engine.graph.bus,12,t+step*.5*i,.27,i,false)}}).catch(error)}
 function echoOut(){clearTimeout(echoReset);if(echoPrev===null)echoPrev=state.delay;state.delay=.75;update(false);$('#echoBtn').classList.add('active');echoReset=setTimeout(()=>{state.delay=echoPrev??0;echoPrev=null;update(false);$('#echoBtn').classList.remove('active');renderRack()},1200);renderRack()}
@@ -360,6 +388,7 @@ function setup(){const kit=$('#kickKit');for(const k of KICKS){const opt=documen
  $('#undoPattern').addEventListener('click',undoPattern);
  $('#mobileNavigation').addEventListener('click',e=>{const button=e.target.closest('[data-mobile-view]');if(button)setMobileView(button.dataset.mobileView)});
  setMobileView('live');
+  setupInstall();
  $('#toggleTracks').addEventListener('click',()=>{fullTracks=!fullTracks;renderSequence()});
  $('#autoArrange').addEventListener('change',e=>{state.autoScene=e.target.checked;update();renderScenes()});
  $('#clearPattern').addEventListener('click',()=>{rememberPattern();for(const row of state.patterns[state.scene])row.fill(0);update();renderSequence();notify('PATTERN CLEARED')});
@@ -377,7 +406,7 @@ function setup(){const kit=$('#kickKit');for(const k of KICKS){const opt=documen
  $('#dropBtn').addEventListener('click',()=>{state.scene='DROP';state.autoScene=false;update();renderScenes();renderRack();renderSequence();notify('DROP / PEAK SCENE')});
  $('#recordBtn').addEventListener('click',async()=>{try{await engine.toggleRecording()}catch(e){error(e)}});
  engine.onRecordingChange=val=>{$('#recordBtn').classList.toggle('recording',val);$('#recordText').textContent=val?'STOP REC':'RECORD'};
- engine.onRecordingReady=(blob,ext)=>{download(blob,`ARTSS-DJS-REC-${Date.now()}.${ext}`);notify('LIVE RECORDING SAVED')};
+ engine.onRecordingReady=(blob,ext)=>{download(blob,`ARTSS-DJS-REC-${Date.now()}.${ext}`);notify('LIVE RECORDING READY')};engine.onRecordingError=error;
  $('#renderWav').addEventListener('click',async()=>{const b=$('#renderWav');b.disabled=true;b.textContent='RENDERING…';try{const wav=await engine.renderWav(+$(`#exportLength`).value);download(wav,`ARTSS-DJS-${state.presetId}-${state.bpm}BPM.wav`);notify('WAV MASTER EXPORTED')}catch(e){error(e)}finally{b.disabled=false;b.textContent='EXPORT WAV ↗'}});
  $('#saveProject').addEventListener('click',()=>{download(new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),`ARTSS-DJS-${state.presetId}.json`);notify('PROJECT SAVED')});
  $('#importProject').addEventListener('click',()=>$('#projectFile').click());$('#projectFile').addEventListener('change',async e=>{const f=e.target.files?.[0];if(!f)return;try{const imported=sanitize(JSON.parse(await f.text()));if(!imported)throw Error('Некорректный проект');stop();patternHistory.length=0;refreshUndo();state=imported;engine.buffers.clear();update();renderAll();notify('PROJECT IMPORTED')}catch(err){error(err)}finally{e.target.value=''}});
@@ -387,6 +416,22 @@ function setup(){const kit=$('#kickKit');for(const k of KICKS){const opt=documen
  engine.onTransport=value=>{playing=value;if(!value){meterStop();updateStep(-1)}renderTempo()};
  document.addEventListener('visibilitychange',()=>{if(document.hidden){if(meterRaf)cancelAnimationFrame(meterRaf);meterRaf=0}else if(playing)meterStart()});
  window.addEventListener('beforeunload',()=>{try{localStorage.setItem(STORAGE,JSON.stringify(state))}catch{}clearTimeout(pendingSave);clearInterval(engine.timer)});
+}
+function setupInstall(){
+ const button=$('#installApp'),dialog=$('#installHelp'),close=$('#closeInstall');
+ let pending=null;
+ window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();pending=e});
+ button.addEventListener('click',async()=>{
+   if(pending){const prompt=pending;pending=null;try{await prompt.prompt()}catch(error){console.warn('Install prompt unavailable',error)}return}
+   if(typeof dialog.showModal==='function'&&!dialog.open)dialog.showModal();
+   else dialog.setAttribute('open','');
+ });
+ close.addEventListener('click',()=>typeof dialog.close==='function'?dialog.close():dialog.removeAttribute('open'));
+ dialog.addEventListener('click',e=>{if(e.target===dialog)typeof dialog.close==='function'?dialog.close():dialog.removeAttribute('open')});
+ window.addEventListener('appinstalled',()=>{pending=null;button.hidden=true});
+ if(window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true)button.hidden=true;
+ window.addEventListener('offline',()=>notify('OFFLINE MODE / AUDIO ENGINE READY'));
+ window.addEventListener('online',()=>notify('CONNECTION RESTORED'));
 }
 setup();if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 
