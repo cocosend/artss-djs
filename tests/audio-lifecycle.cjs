@@ -59,8 +59,10 @@ async function main(){
  rec.out={stream:{}};
  rec.onRecordingReady=(blob,ext)=>recorded.push({blob,ext});
  assert.equal(await rec.toggleRecording(),true);
- assert.equal(await rec.toggleRecording(),false);
- assert.equal(await rec.toggleRecording(),false,'ignore stop/start race until dataavailable');
+ const stopping=rec.toggleRecording();
+ const tooSoon=rec.toggleRecording();
+ assert.equal(await tooSoon,false,'ignore stop/start race until dataavailable');
+ assert.equal(await stopping,false);
  await tick();
  assert.equal(recorded.length,1);
  assert.equal(await recorded[0].blob.text(),'last-frame','last chunk must be retained');
