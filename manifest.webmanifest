@@ -1,1 +1,33 @@
-{"id":"artss-djs-studio-v7","name":"ARTSS DJS — Performance Studio","short_name":"ARTSS DJS","start_url":"./?v=7.0.0","display":"standalone","orientation":"portrait","background_color":"#050609","theme_color":"#050609","icons":[{"src":"./icons/icon-192.png","sizes":"192x192","type":"image/png"},{"src":"./icons/icon-512.png","sizes":"512x512","type":"image/png"}]}
+{
+  "id": "artss-djs-studio",
+  "name": "ARTSS DJS — DJ Creator",
+  "short_name": "ARTSS DJ",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#050609",
+  "theme_color": "#050609",
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "scope": "./",
+  "description": "Мобильная DJ-студия с 16 пэдами, секвенсором, записью и экспортом WAV",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "categories": [
+    "music",
+    "entertainment"
+  ],
+  "lang": "ru"
+}
