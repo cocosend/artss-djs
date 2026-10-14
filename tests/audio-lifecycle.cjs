@@ -40,10 +40,12 @@ async function main(){
  const late=new Engine();
  late.ctx={currentTime:25};
  late.running=true;late.next=10;late.count=0;
- late.playBuffer=()=>{throw Error('backlogged hits must not fire')};
+ let hits=0;late.graph={bus:{}};late.playBuffer=()=>{hits++};
  late.onStep=()=>{};
  late.schedule();
  assert(late.next>24.8,'mobile background resume skips stale steps');
+ assert(late.count>100,'clock advances past missed background beats');
+ assert(hits<=32,'background resync must not flood output with stale notes');
  const recorded=[];
  class Recorder{
   static isTypeSupported(){return true}
