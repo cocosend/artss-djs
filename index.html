@@ -4,11 +4,12 @@
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ARTSS DJS">
 <meta name="description" content="ARTSS DJS Creator — clean low-latency studio, playable DJ pads, sequencer, techno presets, live recording and WAV export.">
 <link rel="icon" href="./icons/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="./icons/icon-180.png"><link rel="manifest" href="./manifest.webmanifest">
-<title>ARTSS DJS — DJ CREATOR 7.1</title><link rel="stylesheet" href="./styles.css?v=7.1.0"></head>
+<title>ARTSS DJS — DJ CREATOR 7.2</title><link rel="stylesheet" href="./styles.css?v=7.2.0"></head>
 <body><div class="app" id="app">
  <header class="topbar">
   <div class="identity"><div class="identity-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></div><div><div class="brand">ARTSS<span>DJS</span><sup>7</sup></div><div class="brand-sub">PERFORMANCE AUDIO SYSTEM</div></div></div>
   <div class="topmeta"><span class="dot"></span><span id="audioStatus">AUDIO READY ON TOUCH</span><span class="topmeta-separator">/</span><span>44.1K · STEREO</span></div>
+  <button class="install-app" type="button" id="installApp" aria-controls="installHelp" aria-haspopup="dialog">↗ INSTALL</button>
   <button class="top-rec" type="button" id="recordBtn"><span class="rec-led"></span><span id="recordText">RECORD</span></button>
  </header>
  <div class="layout">
@@ -46,7 +47,7 @@
     <section class="panel exports-panel"><div class="sidebar-heading"><div><small>07 / PRODUCTION</small><h2>OUTPUT & FILES</h2></div></div><div class="export-buttons"><button class="main-export" id="renderWav" type="button">EXPORT WAV ↗</button><select id="exportLength" aria-label="Длина экспорта"><option value="16">16 BARS</option><option value="32">32 BARS</option></select></div><button id="importSample" type="button" class="secondary stretch">IMPORT PAD SAMPLE ↗</button><p>WAV 44.1 KHZ · 16 BIT · STEREO. LIVE CAPTURE SAVES M4A OR WEBM.</p></section>
   </aside>
  </div>
- <footer class="footer"><span>ARTSS / ORIGINAL SOUND ENGINE</span><span>V7.0 · BUILT FOR PLAY</span></footer>
+ <footer class="footer"><span>ARTSS / ORIGINAL SOUND ENGINE</span><span>V7.2 · BUILT FOR PLAY</span></footer>
  <input hidden type="file" id="projectFile" accept=".json,application/json"><input hidden type="file" id="sampleFile" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg">
  <nav class="mobile-navigation" id="mobileNavigation" aria-label="Навигация DJ Creator">
   <button type="button" data-mobile-view="live" aria-pressed="true"><span aria-hidden="true">◉</span><b>LIVE</b></button>
@@ -55,5 +56,14 @@
   <button type="button" data-mobile-view="effects" aria-pressed="false"><span aria-hidden="true">◈</span><b>FX</b></button>
   <button type="button" data-mobile-view="export" aria-pressed="false"><span aria-hidden="true">↗</span><b>EXPORT</b></button>
  </nav>
+ <dialog class="install-help" id="installHelp" aria-labelledby="installTitle">
+  <div class="install-dialog-body">
+    <span class="install-eyebrow">ARTSS DJS / INSTALL</span>
+    <h2 id="installTitle">Установить на iPhone</h2>
+    <p>Открой ARTSS DJS в Safari, нажми <strong>«Поделиться»</strong> (квадрат со стрелкой), затем <strong>«На экран „Домой“»</strong> и <strong>«Добавить»</strong>.</p>
+    <p>После установки приложение запускается с домашнего экрана и сохраняет пресеты локально. Для воспроизведения первый раз нажми PLAY или пэд.</p>
+    <button class="install-close" type="button" id="closeInstall">ПОНЯТНО</button>
+  </div>
+ </dialog>
  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
-</div><script type="module" src="./app.js?v=7.1.0"></script></body></html>
+</div><script type="module" src="./app.js?v=7.2.0"></script></body></html>

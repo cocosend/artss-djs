@@ -23,7 +23,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Check source syntax
-        run: node --check app.js && node --check sw.js
+        run: node --check app.js && node --check sw.js && node tests/audio-lifecycle.cjs
       - name: Validate package and PWA metadata
         run: |
           node -e "for (const p of ['package.json','manifest.webmanifest']) { const d=JSON.parse(require('node:fs').readFileSync(p,'utf8')); if (!d.name) throw Error(p+' missing name') }"
