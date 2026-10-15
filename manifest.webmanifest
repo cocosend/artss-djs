@@ -20,7 +20,7 @@
     }
   ],
   "scope": "./",
-  "description": "Мобильная DJ-студия с 16 пэдами, секвенсором, записью и экспортом WAV",
+  "description": "Мобильная DJ-студия с 32-пэдовым Creative Pack, сенсорной полоской, секвенсором, записью и экспортом WAV",
   "display_override": [
     "standalone",
     "minimal-ui"

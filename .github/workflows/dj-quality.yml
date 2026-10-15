@@ -23,7 +23,9 @@ jobs:
         with:
           persist-credentials: false
       - name: Check source syntax
-        run: node --check app.js && node --check midi-controller.js && node --check music-composer.js && node --check sw.js && node tests/audio-lifecycle.cjs && node tests/midi-controller.mjs && node tests/music-presets.cjs
+        run: node --check creative-pack.js && node tests/creative-pack.mjs && node tests/all-sounds.cjs && node --check app.js && node --check midi-controller.js && node --check music-composer.js && node --check sw.js && node tests/audio-lifecycle.cjs && node tests/midi-controller.mjs && node tests/music-presets.cjs
+      - name: Build production bundle
+        run: npm run build
       - name: Run real-browser interaction smoke test
         run: CHROME_BIN=/usr/bin/google-chrome node tests/browser-smoke.cjs
       - name: Validate package and PWA metadata
