@@ -1,9 +1,9 @@
 import { createMidiController } from './midi-controller.js';
-import { TONAL_ROWS, melodyPitch, composeMelodicGrid } from './music-composer.js';
+import { TONAL_ROWS, melodyPitch, composeMelodicGrid, composeDrumGroove } from './music-composer.js';
 // ARTSS DJS V7 - optimized single JS request
 
 // === music.js ===
-const VERSION='7.4.0';
+const VERSION='7.5.0';
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,Number.isFinite(+n)?+n:a));
 const SLOTS=[
  ['KICK','Kick','01','kick'],['SUB','Sub Bass','02','sub'],['CLAP','Clap','03','clap'],['HAT','Closed Hat','04','hat'],
@@ -118,7 +118,7 @@ function makePattern(presetOrId,scene='GROOVE',variation=0){
  case 'DROP':set(g,9,[0,8],.45+.4*intensity);set(g,15,[0],.8);set(g,11,[7,15],.25);set(g,0,[0,4,8,12],1);break;
  case 'BREAK':for(let r=0;r<16;r++)if(![3,4,7,8,9,14].includes(r))g[r].fill(0);set(g,9,[0],.3);set(g,4,[2,10],.36);break;
  }
- return composeMelodicGrid(g,p,scene,variation);
+ return composeMelodicGrid(composeDrumGroove(g,p,scene,variation),p,scene,variation);
 }
 const SCENE_BARS=[4,8,4,8,4];
 function sceneForBar(bar){const total=SCENE_BARS.reduce((a,b)=>a+b,0);let n=((bar%total)+total)%total;for(let i=0;i<SCENES.length;i++){if(n<SCENE_BARS[i])return SCENES[i];n-=SCENE_BARS[i];}return 'GROOVE'}
