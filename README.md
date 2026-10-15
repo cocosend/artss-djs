@@ -15,3 +15,9 @@ Run locally with `python -m http.server 8000` in this directory, then open `http
 On screens up to 900px, five reachable tabs (LIVE, CREATE, SOUNDS, FX, EXPORT) organize the existing single-engine DJ Creator. The transport and recording remain available without entering a second mixer. The step sequencer provides an undo history for up to 24 edits. Presets and projects remain local; the interface uses standard Web Audio APIs and avoids build-time dependencies.
 
 Source Google AI Studio preview URLs may require a Google authentication cookie. They are not a source-code repository and cannot be reliably scraped for a pixel-perfect recreation. Production code is maintained here instead of replacing functioning audio infrastructure without access to its original source.
+
+## Physical pad controller (SLAB-compatible MIDI learn)
+
+On desktop Chrome/Edge over HTTPS, choose **CONNECT MIDI** and grant browser permission. Press **LEARN 16 PADS**, then press your hardware pads 1–16 in order. The 16-note mapping is stored locally and applies to every sound bank. MIDI note-on velocity controls hit velocity. **RESET MAP** restores generic MIDI note numbers 36–51. The mapper is vendor-agnostic and makes no assumption about AlphaTheta SLAB's factory MIDI notes.
+
+On iPhone/Safari, Web MIDI is unavailable: the 16 touch pads, step sequencer, effects, recording and WAV export continue without a controller. The site has no deck-mixing interface or external dependencies.

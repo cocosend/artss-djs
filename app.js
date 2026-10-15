@@ -1,7 +1,8 @@
+import { createMidiController } from './midi-controller.js';
 // ARTSS DJS V7 - optimized single JS request
 
 // === music.js ===
-const VERSION='7.2.0';
+const VERSION='7.3.0';
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,Number.isFinite(+n)?+n:a));
 const SLOTS=[
  ['KICK','Kick','01','kick'],['SUB','Sub Bass','02','sub'],['CLAP','Clap','03','clap'],['HAT','Closed Hat','04','hat'],
@@ -367,7 +368,7 @@ function renderSequence(){const root=$('#sequence');root.replaceChildren();const
 function renderTempo(){const p=presetById(state.presetId);$('#bpmDisplay').innerHTML=Math.round(state.bpm)+'<span>.0</span>';$('#tempoRange').value=state.bpm;$('#genreLabel').textContent=p.category+' TECHNO';$('#presetTitle').textContent=p.name;$('#transportLabel').textContent=playing?'PLAYING':'STANDBY';$('#transportDot').parentElement.classList.toggle('active',playing);$('#playBtn').classList.toggle('on',playing);$('#playBtn').setAttribute('aria-pressed',String(playing));$('#playBtn').setAttribute('aria-label',playing?'Приостановить воспроизведение':'Запустить воспроизведение');$('#playLabel').textContent=playing?'PAUSE':'PLAY';$('#playIcon').textContent=playing?'Ⅱ':'▶';$('#clock').textContent=playing?$('#clock').textContent:'00:00'}
 function renderRack(){for(const key of ['filter','drive','space','delay','master','swing']){const s=$('#'+key);if(!s)continue;const v=key==='swing'?state.swing:state[key];s.value=Math.round(v*100);$('#'+key+'Value').textContent=key==='filter'&&v>=.98?'OPEN':Math.round(v*100)+'%'}$('#kickKit').value=state.kick;$('#autoArrange').checked=state.autoScene}
 function renderAll(){renderTempo();renderRack();renderCategories();renderPresets();renderBanks();renderPads();renderScenes();renderSequence()}
-function firePad(i){const slot=MAPS[bank]?.[i];if(slot===undefined)return;selectedSlot=slot;const b=$(`[data-pad="${i}"]`);if(b){b.classList.add('fired');clearTimeout(b._flash);b._flash=setTimeout(()=>b.classList.remove('fired'),105)}engine.hit(slot,1).then(()=>{$('#audioStatus').textContent='AUDIO ACTIVE'}).catch(error)}
+function firePad(i,velocity=1){const slot=MAPS[bank]?.[i];if(slot===undefined)return;selectedSlot=slot;const b=$(`[data-pad="${i}"]`);if(b){b.classList.add('fired');clearTimeout(b._flash);b._flash=setTimeout(()=>b.classList.remove('fired'),105)}engine.hit(slot,velocity).then(()=>{$('#audioStatus').textContent='AUDIO ACTIVE'}).catch(error)}
 function seqStep(row,step){if(!validStep(row,step))return;rememberPattern();const cells=state.patterns[state.scene][row];cells[step]=cells[step]>0?0:.86;const el=$(`[data-row="${row}"][data-step="${step}"]`);if(el){el.classList.toggle('on',cells[step]>0);el.setAttribute('aria-pressed',String(cells[step]>0))}update()}
 function waveform(){const root=$('#waveTrack');root.replaceChildren();for(let i=0;i<64;i++){const bar=document.createElement('i');bar.style.height=Math.round(10+32*Math.abs(Math.sin(i*.83)*Math.cos(i*.167))+(i%8===0?8:0))+'px';root.append(bar)}const meter=$('#meter');meter.replaceChildren();for(let i=0;i<16;i++)meter.append(document.createElement('i'))}
 function updateStep(step){if(step===stepNow)return;stepNow=step;$$('[data-beat]').forEach((el,i)=>el.classList.toggle('current',i===step));$$('.seq-cell.current').forEach(el=>el.classList.remove('current'));if(step>=0)$$(`[data-step="${step}"].seq-cell`).forEach(el=>el.classList.add('current'));$$('#waveTrack i').forEach((b,i)=>{b.classList.toggle('past',step>=0&&i<step*4);b.classList.toggle('current',step>=0&&Math.floor(i/4)===step)});}
@@ -379,6 +380,21 @@ function stop(){engine.stop();playing=false;meterStop();updateStep(-1);renderTem
 function djFill(){const btn=$('#fillBtn');btn.classList.add('active');setTimeout(()=>btn.classList.remove('active'),170);engine.unlock().then(()=>{const t=engine.ctx.currentTime+.007,step=60/state.bpm/4;for(let i=0;i<6;i++){engine.playBuffer(engine.ctx,engine.graph.bus,i===5?6:3,t+step*.5*i,.44,i,false);if(i%2===0)engine.playBuffer(engine.ctx,engine.graph.bus,12,t+step*.5*i,.27,i,false)}}).catch(error)}
 function echoOut(){clearTimeout(echoReset);if(echoPrev===null)echoPrev=state.delay;state.delay=.75;update(false);$('#echoBtn').classList.add('active');echoReset=setTimeout(()=>{state.delay=echoPrev??0;echoPrev=null;update(false);$('#echoBtn').classList.remove('active');renderRack()},1200);renderRack()}
 function setup(){const kit=$('#kickKit');for(const k of KICKS){const opt=document.createElement('option');opt.value=k.id;opt.textContent=k.name;kit.append(opt)}waveform();renderAll();
+ const midi=createMidiController({
+  onPad:(index,velocity)=>firePad(index,velocity),
+  onStatus:({message,available,connected,learning})=>{
+   $('#midiStatus').textContent=message;
+   $('#midiConnect').hidden=!available;
+   $('#midiLearn').hidden=!available;
+   $('#midiReset').hidden=!available;
+   $('#midiConnect').disabled=connected;
+   $('#midiConnect').textContent=connected?'MIDI CONNECTED':'CONNECT MIDI';
+   $('#midiLearn').disabled=!connected||learning;
+  }
+ });
+ $('#midiConnect').addEventListener('click',()=>{midi.connect()});
+ $('#midiLearn').addEventListener('click',()=>{midi.startLearn()});
+ $('#midiReset').addEventListener('click',()=>{midi.resetMap()});
  $('#pads').addEventListener('pointerdown',e=>{const b=e.target.closest('[data-pad]');if(!b||e.pointerType==='mouse'&&e.button!==0)return;e.preventDefault();firePad(Number(b.dataset.pad))});
  $('#pads').addEventListener('click',e=>{if(e.detail!==0)return;const b=e.target.closest('[data-pad]');if(b)firePad(+b.dataset.pad)});
  document.addEventListener('keydown',e=>{if(e.repeat||e.altKey||e.metaKey||e.ctrlKey||['INPUT','TEXTAREA','SELECT'].includes(e.target?.tagName))return;const key=e.key.toLowerCase(),idx=PAD_KEYS.indexOf(key);if(idx>=0){e.preventDefault();firePad(idx)}else if(e.code==='Space'){e.preventDefault();playToggle()}});

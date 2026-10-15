@@ -83,3 +83,16 @@
 .install-close{width:100%;min-height:48px;margin-top:15px;background:#ff3e51;border:0;border-radius:9px;color:#fff;font-weight:800}
 @media(max-width:580px){.install-app{font-size:10px;padding:8px 9px;margin-left:auto}.top-rec{margin-left:0}.topbar{gap:5px}.brand{font-size:25px}.identity-mark{width:30px;height:30px}}
 @media(display-mode:standalone){.install-app{display:none}}
+
+/* v7.3 — hardware-inspired 16-pad instrument, usable on touch devices. */
+.bank-panel .pad{border-radius:10px;border-color:#424853;background:linear-gradient(160deg,#343942 0%,#1b1f29 75%);-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+.bank-panel .pad::before{height:4px;opacity:1;box-shadow:0 0 16px var(--pad-color,var(--red))}
+.bank-panel .pad:active,.bank-panel .pad.fired{background:linear-gradient(150deg,#454953,#252b37);border-color:var(--pad-color,var(--red))}
+.midi-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px;padding:12px 10px;border-radius:8px;background:#0a0d13;border:1px solid #272e38}
+.midi-status{font:800 10px var(--mono);letter-spacing:.045em;color:#93dcd3;line-height:1.5}
+.midi-actions{display:flex;gap:7px;flex-wrap:wrap}
+.midi-actions button{min-height:44px;padding:8px 10px;border:1px solid #555a67;border-radius:6px;background:#222733;color:#f3f4f7;font:700 10px var(--mono);touch-action:manipulation}
+.midi-actions button:disabled{opacity:.48}
+.midi-actions button[hidden]{display:none}
+#midiLearn:not(:disabled){border-color:#db5266;color:#ffb1bc}
+@media(max-width:580px){.midi-bar{align-items:stretch}.midi-status{flex-basis:100%}.midi-actions{width:100%}.midi-actions button{flex:1;min-width:95px}}
