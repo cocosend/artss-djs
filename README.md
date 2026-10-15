@@ -21,3 +21,7 @@ Source Google AI Studio preview URLs may require a Google authentication cookie.
 On desktop Chrome/Edge over HTTPS, choose **CONNECT MIDI** and grant browser permission. Press **LEARN 16 PADS**, then press your hardware pads 1–16 in order. The 16-note mapping is stored locally and applies to every sound bank. MIDI note-on velocity controls hit velocity. **RESET MAP** restores generic MIDI note numbers 36–51. The mapper is vendor-agnostic and makes no assumption about AlphaTheta SLAB's factory MIDI notes.
 
 On iPhone/Safari, Web MIDI is unavailable: the 16 touch pads, step sequencer, effects, recording and WAV export continue without a controller. The site has no deck-mixing interface or external dependencies.
+
+## Original music engine v7.4
+
+The 40 factory presets no longer share a fixed eight-note riff: each has deterministic scale-aware melodic rhythms, a keyed tonal identity, custom patch coloring, scene-dependent layering, and 8-bar harmonic movement. The **NEW RIFF** button on CREATE recomposes only tonal tracks across scenes; existing drums, effects and transport settings remain intact. The selected variation is saved in localStorage and exported project JSON. The same `melodyPitch()` calculation is used by live playback and offline WAV export. Existing projects can load without a destructive storage reset.

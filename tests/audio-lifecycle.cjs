@@ -2,17 +2,18 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
-const code=fs.readFileSync('app.js','utf8').replace(/^import\s+\{\s*createMidiController\s*\}\s+from\s+['"]\.\/midi-controller\.js['"];?\r?\n/m, '');
+const code=fs.readFileSync('app.js','utf8').replace(/^import\s+.*?;\r?\n/gm, '');
+const composition=fs.readFileSync('music-composer.js','utf8').replace(/^export\s+/gm,'');
 const marker='// === app.js ===';
 assert(code.includes(marker),'audio runtime boundary missing');
-new vm.Script(code,{filename:'app.js'});
+new vm.Script(composition+'\n'+code,{filename:'app.js'});
 const prefix=code.slice(0,code.indexOf(marker));
 const ctx={
  console,Blob,performance:{now:()=>0},window:{},navigator:{},
  setInterval:()=>31,clearInterval:()=>{},
  setTimeout:(fn)=>{fn();return 32},clearTimeout:()=>{},
 };
-vm.runInNewContext(prefix+'\n globalThis.EngineTest=SoundEngine;globalThis.StateTest=blankState;',ctx,{filename:'audio-runtime.js'});
+vm.runInNewContext(composition+'\n'+prefix+'\n globalThis.EngineTest=SoundEngine;globalThis.StateTest=blankState;',ctx,{filename:'audio-runtime.js'});
 const Engine=ctx.EngineTest;
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 async function main(){
