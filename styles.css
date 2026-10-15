@@ -96,3 +96,8 @@
 .midi-actions button[hidden]{display:none}
 #midiLearn:not(:disabled){border-color:#db5266;color:#ffb1bc}
 @media(max-width:580px){.midi-bar{align-items:stretch}.midi-status{flex-basis:100%}.midi-actions{width:100%}.midi-actions button{flex:1;min-width:95px}}
+
+/* v7.4 melodic production. Explicit remix control, usable with the sequencer on iPhone. */
+.new-riff{color:#fff!important;text-decoration:none!important;border:1px solid #914653!important;border-radius:7px!important;background:linear-gradient(125deg,#6b2331,#3a1923)!important;padding:10px 12px!important;min-height:44px;flex-shrink:0}
+.riff-count{color:#84ded0;font-size:10px;font-weight:800;letter-spacing:.08em;font-variant-numeric:tabular-nums;white-space:nowrap}
+@media(max-width:580px){.sequence-actions{justify-content:flex-start;gap:9px}.sequence-actions .toggle{flex-basis:100%}.new-riff{min-width:112px}}
