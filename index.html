@@ -4,10 +4,10 @@
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ARTSS DJS">
 <meta name="description" content="ARTSS DJS Creator — clean low-latency studio, playable DJ pads, sequencer, techno presets, live recording and WAV export.">
 <link rel="icon" href="./icons/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="./icons/icon-180.png"><link rel="manifest" href="./manifest.webmanifest">
-<title>ARTSS DJS — DJ CREATOR 7.2</title><link rel="stylesheet" href="./styles.css?v=7.2.0"></head>
+<title>ARTSS DJS — BEAT CREATOR 7.3</title><link rel="stylesheet" href="./styles.css?v=7.3.0"></head>
 <body><div class="app" id="app">
  <header class="topbar">
-  <div class="identity"><div class="identity-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></div><div><div class="brand">ARTSS<span>DJS</span><sup>7</sup></div><div class="brand-sub">PERFORMANCE AUDIO SYSTEM</div></div></div>
+  <div class="identity"><div class="identity-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></div><div><div class="brand">ARTSS<span>DJS</span><sup>7</sup></div><div class="brand-sub">TECHNO PRODUCTION STUDIO</div></div></div>
   <div class="topmeta"><span class="dot"></span><span id="audioStatus">AUDIO READY ON TOUCH</span><span class="topmeta-separator">/</span><span>44.1K · STEREO</span></div>
   <button class="install-app" type="button" id="installApp" aria-controls="installHelp" aria-haspopup="dialog">↗ INSTALL</button>
   <button class="top-rec" type="button" id="recordBtn"><span class="rec-led"></span><span id="recordText">RECORD</span></button>
@@ -22,7 +22,7 @@
   </aside>
   <main class="workspace">
     <section class="console panel">
-      <div class="console-top"><div class="section-code">02 / CONTROL DECK <span>·</span> ENGINE A</div><div class="running-state"><span class="dot" id="transportDot"></span><span id="transportLabel">STANDBY</span></div></div>
+      <div class="console-top"><div class="section-code">02 / BEAT ENGINE <span>·</span> ENGINE A</div><div class="running-state"><span class="dot" id="transportDot"></span><span id="transportLabel">STANDBY</span></div></div>
       <div class="transport-main">
         <div class="tempo-block"><span class="micro">TEMPO / BPM</span><div class="bpm-row"><button type="button" class="bpm-btn" id="bpmDown" aria-label="Минус BPM">−</button><div class="bpm-display" id="bpmDisplay">128<span>.0</span></div><button type="button" class="bpm-btn" id="bpmUp" aria-label="Плюс BPM">+</button></div><div class="tempo-foot"><button id="tapTempo" class="text-btn" type="button">TAP TEMPO</button><span id="genreLabel">ROLLING TECHNO</span></div></div>
         <div class="wave-block"><div class="wave-top"><span id="presetTitle">DARK ROLLING</span><span id="clock">00:00</span></div><div class="wave-track" id="waveTrack" aria-label="Визуализация ритма"></div><div class="wave-bottom"><span id="sceneLabel">GROOVE</span><span>16 STEPS <i></i> LIVE ENGINE</span></div></div>
@@ -30,7 +30,15 @@
       </div>
       <div class="transport-footer"><div class="tempo-slider"><label for="tempoRange">TEMPO RANGE</label><input type="range" min="60" max="200" id="tempoRange" value="128"></div><div class="meter-wrap"><span>OUTPUT</span><div class="meter" id="meter" aria-hidden="true"></div><strong id="level">−∞ dB</strong></div><button class="secondary stop-btn" id="stopBtn" type="button">■ STOP</button></div>
     </section>
-    <section class="bank-panel panel"><div class="section-heading"><div><div class="section-code">03 / LIVE PERFORMANCE</div><h2>DRUM & SYNTH PADS</h2></div><span class="section-note">INSTANT TRIGGER · 16 VOICES</span></div><div class="bank-tabs" id="banks"></div><div class="pads" id="pads" aria-label="16 ударных и синтезаторных пэдов"></div><div class="pads-foot"><span><kbd>1—4</kbd> <kbd>Q—R</kbd> <kbd>A—F</kbd> <kbd>Z—V</kbd> KEYBOARD</span><span>TOUCH · PRESS · PLAY</span></div></section>
+    <section class="bank-panel panel"><div class="section-heading"><div><div class="section-code">03 / LIVE PERFORMANCE</div><h2>DRUM & SYNTH PADS</h2></div><span class="section-note">INSTANT TRIGGER · 16 VOICES</span></div><div class="bank-tabs" id="banks"></div><div class="pads" id="pads" aria-label="16 ударных и синтезаторных пэдов"></div><div class="pads-foot"><span><kbd>1—4</kbd> <kbd>Q—R</kbd> <kbd>A—F</kbd> <kbd>Z—V</kbd> KEYBOARD</span><span>TOUCH · PRESS · PLAY</span></div>
+      <div class="midi-bar" aria-label="MIDI pad controller setup">
+        <span class="midi-status" id="midiStatus" role="status" aria-live="polite">MIDI: TOUCH MODE</span>
+        <div class="midi-actions">
+          <button type="button" id="midiConnect" hidden>CONNECT MIDI</button>
+          <button type="button" id="midiLearn" hidden disabled>LEARN 16 PADS</button>
+          <button type="button" id="midiReset" hidden>RESET MAP</button>
+        </div>
+      </div></section>
     <section class="sequence-panel panel"><div class="section-heading"><div><div class="section-code">04 / TRACK ARCHITECT</div><h2>STEP SEQUENCER</h2></div><div class="sequence-toolbar"><button type="button" id="undoPattern" class="text-btn" disabled aria-label="Отменить последнее изменение паттерна">UNDO ↶</button><button type="button" id="toggleTracks" class="text-btn">ALL 16 TRACKS ↗</button></div></div><div class="scene-tabs" id="sceneTabs"></div><div class="sequence-viewport"><div id="sequence" class="sequence" role="group" aria-label="16 шагов по инструментам"></div></div><div class="sequence-actions"><label class="toggle"><input type="checkbox" id="autoArrange"><span class="toggle-ui"></span>AUTO ARRANGE</label><button type="button" class="text-btn" id="clearPattern">CLEAR PATTERN</button><button type="button" class="text-btn" id="randomFill">GENERATE FILL</button></div></section>
   </main>
   <aside class="rack">
@@ -43,7 +51,7 @@
       <div class="fx-row"><div class="fx-icon">06</div><label for="swing">SWING <span id="swingValue">0%</span></label><input id="swing" type="range" min="0" max="48" value="0"></div>
       <div class="kit-select"><label for="kickKit">KICK MODEL</label><select id="kickKit"></select></div>
     </section>
-    <section class="panel performance-panel"><div class="sidebar-heading"><div><small>06 / TRANSITIONS</small><h2>DJ PERFORMANCE</h2></div></div><div class="action-grid"><button type="button" id="fillBtn"><b>FILL</b><small>RHYTHM</small></button><button type="button" id="echoBtn"><b>ECHO</b><small>TAIL</small></button><button type="button" id="kickNext"><b>SWITCH</b><small>KICK</small></button><button type="button" id="dropBtn"><b>DROP</b><small>SCENE</small></button></div></section>
+    <section class="panel performance-panel"><div class="sidebar-heading"><div><small>06 / TRANSITIONS</small><h2>LIVE FX & SCENES</h2></div></div><div class="action-grid"><button type="button" id="fillBtn"><b>FILL</b><small>RHYTHM</small></button><button type="button" id="echoBtn"><b>ECHO</b><small>TAIL</small></button><button type="button" id="kickNext"><b>SWITCH</b><small>KICK</small></button><button type="button" id="dropBtn"><b>DROP</b><small>SCENE</small></button></div></section>
     <section class="panel exports-panel"><div class="sidebar-heading"><div><small>07 / PRODUCTION</small><h2>OUTPUT & FILES</h2></div></div><div class="export-buttons"><button class="main-export" id="renderWav" type="button">EXPORT WAV ↗</button><select id="exportLength" aria-label="Длина экспорта"><option value="16">16 BARS</option><option value="32">32 BARS</option></select></div><button id="importSample" type="button" class="secondary stretch">IMPORT PAD SAMPLE ↗</button><p>WAV 44.1 KHZ · 16 BIT · STEREO. LIVE CAPTURE SAVES M4A OR WEBM.</p></section>
   </aside>
  </div>
@@ -66,4 +74,4 @@
   </div>
  </dialog>
  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
-</div><script type="module" src="./app.js?v=7.2.0"></script></body></html>
+</div><script type="module" src="./app.js?v=7.3.0"></script></body></html>
