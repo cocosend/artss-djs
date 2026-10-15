@@ -234,7 +234,7 @@ function encodeWav(buffer){const n=buffer.length,ch=2,bytes=44+n*ch*2,out=new Ar
  for(let i=0;i<n;i++){for(const x of [l[i],r[i]]){const s=clamp(x*makeup,-.95,.95);v.setInt16(p,s<0?s*32768:s*32767,true);p+=2}}return new Blob([out],{type:'audio/wav'});
 }
 class SoundEngine{
- constructor(state=blankState()){this.state=state;this.ctx=null;this.graph=null;this.buffers=new Map();this.custom=new Map();this.active=new Set();this.running=false;this.timer=null;this.next=0;this.count=0;this.onStep=()=>{};this.onTransport=()=>{};this.recorder=null;this.recordChunks=[];this.recording=false;this.recordingStopping=false;this.recordedMime='';this.transportEpoch=0;this.starting=false;}
+ constructor(state=blankState()){this.state=state;this.ctx=null;this.graph=null;this.buffers=new Map();this.custom=new Map();this.active=new Set();this.running=false;this.timer=null;this.next=0;this.count=0;this.onStep=()=>{};this.onTransport=()=>{};this.recorder=null;this.recordChunks=[];this.recording=false;this.recordingStarting=false;this.recordingStopping=false;this.recordedMime='';this.transportEpoch=0;this.starting=false;}
  async unlock(){if(this.ctx?.state==='closed'){this.ctx=null;this.graph=null;this.out=null;this.buffers.clear()}
  if(!this.ctx){const C=window.AudioContext||window.webkitAudioContext;if(!C)throw Error('Web Audio не поддерживается');this.ctx=new C({latencyHint:'interactive'});this.out=this.ctx.createMediaStreamDestination();this.graph=chain(this.ctx,this.ctx.destination,this.state);this.graph.main.connect(this.out);}
  if(this.ctx.state!=='running')await this.ctx.resume();
@@ -277,29 +277,32 @@ class SoundEngine{
  async importSample(slot,file){if(!file||file.size>25*1024*1024)throw Error('Максимальный размер сэмпла 25 МБ');await this.unlock();const copy=await file.arrayBuffer();let buf;try{buf=await this.ctx.decodeAudioData(copy)}catch{throw Error('Не удалось декодировать файл. Выбери WAV, MP3 или M4A.')}if(buf.duration>8)throw Error('Сэмпл должен быть не длиннее 8 секунд');this.custom.set(slot,buf);return buf.duration;}
  resetSample(slot){this.custom.delete(slot)}
  async toggleRecording(){
-  if(this.recordingStopping)return false;
+  if(this.recordingStarting||this.recordingStopping)return false;
   if(this.recording){
     this.recordingStopping=true;
     try{this.recorder.stop()}catch(e){this.recordingStopping=false;throw e}
     return false;
   }
-  await this.unlock();
-  if(typeof MediaRecorder==='undefined')throw Error('Запись недоступна в этом браузере');
-  const options=['audio/mp4;codecs=mp4a.40.2','audio/mp4','audio/webm;codecs=opus','audio/webm'].find(s=>MediaRecorder.isTypeSupported(s));
-  let recorder;try{recorder=new MediaRecorder(this.out.stream,options?{mimeType:options}:undefined)}
-  catch{recorder=new MediaRecorder(this.out.stream)}
-  const chunks=[];this.recorder=recorder;this.recordChunks=chunks;
-  recorder.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data)};
-  recorder.onstop=()=>{
-    const type=recorder.mimeType||options||'audio/webm',ext=type.includes('mp4')?'m4a':'webm';
-    if(this.recorder===recorder)this.recorder=null;
-    this.recording=false;this.recordingStopping=false;this.onRecordingChange?.(false);
-    if(chunks.length)this.onRecordingReady?.(new Blob(chunks,{type}),ext);
-    else this.onRecordingError?.(Error('Не удалось получить аудиозапись'));
-  };
-  recorder.onerror=()=>this.onRecordingError?.(Error('Ошибка записи аудио'));
-  try{recorder.start(300)}catch(e){this.recorder=null;throw e}
-  this.recording=true;this.onRecordingChange?.(true);return true;
+  this.recordingStarting=true;
+  try{
+    await this.unlock();
+    if(typeof MediaRecorder==='undefined')throw Error('Запись недоступна в этом браузере');
+    const options=['audio/mp4;codecs=mp4a.40.2','audio/mp4','audio/webm;codecs=opus','audio/webm'].find(s=>MediaRecorder.isTypeSupported(s));
+    let recorder;try{recorder=new MediaRecorder(this.out.stream,options?{mimeType:options}:undefined)}
+    catch{recorder=new MediaRecorder(this.out.stream)}
+    const chunks=[];this.recorder=recorder;this.recordChunks=chunks;
+    recorder.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data)};
+    recorder.onstop=()=>{
+      const type=recorder.mimeType||options||'audio/webm',ext=type.includes('mp4')?'m4a':'webm';
+      if(this.recorder===recorder)this.recorder=null;
+      this.recording=false;this.recordingStopping=false;this.onRecordingChange?.(false);
+      if(chunks.length)this.onRecordingReady?.(new Blob(chunks,{type}),ext);
+      else this.onRecordingError?.(Error('Не удалось получить аудиозапись'));
+    };
+    recorder.onerror=()=>this.onRecordingError?.(Error('Ошибка записи аудио'));
+    try{recorder.start(300)}catch(e){this.recorder=null;throw e}
+    this.recording=true;this.onRecordingChange?.(true);return true;
+  }finally{this.recordingStarting=false}
  }
  async renderWav(bars=16){if(this.running)throw Error('Останови воспроизведение перед WAV-экспортом');const barCount=bars===32?32:16;
  const sampleRate=44100,lenSec=(60/clamp(this.state.bpm,60,210))*4*barCount+1.2;
