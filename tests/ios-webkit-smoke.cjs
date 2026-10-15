@@ -14,7 +14,9 @@ const server=http.createServer(async(req,res)=>{
   if(decoded.includes('..')||!decoded.startsWith('/')){res.writeHead(403).end();return}
   const file=path.resolve(root,'.'+decoded);
   if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return}
-  const data=await fs.readFile(file);
+  let data=await fs.readFile(file);
+  // Test-only probe appended inside the ESM lexical scope; never shipped to production.
+  if(decoded==='/app.js')data=Buffer.from(data.toString('utf8')+'\nwindow.__djAudioProbe=()=>({state:engine.ctx?.state,running:engine.running,rms:engine.meter()});\n');
   res.writeHead(200,{'Content-Type':types[path.extname(file)]||'application/octet-stream','Cache-Control':'no-store'});res.end(data);
  }catch{res.writeHead(404).end()}
 });
@@ -47,10 +49,13 @@ const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   assert.equal(await cell.getAttribute('aria-pressed'),previous,'undo failed');
   await page.locator('#mobileNavigation [data-mobile-view="live"]').tap();
   await page.locator('#pads .pad').first().tap();
-  await page.waitForFunction(()=>document.querySelector('#audioStatus').textContent.includes('AUDIO ACTIVE'),{timeout:10000});
+  await page.waitForFunction(()=>document.querySelector('#audioStatus').textContent.includes('AUDIO ACTIVE'),null,{timeout:10000});
+  await page.waitForFunction(()=>window.__djAudioProbe?.().state==='running',null,{timeout:10000});
   await page.locator('#playBtn').tap();
   await page.waitForFunction(()=>document.querySelector('#playBtn').getAttribute('aria-pressed')==='true',{timeout:10000});
-  await pause(500);
+  let peak=0;
+  for(let i=0;i<16;i++){await pause(85);const m=await page.evaluate(()=>window.__djAudioProbe?.().rms||0);peak=Math.max(peak,m)}
+  assert(peak>0.001,'WebKit transport is playing but audio output analyser stays silent; peak='+peak);
   await page.locator('#stopBtn').tap();
   assert.equal(await page.locator('#playBtn').getAttribute('aria-pressed'),'false','STOP failed');
   await page.locator('#installApp').tap();
@@ -59,6 +64,6 @@ const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   assert.equal(errors.length,0,'Unhandled browser errors: '+errors.join(' | '));
   assert.equal(failed.length,0,'Failed local resources: '+failed.join(' | '));
   await context.close();
-  console.log('PASS WebKit mobile touch: imports, 16 pads, tab navigation, sequence, undo, audio unlock, transport, PWA install');
+  console.log('PASS WebKit mobile touch: imports, 16 pads, tab navigation, sequence, undo, audio unlock, audible signal, transport, PWA install');
  }finally{await browser?.close();await new Promise(resolve=>server.close(resolve))}
 })().catch(e=>{console.error(e);process.exitCode=1});
