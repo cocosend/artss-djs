@@ -4,7 +4,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ARTSS DJS">
 <meta name="description" content="ARTSS DJS Creator — clean low-latency studio, playable DJ pads, sequencer, techno presets, live recording and WAV export.">
 <link rel="icon" href="./icons/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="./icons/icon-180.png"><link rel="manifest" href="./manifest.webmanifest">
-<title>ARTSS DJS — BEAT CREATOR 7.5</title><link rel="stylesheet" href="./styles.css?v=7.5.0"></head>
+<title>ARTSS DJS — BEAT CREATOR 7.6</title><link rel="stylesheet" href="./styles.css?v=7.6.0"></head>
 <body><div class="app" id="app">
  <header class="topbar">
   <div class="identity"><div class="identity-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></div><div><div class="brand">ARTSS<span>DJS</span><sup>7</sup></div><div class="brand-sub">TECHNO PRODUCTION STUDIO</div></div></div>
@@ -30,8 +30,12 @@
       </div>
       <div class="transport-footer"><div class="tempo-slider"><label for="tempoRange">TEMPO RANGE</label><input type="range" min="60" max="200" id="tempoRange" value="128"></div><div class="meter-wrap"><span>OUTPUT</span><div class="meter" id="meter" aria-hidden="true"></div><strong id="level">−∞ dB</strong></div><button class="secondary stop-btn" id="stopBtn" type="button">■ STOP</button></div>
     </section>
-    <section class="bank-panel panel"><div class="section-heading"><div><div class="section-code">03 / LIVE PERFORMANCE</div><h2>DRUM & SYNTH PADS</h2></div><span class="section-note">INSTANT TRIGGER · 16 VOICES</span></div><div class="bank-tabs" id="banks"></div><div class="pads" id="pads" aria-label="16 ударных и синтезаторных пэдов"></div><div class="pads-foot"><span><kbd>1—4</kbd> <kbd>Q—R</kbd> <kbd>A—F</kbd> <kbd>Z—V</kbd> KEYBOARD</span><span>TOUCH · PRESS · PLAY</span></div>
-      <div class="midi-bar" aria-label="MIDI pad controller setup">
+    <section class="bank-panel panel"><div class="section-heading"><div><div class="section-code">03 / LIVE PERFORMANCE</div><h2>DRUM & SYNTH PADS</h2></div><span class="section-note">INSTANT TRIGGER · 16 VOICES</span></div><div class="bank-tabs" id="banks"></div>
+ <div class="creative-pages" id="creativePages" hidden><button type="button" data-pack-page="0" aria-pressed="true">PAGE A <small>LOOPS</small></button><button type="button" data-pack-page="1" aria-pressed="false">PAGE B <small>ONE-SHOTS</small></button><span>120 BPM · Fm</span></div>
+ <p class="pack-note" id="packNote" hidden>32 ORIGINAL SYNTH VOICES · LOOPS SNAP TO THE GRID · IMPORT YOUR OWN SAMPLES</p><div class="pads" id="pads" aria-label="16 ударных и синтезаторных пэдов"></div><div class="pads-foot"><span><kbd>1—4</kbd> <kbd>Q—R</kbd> <kbd>A—F</kbd> <kbd>Z—V</kbd> KEYBOARD</span><span>TOUCH · PRESS · PLAY</span></div>
+      <div class="strip-heading"><label for="stripMode">TOUCH STRIP</label><select id="stripMode" aria-label="Режим сенсорной полоски"><option value="synth">FM SYNTH · F MINOR</option><option value="filter">FILTER + ECHO FX</option></select></div>
+ <div id="touchStrip" class="touch-strip" role="slider" tabindex="0" aria-label="Сенсорная полоска синтезатора и эффектов" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"><span>LOW</span><b id="stripValue">SLIDE · RELEASE TO RESET</b><span>HIGH</span></div>
+ <div class="midi-bar" aria-label="MIDI pad controller setup">
         <span class="midi-status" id="midiStatus" role="status" aria-live="polite">MIDI: TOUCH MODE</span>
         <div class="midi-actions">
           <button type="button" id="midiConnect" hidden>CONNECT MIDI</button>
@@ -52,10 +56,10 @@
       <div class="kit-select"><label for="kickKit">KICK MODEL</label><select id="kickKit"></select></div>
     </section>
     <section class="panel performance-panel"><div class="sidebar-heading"><div><small>06 / TRANSITIONS</small><h2>LIVE FX & SCENES</h2></div></div><div class="action-grid"><button type="button" id="fillBtn"><b>FILL</b><small>RHYTHM</small></button><button type="button" id="echoBtn"><b>ECHO</b><small>TAIL</small></button><button type="button" id="kickNext"><b>SWITCH</b><small>KICK</small></button><button type="button" id="dropBtn"><b>DROP</b><small>SCENE</small></button></div></section>
-    <section class="panel exports-panel"><div class="sidebar-heading"><div><small>07 / PRODUCTION</small><h2>OUTPUT & FILES</h2></div></div><div class="export-buttons"><button class="main-export" id="renderWav" type="button">EXPORT WAV ↗</button><select id="exportLength" aria-label="Длина экспорта"><option value="16">16 BARS</option><option value="32">32 BARS</option></select></div><button id="importSample" type="button" class="secondary stretch">IMPORT PAD SAMPLE ↗</button><p>WAV 44.1 KHZ · 16 BIT · STEREO. LIVE CAPTURE SAVES M4A OR WEBM.</p></section>
+    <section class="panel exports-panel"><div class="sidebar-heading"><div><small>07 / PRODUCTION</small><h2>OUTPUT & FILES</h2></div></div><div class="export-buttons"><button class="main-export" id="renderWav" type="button">EXPORT WAV ↗</button><select id="exportLength" aria-label="Длина экспорта"><option value="16">16 BARS</option><option value="32">32 BARS</option></select></div><button id="importSample" type="button" class="secondary stretch">IMPORT PAD SAMPLE ↗</button><p>WAV 44.1 KHZ · 16 BIT · STEREO. LIVE CAPTURE SAVES M4A OR WEBM. IMPORTED SAMPLES STAY IN THIS SESSION.</p></section>
   </aside>
  </div>
- <footer class="footer"><span>ARTSS / ORIGINAL SOUND ENGINE</span><span>V7.5 · DISTINCT ORIGINAL RIFFS</span></footer>
+ <footer class="footer"><span>ARTSS / ORIGINAL SOUND ENGINE</span><span>V7.6 · 32-PAD CREATIVE PACK + TOUCH STRIP</span></footer>
  <input hidden type="file" id="projectFile" accept=".json,application/json"><input hidden type="file" id="sampleFile" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg">
  <nav class="mobile-navigation" id="mobileNavigation" aria-label="Навигация DJ Creator">
   <button type="button" data-mobile-view="live" aria-pressed="true"><span aria-hidden="true">◉</span><b>LIVE</b></button>
@@ -74,4 +78,4 @@
   </div>
  </dialog>
  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
-</div><script type="module" src="./app.js?v=7.5.0"></script></body></html>
+</div><script type="module" src="./app.js?v=7.6.0"></script></body></html>

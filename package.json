@@ -1,1 +1,11 @@
-{"name":"artss-djs","version":"7.5.0","type":"module"}
+{
+  "name": "artss-djs",
+  "version": "7.6.0",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node tests/audio-lifecycle.cjs && node tests/midi-controller.mjs && node tests/music-presets.cjs && node tests/creative-pack.mjs && node tests/all-sounds.cjs",
+    "test:browser": "node tests/browser-smoke.cjs",
+    "test:webkit": "node tests/ios-webkit-smoke.cjs"
+  }
+}
