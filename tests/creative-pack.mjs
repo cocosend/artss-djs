@@ -30,4 +30,10 @@ const selected=pack.selection();pack.stop();assert.deepEqual(pack.selection(),se
 let writes=0;const offline=new CreativePackEngine(engine);offline.restore([1,2,3,5,9]);offline.play=()=>writes++;
 for(let step=0;step<16;step++)offline.schedule(ctx,{},step/8,step,0,false);
 assert(writes>=16,'offline render omitted selected pack loops');
+offline.requestScene('DROP');offline.applyPending(32,ctx,{},4);
+const sceneSelection=new Set(offline.selection()),renderedSelection=new Set();
+engine.state.autoScene=true;engine.getScene=()=> 'DROP';offline.play=(_ctx,_out,p)=>renderedSelection.add(p.id);
+for(let step=0;step<16;step++)offline.schedule(ctx,{},step/8,step,0,false);
+assert.deepEqual(renderedSelection,sceneSelection,'auto-scene WAV and live arrangement differ');
+pack.restore([5,6,7,9,10]);assert.equal([...pack.loops].filter(id=>id>=5&&id<=8).length,1,'imported bass choices bypass choke groups');
 console.log('PASS 32 Creative voices: finite PCM, audible energy, peaks, fades, deterministic rendering, quantization, choke, edits and offline arrangement');

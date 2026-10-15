@@ -364,9 +364,9 @@ let packPage=state.creativePage===1?1:0,selectedCreative=1;
 pack.enabled=!!state.creativeEnabled;
 pack.patterns=state.creativePatterns??{};pack.restore(state.creativeLoops);
 const patternHistory=[];
-function rememberPattern(){if(pack.enabled){patternHistory.push({creative:true,loops:pack.selection(),patterns:JSON.parse(JSON.stringify(pack.patterns))});if(patternHistory.length>24)patternHistory.shift();refreshUndo();return}patternHistory.push({scene:state.scene,rows:state.patterns[state.scene].map(row=>row.slice())});if(patternHistory.length>24)patternHistory.shift();refreshUndo()}
+function rememberPattern(){if(pack.enabled){patternHistory.push({creative:true,loops:pack.selection(),variation:state.melodyVariation,patterns:JSON.parse(JSON.stringify(pack.patterns))});if(patternHistory.length>24)patternHistory.shift();refreshUndo();return}patternHistory.push({scene:state.scene,rows:state.patterns[state.scene].map(row=>row.slice())});if(patternHistory.length>24)patternHistory.shift();refreshUndo()}
 function refreshUndo(){const button=$('#undoPattern');if(button)button.disabled=!patternHistory.length}
-function undoPattern(){const previous=patternHistory.pop();if(!previous)return;if(previous.creative){pack.patterns=previous.patterns;pack.restore(previous.loops);update();renderSequence();refreshUndo();return}state.scene=previous.scene;state.autoScene=false;state.patterns[previous.scene]=previous.rows;update();renderScenes();renderRack();renderSequence();refreshUndo();notify('LAST PATTERN CHANGE UNDONE')}
+function undoPattern(){const previous=patternHistory.pop();if(!previous)return;if(previous.creative){state.melodyVariation=previous.variation??0;$('#riffVariation').textContent='RIFF '+String(state.melodyVariation+1).padStart(2,'0');pack.patterns=previous.patterns;pack.restore(previous.loops);update();renderSequence();refreshUndo();return}state.scene=previous.scene;state.autoScene=false;state.patterns[previous.scene]=previous.rows;update();renderScenes();renderRack();renderSequence();refreshUndo();notify('LAST PATTERN CHANGE UNDONE')}
 function setMobileView(view){if(!['live','sequence','sounds','effects','export'].includes(view))return;document.body.dataset.mobileView=view;for(const b of $$('#mobileNavigation [data-mobile-view]'))b.setAttribute('aria-pressed',String(b.dataset.mobileView===view));if(window.matchMedia('(max-width:900px)').matches)window.scrollTo({top:0,behavior:'instant'})}
 
 function sanitize(raw){if(!raw||!raw.patterns)return null;const b=blankState(typeof raw.presetId==='string'?raw.presetId:undefined);for(const k of ['bpm','scene','swing','master','filter','space','delay','drive'])if(raw[k]!==undefined)b[k]=raw[k];if(KICKS.some(k=>k.id===raw.kick))b.kick=raw.kick;b.bpm=clamp(b.bpm,60,200);for(const k of ['master','filter','space','delay','drive'])b[k]=clamp(b[k],0,1);b.swing=clamp(b.swing,0,.48);b.scene=SCENES.includes(b.scene)?b.scene:'GROOVE';b.autoScene=!!raw.autoScene;b.melodyVariation=Math.round(clamp(raw.melodyVariation??0,0,1023));b.muted=Array.from({length:16},(_,i)=>!!raw.muted?.[i]);for(const sc of SCENES){const p=raw.patterns?.[sc];if(!Array.isArray(p)||p.length!==16)return null;b.patterns[sc]=p.map(row=>Array.from({length:16},(_,j)=>clamp(row?.[j]??0,0,1)))}b.creativePatterns={};for(let id=1;id<=16;id++){const row=raw.creativePatterns?.[id];if(Array.isArray(row)&&row.length===16)b.creativePatterns[id]=row.map(v=>clamp(v,0,1))}b.creativeEnabled=raw.creativeEnabled===true;b.creativePage=raw.creativePage===1?1:0;b.creativeLoops=Array.isArray(raw.creativeLoops)?raw.creativeLoops.filter(id=>Number.isInteger(id)&&id>=1&&id<=16):[];return b}
@@ -439,7 +439,7 @@ function renderCreativePads(){
 }
 function setCreativeMode(enabled){
  if(pack.enabled===enabled){renderBanks();renderPads();return}
- stop();pack.enabled=enabled;state.creativeEnabled=enabled;
+ stop();patternHistory.length=0;refreshUndo();pack.enabled=enabled;state.creativeEnabled=enabled;
  if(enabled){if(!pack.loops.size)pack.restore([1,2,3,5,9]);state.bpm=CREATIVE_PACK.bpm;state.space=.2;state.delay=.15;state.filter=1;state.creativeLoops=pack.selection();}
  update();renderAll();notify(enabled?'CREATIVE PACK / 32 PADS / F MINOR':'FACTORY DRUM & SYNTH BANK');
 }
@@ -463,7 +463,7 @@ function setupCreativeControls(){
  strip.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button!==0)return;e.preventDefault();strip.setPointerCapture(e.pointerId);const rect=strip.getBoundingClientRect();position=clamp((e.clientX-rect.left)/rect.width,0,1);begin()});
  strip.addEventListener('pointermove',e=>{if(!held)return;e.preventDefault();const rect=strip.getBoundingClientRect();move((e.clientX-rect.left)/rect.width)});
  for(const event of ['pointerup','pointercancel','lostpointercapture'])strip.addEventListener(event,release);
- strip.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','Home','End',' '].includes(e.key))return;e.preventDefault();if(!held)begin();move(e.key==='Home'?0:e.key==='End'?1:position+(e.key==='ArrowLeft'?-.07:e.key==='ArrowRight'?.07:0))});
+ strip.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','Home','End',' '].includes(e.key))return;e.preventDefault();e.stopPropagation();if(!held)begin();move(e.key==='Home'?0:e.key==='End'?1:position+(e.key==='ArrowLeft'?-.07:e.key==='ArrowRight'?.07:0))});
  strip.addEventListener('keyup',release);strip.addEventListener('blur',release);window.addEventListener('blur',release);document.addEventListener('visibilitychange',()=>{if(document.hidden)release()});$('#stripMode').addEventListener('change',release);$('#stopBtn').addEventListener('click',release);
 }
 function setup(){const kit=$('#kickKit');for(const k of KICKS){const opt=document.createElement('option');opt.value=k.id;opt.textContent=k.name;kit.append(opt)}waveform();renderAll();
@@ -484,7 +484,7 @@ function setup(){const kit=$('#kickKit');for(const k of KICKS){const opt=documen
  $('#midiReset').addEventListener('click',()=>{midi.resetMap()});
  $('#pads').addEventListener('pointerdown',e=>{const b=e.target.closest('[data-pad]');if(!b||e.pointerType==='mouse'&&e.button!==0)return;e.preventDefault();firePad(Number(b.dataset.pad))});
  $('#pads').addEventListener('click',e=>{if(e.detail!==0)return;const b=e.target.closest('[data-pad]');if(b)firePad(+b.dataset.pad)});
- document.addEventListener('keydown',e=>{if(e.repeat||e.altKey||e.metaKey||e.ctrlKey||['INPUT','TEXTAREA','SELECT'].includes(e.target?.tagName))return;const key=e.key.toLowerCase(),idx=PAD_KEYS.indexOf(key);if(idx>=0){e.preventDefault();firePad(idx)}else if(e.code==='Space'){e.preventDefault();playToggle()}});
+ document.addEventListener('keydown',e=>{if(e.code==='Space'&&e.target?.closest('button,[role=slider]'))return;if(e.repeat||e.altKey||e.metaKey||e.ctrlKey||['INPUT','TEXTAREA','SELECT'].includes(e.target?.tagName))return;const key=e.key.toLowerCase(),idx=PAD_KEYS.indexOf(key);if(idx>=0){e.preventDefault();firePad(idx)}else if(e.code==='Space'){e.preventDefault();playToggle()}});
  $('#banks').addEventListener('click',e=>{const b=e.target.closest('[data-bank]');if(!b)return;if(b.dataset.bank==='CREATIVE'){setCreativeMode(true)}else{setCreativeMode(false);bank=b.dataset.bank;renderBanks();renderPads()}});
  $('#categories').addEventListener('click',e=>{const b=e.target.closest('[data-category]');if(!b)return;category=b.dataset.category;renderCategories();renderPresets()});
  $('#presetSearch').addEventListener('input',e=>{search=e.target.value.trim().toLowerCase();renderPresets()});
