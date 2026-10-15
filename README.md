@@ -25,3 +25,9 @@ On iPhone/Safari, Web MIDI is unavailable: the 16 touch pads, step sequencer, ef
 ## Original music engine v7.4
 
 The 40 factory presets no longer share a fixed eight-note riff: each has deterministic scale-aware melodic rhythms, a keyed tonal identity, custom patch coloring, scene-dependent layering, and 8-bar harmonic movement. The **NEW RIFF** button on CREATE recomposes only tonal tracks across scenes; existing drums, effects and transport settings remain intact. The selected variation is saved in localStorage and exported project JSON. The same `melodyPitch()` calculation is used by live playback and offline WAV export. Existing projects can load without a destructive storage reset.
+
+## Expanded sound engine v7.5
+
+All 40 factory presets use distinct scale-constrained 8-bar motifs, chord responses, genre-specific bass syncopation, melodic counterpoint, percussion accents and differentiated analog/FM/PWM/acid/rave synthesis patches. The tonal shape evolves every 1–2 bars and resolves over 8 bars, rather than repeating the same 16-step hook. Each scene keeps a different arrangement and intensity. Playback and offline WAV call exactly the same composition/voice path.
+
+**To replace a previously saved factory groove:** select that preset again from SOUNDS, or press NEW RIFF from CREATE. Previously saved project sequences are not destroyed or silently overwritten.

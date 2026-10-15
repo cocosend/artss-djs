@@ -62,4 +62,35 @@ engine.playBuffer(ctx,{},4,0,.8,2,false,4,'GROOVE');
 assert.equal(pitches.length,2);
 assert.notEqual(pitches[0].note,pitches[1].note,'audio playback must use progression');
 assert(app.includes('step,true,bar,scene')&&app.includes('step,false,bar,scene'),'live and WAV must both use bar/scene');
-console.log('PASS factory presets: '+signatures.size+' unique scores; '+progressionCount+' progressions; PCM and playback pitch');
+
+const grooves=new Set(),tones=new Set(),soundFamilies=new Set();
+let evolving=0;
+for(const p of PRESETS){
+ const groove=makePattern(p,'GROOVE');
+ grooves.add(Array.from(groove[4]).map(v=>v>0?1:0).join(''));
+ const phrase=[];
+ for(let bar=0;bar<8;bar++){
+  const notes=[];
+  for(const track of TONAL_ROWS){
+   for(let step=0;step<16;step++)if(groove[track][step]>0)
+    notes.push(track+':'+step+':'+melodyPitch(p,track,step,bar,'GROOVE'));
+  }
+  phrase.push(notes.join('|'));
+ }
+ tones.add(phrase.join('/'));
+ if(new Set(phrase).size>=3)evolving++;
+ const patch=synthPCM(4,p.kick,p.bass,8000,p.seed+17,0);
+ const pos=[120,250,480,760,1030,1400];
+ soundFamilies.add(pos.map(i=>patch[i].toFixed(4)).join(':'));
+}
+assert.equal(tones.size,PRESETS.length,'every factory song must have a different 8-bar melodic phrase');
+assert(grooves.size>=18,'too few distinct bass rhythms: '+grooves.size);
+assert(evolving>=35,'eight-bar melodies do not evolve: '+evolving);
+assert(soundFamilies.size>=25,'bass patches still sound too similar: '+soundFamilies.size);
+assert.equal(makePattern(PRESETS[0],'GROOVE')[0][0],makePattern(PRESETS[0],'GROOVE')[0][0],'factory groove must be deterministic');
+assert.notEqual(
+ JSON.stringify(makePattern(PRESETS[0],'GROOVE')),
+ JSON.stringify(makePattern(PRESETS[0],'GROOVE',1)),
+ 'variation must change the composition without a global RNG'
+);
+console.log('PASS v7.5 presets: '+tones.size+' unique 8-bar melodies, '+grooves.size+' grooves, '+soundFamilies.size+' bass timbres, '+evolving+' evolving arrangements');
