@@ -38,6 +38,7 @@ export const CREATIVE_PADS=Object.freeze([
  make(32,'Glitch · 1 Bar','glitch','one_shot','TRANSITION',0,16,65,'#c5cad4')
 ]);
 export const CREATIVE_PACK=Object.freeze({id:'artss-creative-fm',name:'CREATIVE / F MINOR',bpm:120,key:'Fm',pages:['LOOPS & FOUNDATION','ONE-SHOTS & LIVE FX'],pads:CREATIVE_PADS});
+const sceneLoops={INTRO:[1,3,15],GROOVE:[1,2,3,5,9],BUILD:[1,2,3,4,7,12,15],DROP:[1,2,3,4,6,10,16],BREAK:[9,13,15]};
 const padById=id=>CREATIVE_PADS.find(p=>p.id===id);
 const patterns={1:[0,4,8,12],2:[4,12],3:[2,6,10,14,15],4:[3,7,10,15],5:[0,6,10,14],6:[2,5,7,10,14],7:[0,3,6,9,11,14],9:[0,3,6,10,12,15],10:[0,6,8,14],11:[0,8,12],12:[0,2,4,6,8,10,12,14],14:[2,7,10,15]};
 const minor=[0,2,3,5,7,8,10];
@@ -97,9 +98,10 @@ export class CreativePackEngine{
  constructor(engine,onChange=()=>{}){this.engine=engine;this.enabled=false;this.loops=new Set();this.pending=new Map();this.patterns={};this.buffers=new Map();this.custom=new Map();this.graphs=new WeakMap();this.voices=new Set();this.onChange=onChange;this.ribbon=null;this.importEpoch=0;}
  restore(ids){this.loops=new Set();for(const id of Array.isArray(ids)?ids:[]){const p=padById(id);if(p?.type!=='loop')continue;if(p.choke)for(const other of this.loops)if(padById(other).choke===p.choke)this.loops.delete(other);this.loops.add(id)}this.pending.clear();this.onChange();}
  selection(){return [...this.loops].sort((a,b)=>a-b);}
- events(pad,step,bar=0){const row=this.patterns[pad.id],base=creativeEvents(pad,step,bar);return row?row[step]>0?[{note:base[0]?.note??pad.note,velocity:row[step]}]:[]:base;}
+ events(pad,step,bar=0){const row=this.patterns[pad.id],base=creativeEvents(pad,step,bar+(this.engine.state.melodyVariation||0));return row?row[step]>0?[{note:base[0]?.note??pad.note,velocity:row[step]}]:[]:base;}
  pattern(id){const p=padById(id);return this.patterns[id]??Array.from({length:16},(_,step)=>creativeEvents(p,step,0)[0]?.velocity??0);}
  setStep(id,step){if(!padById(id)||id>16||step<0||step>15)return;const row=this.pattern(id).slice();row[step]=row[step]>0?0:.75;this.patterns[id]=row;this.onChange();}
+ requestScene(scene){const target=new Set(sceneLoops[scene]??sceneLoops.GROOVE);for(let id=1;id<=16;id++){const active=this.pending.has(id)?this.pending.get(id).active:this.loops.has(id);if(active!==target.has(id))this.queue(id)}if(!this.engine.running)this.applyPending(0,this.engine.ctx,this.engine.graph?.bus,0);}
  queue(id){const p=padById(id);if(!p)return;
   if(p.type==='one_shot'){if(p.quantize&&this.engine.running){this.pending.set(id,{at:Math.ceil(this.engine.count/p.quantize)*p.quantize,shot:true});this.onChange()}else this.play(this.engine.ctx,this.engine.graph.bus,p,this.engine.ctx.currentTime+.003,p.note,.85,true);return}
   const active=this.pending.has(id)?this.pending.get(id).active:this.loops.has(id),at=this.engine.running?Math.ceil(this.engine.count/p.quantize)*p.quantize:0;
@@ -116,7 +118,7 @@ export class CreativePackEngine{
  }
  graph(ctx,out){let g=this.graphs.get(ctx);if(!g||g.out!==out){const tonal=ctx.createGain();tonal.connect(out);g={tonal,out};this.graphs.set(ctx,g)}return g;}
  choke(ctx,id,group,time,onlyId=false,includeSelf=false){for(const v of this.voices){if(v.ctx!==ctx||v.time>time+.001)continue;if((onlyId&&v.id===id)||(!onlyId&&group&&v.group===group&&(includeSelf||v.id!==id))){const t=Math.max(time,ctx.currentTime);v.gain.gain.cancelScheduledValues(t);v.gain.gain.setTargetAtTime(0,t,.004);try{v.source.stop(t+.025)}catch{}}}}
- buffer(ctx,p,note,bpm){const custom=this.custom.get(p.id);if(custom)return custom;
+ buffer(ctx,p,note,bpm){const custom=this.custom.get(p.id);if(custom)return custom;if(p.kind==='kick'&&this.engine.getBuffer)return this.engine.getBuffer(ctx,0,0);
   const key=[ctx.sampleRate,p.id,note,Math.round(bpm)].join(':');let b=this.buffers.get(key);
   if(!b){const rate=durationFor(p,bpm)>2?Math.min(22050,ctx.sampleRate):ctx.sampleRate;const pcm=synthCreativePCM(p,note,rate,bpm);b=ctx.createBuffer(1,pcm.length,rate);b.copyToChannel(pcm,0);this.buffers.set(key,b);if(this.buffers.size>96)this.buffers.delete(this.buffers.keys().next().value)}return b;
  }
@@ -129,12 +131,13 @@ export class CreativePackEngine{
   const voice={ctx,id:p.id,group:p.choke,time:t,source,gain};if(live)this.voices.add(voice);
   source.onended=()=>{this.voices.delete(voice);source.disconnect();gain.disconnect()};source.start(t);
  }
- schedule(ctx,out,time,step,bar,live=true){if(live)this.applyPending(bar*16+step,ctx,out,time);
-  for(const id of this.loops){const p=padById(id);if(this.custom.has(id)){const bars=Math.max(1,Math.ceil(this.custom.get(id).duration/(60/this.engine.state.bpm*4)));if(step===0&&bar%bars===0)this.play(ctx,out,p,time,p.note,.75,live);continue}
+ schedule(ctx,out,time,step,bar,live=true){if(live){if(this.engine.state.autoScene&&step===0){const scene=this.engine.getScene(bar);if(scene!==this.lastScene){this.requestScene(scene);this.lastScene=scene}}this.applyPending(bar*16+step,ctx,out,time);}
+  const ids=!live&&this.engine.state.autoScene?sceneLoops[this.engine.getScene(bar)]??sceneLoops.GROOVE:this.loops;
+  for(const id of ids){const p=padById(id);if(this.custom.has(id)){const bars=Math.max(1,Math.ceil(this.custom.get(id).duration/(60/this.engine.state.bpm*4)));if(step===0&&bar%bars===0)this.play(ctx,out,p,time,p.note,.75,live);continue}
    for(const e of this.events(p,step,bar))this.play(ctx,out,p,time,e.note,e.velocity,live);
   }
  }
- stop(){this.pending.clear();this.endRibbon();for(const v of this.voices){const t=v.ctx.currentTime;try{v.gain.gain.cancelScheduledValues(t);v.gain.gain.setTargetAtTime(0,t,.005);v.source.stop(t+.04)}catch{}}this.voices.clear();this.onChange();}
+ stop(){this.pending.clear();this.lastScene=null;this.endRibbon();for(const v of this.voices){const t=v.ctx.currentTime;try{v.gain.gain.cancelScheduledValues(t);v.gain.gain.setTargetAtTime(0,t,.005);v.source.stop(t+.04)}catch{}}this.voices.clear();this.onChange();}
  async importSample(id,file){if(!padById(id)||!file||file.size>25*1024*1024)throw Error('Выбери аудио до 25 МБ');const epoch=++this.importEpoch;await this.engine.unlock();const data=await file.arrayBuffer();let b;try{b=await this.engine.ctx.decodeAudioData(data)}catch{throw Error('Не удалось прочитать аудио. Выбери WAV, MP3 или M4A.')}if(b.duration>16)throw Error('Максимальная длина сэмпла 16 секунд');if(epoch!==this.importEpoch)return false;this.custom.set(id,b);this.onChange();return true;}
  startRibbon(position){const ctx=this.engine.ctx;this.endRibbon();const carrier=ctx.createOscillator(),mod=ctx.createOscillator(),depth=ctx.createGain(),gain=ctx.createGain();carrier.type='triangle';mod.type='sine';gain.gain.setValueAtTime(0,ctx.currentTime);gain.gain.linearRampToValueAtTime(.12,ctx.currentTime+.015);mod.connect(depth).connect(carrier.frequency);carrier.connect(gain).connect(this.engine.graph.bus);carrier.start();mod.start();this.ribbon={ctx,carrier,mod,depth,gain};this.moveRibbon(position);}
  moveRibbon(position){if(!this.ribbon)return;const {ctx,carrier,mod,depth}=this.ribbon;const degree=Math.round(clamp(position,0,1)*14),note=53+minor[degree%7]+12*Math.floor(degree/7),freq=hz(note);carrier.frequency.setTargetAtTime(freq,ctx.currentTime,.009);mod.frequency.setTargetAtTime(freq*2,ctx.currentTime,.009);depth.gain.setTargetAtTime(freq*.65,ctx.currentTime,.009);return note;}

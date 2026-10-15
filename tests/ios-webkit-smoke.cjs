@@ -7,7 +7,9 @@ const {webkit}=require('playwright');
 
 const root=path.resolve(__dirname,'..');
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.svg':'image/svg+xml','.webmanifest':'application/manifest+json'};
+let upstreamAvailable=true;
 const server=http.createServer(async(req,res)=>{
+ if(!upstreamAvailable){res.writeHead(503).end();return}
  try{
   const pathname=new URL(req.url,'http://127.0.0.1').pathname;
   const decoded=decodeURIComponent(pathname==='/'?'/index.html':pathname);
@@ -92,10 +94,11 @@ const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   await page.waitForFunction(()=>window.__djAudioProbe?.().creative===true,null,{timeout:10000});
   assert((await page.evaluate(()=>window.__djAudioProbe().loops)).includes(6),'Creative arrangement did not persist');
   await page.waitForFunction(()=>navigator.serviceWorker.controller!==null,null,{timeout:15000});
-  await context.setOffline(true);await page.reload({waitUntil:'load'});
+  // Make the real origin unavailable so WebKit must restore every local asset from its service-worker cache.
+  upstreamAvailable=false;await page.reload({waitUntil:'load'});
   await page.waitForFunction(()=>window.__djAudioProbe?.().creative===true,null,{timeout:10000});
   assert.equal(await page.locator('#pads .pad').count(),16,'offline PWA did not restore pads');
-  await context.setOffline(false);
+  upstreamAvailable=true;
   assert.equal(errors.length,0,'Unhandled browser errors: '+errors.join(' | '));
   assert.equal(failed.length,0,'Failed local resources: '+failed.join(' | '));
   await context.close();
