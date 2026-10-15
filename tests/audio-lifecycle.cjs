@@ -2,7 +2,7 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
-const code=fs.readFileSync('app.js','utf8');
+const code=fs.readFileSync('app.js','utf8').replace(/^import\s+\{\s*createMidiController\s*\}\s+from\s+['"]\.\/midi-controller\.js['"];?\r?\n/m, '');
 const marker='// === app.js ===';
 assert(code.includes(marker),'audio runtime boundary missing');
 new vm.Script(code,{filename:'app.js'});
