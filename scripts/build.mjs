@@ -18,5 +18,7 @@ JSON.parse(await readFile(root+'manifest.webmanifest','utf8'));
 await rm(root+'dist',{recursive:true,force:true});await mkdir(root+'dist');
 for(const file of files)await cp(root+file,root+'dist/'+file);
 await cp(root+'icons',root+'dist/icons',{recursive:true});
+// Publish SOUNDLAB as isolated /studio preview without changing the legacy entrypoint.
+await cp(root+'studio',root+'dist/studio',{recursive:true});
 await writeFile(root+'dist/release.json',JSON.stringify({name:pkg.name,version:pkg.version,creativePads:32,factoryPresets:40}));
 console.log('PASS production build: '+pkg.version+'; verified ESM imports, PWA versions and static assets');

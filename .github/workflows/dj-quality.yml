@@ -24,6 +24,13 @@ jobs:
           persist-credentials: false
       - name: Check source syntax
         run: node --check creative-pack.js && node tests/creative-pack.mjs && node tests/all-sounds.cjs && node --check app.js && node --check midi-controller.js && node --check music-composer.js && node --check sw.js && node tests/audio-lifecycle.cjs && node tests/midi-controller.mjs && node tests/music-presets.cjs
+      - name: Verify SOUNDLAB v8 audio engine and production script
+        run: |
+          node --check studio/app.js
+          node --check studio/engine.js
+          node --check studio/sw.js
+          node --test studio/tests/engine.test.mjs
+          node -e "const f=require('fs');for (const p of ['studio/index.html','studio/app.css','studio/manifest.webmanifest'])if(!f.existsSync(p))throw Error(p+' missing')"
       - name: Build production bundle
         run: npm run build
       - name: Run real-browser interaction smoke test
@@ -52,5 +59,9 @@ jobs:
         run: npm install --no-save --no-package-lock playwright@1.55.1
       - name: Install Safari-compatible WebKit
         run: npx playwright install --with-deps webkit
+      - name: Prepare deployable static preview
+        run: npm run build
       - name: Exercise real WebKit audio and touch interactions
         run: node tests/ios-webkit-smoke.cjs
+      - name: Verify SOUNDLAB mobile recording and WAV in WebKit
+        run: node studio/tests/webkit-smoke.cjs
