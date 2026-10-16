@@ -59,5 +59,9 @@ jobs:
         run: npm install --no-save --no-package-lock playwright@1.55.1
       - name: Install Safari-compatible WebKit
         run: npx playwright install --with-deps webkit
+      - name: Prepare deployable static preview
+        run: npm run build
       - name: Exercise real WebKit audio and touch interactions
         run: node tests/ios-webkit-smoke.cjs
+      - name: Verify SOUNDLAB mobile recording and WAV in WebKit
+        run: node studio/tests/webkit-smoke.cjs
