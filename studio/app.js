@@ -252,7 +252,7 @@ engine.onRecording = (recording, blob) => {
     if ($('#recordButton'))
         $('#recordButton').textContent = recording ? '■ STOP REC' : '● REC';
     if (blob && blob.size > 0) {
-        addFile(blob, blob.type.includes('mp4') ? 'm4a' : 'webm', 'ARTSS-LIVE');
+        addFile(blob, blob.type.includes('wav') ? 'wav' : blob.type.includes('mp4') ? 'm4a' : 'webm', 'ARTSS-LIVE');
         switchPanel('rec');
         toast('Запись готова к скачиванию');
     }

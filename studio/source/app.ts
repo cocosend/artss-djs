@@ -88,7 +88,7 @@ engine.onRecording=(recording,blob)=>{const card=$('#recordCard');card?.classLis
  if($('#recordTitle'))$('#recordTitle')!.textContent=recording?'Recording live…':'Ready to record';
  if($('#recordSubtitle'))$('#recordSubtitle')!.textContent=recording?'Захватываем звук с мастер-шины':'Включи PLAY и нажми REC';
  if($('#recordButton'))$('#recordButton')!.textContent=recording?'■ STOP REC':'● REC';
- if(blob&&blob.size>0){addFile(blob,blob.type.includes('mp4')?'m4a':'webm','ARTSS-LIVE');switchPanel('rec');toast('Запись готова к скачиванию');}
+ if(blob&&blob.size>0){addFile(blob,blob.type.includes('wav')?'wav':blob.type.includes('mp4')?'m4a':'webm','ARTSS-LIVE');switchPanel('rec');toast('Запись готова к скачиванию');}
  else if(!recording&&!blob)toast('Запись завершена без аудиоданных');
 };
 document.addEventListener('pointerdown',event=>{

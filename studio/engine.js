@@ -172,6 +172,10 @@ export class Engine {
     recorder = null;
     pieces = [];
     recording = false;
+    pcmProcessor = null;
+    pcmSilence = null;
+    pcmLeft = [];
+    pcmRight = [];
     playing = false;
     onStep = () => { };
     onTransport = () => { };
@@ -331,29 +335,99 @@ export class Engine {
         this.imported.set(slot, audio);
     }
     clearImported(slot) { this.imported.delete(slot); }
+    startPcmRecording() {
+        // Safari / WebKit fallback if MediaRecorder is absent or rejects audio-only streams.
+        // Connected to silence: capture never doubles monitoring volume.
+        const ctx = this.ctx, master = this.masterNode;
+        if (!ctx || !master)
+            throw Error('Audio engine is not running');
+        const processor = ctx.createScriptProcessor(2048, 2, 2);
+        const silence = ctx.createGain();
+        silence.gain.value = 0;
+        this.pcmLeft = [];
+        this.pcmRight = [];
+        processor.onaudioprocess = e => {
+            if (!this.recording)
+                return;
+            const input = e.inputBuffer;
+            this.pcmLeft.push(new Float32Array(input.getChannelData(0)));
+            this.pcmRight.push(new Float32Array(input.getChannelData(Math.min(1, input.numberOfChannels - 1))));
+        };
+        master.connect(processor);
+        processor.connect(silence);
+        silence.connect(ctx.destination);
+        this.pcmProcessor = processor;
+        this.pcmSilence = silence;
+        this.recording = true;
+        this.onRecording(true);
+    }
+    finishPcmRecording() {
+        const proc = this.pcmProcessor, silence = this.pcmSilence, ctx = this.ctx;
+        if (!proc || !ctx)
+            return;
+        this.recording = false;
+        proc.onaudioprocess = null;
+        try {
+            this.masterNode?.disconnect(proc);
+            proc.disconnect();
+            silence?.disconnect();
+        }
+        catch { }
+        this.pcmProcessor = null;
+        this.pcmSilence = null;
+        const count = this.pcmLeft.reduce((s, c) => s + c.length, 0);
+        if (!count) {
+            this.onRecording(false);
+            return;
+        }
+        const buffer = ctx.createBuffer(2, count, ctx.sampleRate);
+        let cursor = 0;
+        for (let i = 0; i < this.pcmLeft.length; i++) {
+            buffer.copyToChannel(this.pcmLeft[i], 0, cursor);
+            buffer.copyToChannel(this.pcmRight[i], 1, cursor);
+            cursor += this.pcmLeft[i].length;
+        }
+        this.pcmLeft = [];
+        this.pcmRight = [];
+        this.onRecording(false, encodeWav(buffer));
+    }
     async startRecording() {
         if (this.recording)
             return;
         await this.unlock();
         if (!this.mediaDest)
             throw Error('Audio engine unavailable');
-        if (!window.MediaRecorder)
-            throw Error('Запись не поддерживается: используй EXPORT WAV');
-        const types = ['audio/mp4;codecs=mp4a.40.2', 'audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'];
-        const mime = types.find(type => MediaRecorder.isTypeSupported(type));
-        this.pieces = [];
-        const rec = new MediaRecorder(this.mediaDest.stream, mime ? { mimeType: mime } : undefined);
-        this.recorder = rec;
-        rec.ondataavailable = e => { if (e.data.size > 0)
-            this.pieces.push(e.data); };
-        rec.onstop = () => { this.recording = false; const blob = this.pieces.length ? new Blob(this.pieces, { type: rec.mimeType || 'audio/webm' }) : undefined; this.onRecording(false, blob); this.recorder = null; };
-        rec.onerror = () => { this.recording = false; this.onRecording(false); this.recorder = null; };
-        rec.start(250);
-        this.recording = true;
-        this.onRecording(true);
+        if (typeof MediaRecorder === 'undefined') {
+            this.startPcmRecording();
+            return;
+        }
+        try {
+            const types = ['audio/mp4;codecs=mp4a.40.2', 'audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'];
+            const mime = types.find(type => MediaRecorder.isTypeSupported(type));
+            this.pieces = [];
+            const rec = new MediaRecorder(this.mediaDest.stream, mime ? { mimeType: mime } : undefined);
+            this.recorder = rec;
+            rec.ondataavailable = e => { if (e.data.size > 0)
+                this.pieces.push(e.data); };
+            rec.onstop = () => { this.recording = false; const blob = this.pieces.length ? new Blob(this.pieces, { type: rec.mimeType || 'audio/webm' }) : undefined; this.onRecording(false, blob); this.recorder = null; };
+            rec.onerror = () => { this.recording = false; this.onRecording(false); this.recorder = null; };
+            rec.start(250);
+            this.recording = true;
+            this.onRecording(true);
+        }
+        catch {
+            this.recorder = null;
+            this.startPcmRecording();
+        }
     }
-    stopRecording() { if (this.recorder?.state === 'recording')
-        this.recorder.stop(); }
+    stopRecording() {
+        if (this.recorder?.state === 'recording') {
+            this.recorder.stop();
+            return;
+        }
+        if (this.pcmProcessor)
+            this.finishPcmRecording();
+    }
     get isRecording() { return this.recording; }
     async renderWav(bars = 4) {
         const count = clip(Math.round(bars), 1, 16);
