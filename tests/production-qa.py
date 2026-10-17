@@ -12,7 +12,7 @@ if ENGINE not in ('chromium','webkit'):
     raise ValueError('Browser must be chromium or webkit')
 
 PROBE='''
-window.__qa=()=>({playing:engine.playing,context:engine.ctx?.state,rms:engine.meter(),bank:state.bank,bpm:state.bpm,ready:recordReady?.blob?.size||0,recPhase:engine.recPhase});
+window.__qa=()=>({playing:engine.playing,context:engine.ctx?.state,rms:engine.meter(),bank:state.bank,bpm:state.bpm,ready:recordReady?.blob?.size||0,recPhase:engine.recPhase,clipScenes:state.clipScenes,queued:engine.queuedClips.size,volumes:state.trackVolumes,solos:state.solos});
 window.__render=(bars)=>engine.offline(bars).then(async b=>({size:b.size,signature:Array.from(new Uint8Array(await b.arrayBuffer()).slice(0,4))}));
 '''
 
@@ -61,7 +61,7 @@ try:
             page.close()
             page=context.new_page()
             page.on('pageerror',lambda err:errors.append(str(err)))
-            page.set_content((TARGET/'index.html').read_text().replace('<script type="module" src="./studio.js?v=9.0.0"></script>',''),wait_until='load')
+            page.set_content((TARGET/'index.html').read_text().replace('<script type="module" src="./studio.js?v=10.0.0"></script>',''),wait_until='load')
             page.add_style_tag(content=(TARGET/'studio.css').read_text())
             sound=(TARGET/'sound-design.js').read_text().replace('export ','')
             exports='{PAD_COUNT,PAD_NAMES,PAD_SHORT,KEYS,COLORS,PRESETS,SCENES,createGrid,presetPattern,makePCM,noteOffset}'
@@ -73,7 +73,7 @@ try:
             page.locator('#pads .pad').first.wait_for(timeout=18000)
         except Exception:
             raise AssertionError('Startup errors: '+repr(errors))
-        assert page.title()=='ARTSS STUDIO 9 · 8-Pad Groovebox'
+        assert page.title()=='ARTSS STUDIO 10 · LIVE CLIP WORKSTATION'
         assert page.locator('#pads .pad').count()==8
         assert page.locator('#presets .bank').count()==8
         assert page.locator('#sequence .seq-cell[data-row]').count()==128
@@ -86,8 +86,14 @@ try:
             page.wait_for_timeout(100)
             peaks.append(page.evaluate('window.__qa().rms'))
         assert max(peaks)>0.001,f'Audio output silent in {ENGINE}: {max(peaks)}'
+        # While playing, clip changes are queued and committed only at the next bar.
+        page.locator('[data-tab="clips"]').tap()
+        page.locator('[data-clip-track="0"][data-clip-scene="DROP"]').tap()
+        page.wait_for_function('window.__qa().queued===1',timeout=1500)
+        page.wait_for_function('window.__qa().queued===0 && window.__qa().clipScenes[0]==="DROP"',timeout=3500)
         page.locator('#stop').tap()
         assert page.evaluate('!window.__qa().playing')
+        page.locator('[data-tab="pads"]').tap()
         page.locator('#presets .bank').nth(3).tap()
         assert page.evaluate('window.__qa().bank')==3
         page.locator('#bpmUp').tap()
@@ -99,7 +105,23 @@ try:
         assert cell.get_attribute('aria-pressed')!=before
         page.locator('#undo').tap()
         assert page.locator('[data-row="0"][data-step="1"]').get_attribute('aria-pressed')==before
+        page.locator('[data-tab="clips"]').tap()
+        assert page.locator('#clipMatrix .clip-track').count()==8
+        assert page.locator('#clipMatrix .clip-slot').count()==40
+        page.locator('[data-clip-track="0"][data-clip-scene="DROP"]').tap()
+        assert page.evaluate('window.__qa().clipScenes[0]')=='DROP'
+        page.locator('[data-launch-scene="INTRO"]').tap()
+        assert page.evaluate('window.__qa().clipScenes.every(s=>s==="INTRO")')
+        page.locator('[data-clip-track="1"][data-clip-scene="GROOVE"]').tap()
+        page.locator('#captureScene').tap()
+        assert page.evaluate('window.__qa().clipScenes.every(s=>s==="BUILD")')
         page.locator('[data-tab="mix"]').tap()
+        assert page.locator('#trackMixer .mix-channel').count()==8
+        page.locator('#track-level-0').fill('45')
+        assert abs(page.evaluate('window.__qa().volumes[0]')-.45)<.01
+        page.locator('[data-solo="1"]').tap()
+        assert page.evaluate('window.__qa().solos[1]') is True
+        page.locator('[data-solo="1"]').tap()
         page.locator('#ctrl-drive').fill('12')
         assert page.locator('#value-drive').inner_text()=='12%'
         page.locator('[data-tab="export"]').tap()
@@ -122,7 +144,7 @@ try:
             assert info.value.suggested_filename.startswith('ARTSS-LIVE-')
         assert not errors,errors
         assert not failed,failed
-        print(f'PASS {ENGINE} HTTP production assets: 8 touch pads, 8 banks, 128 steps, nonzero audio signal, transport, undo, FX, WAV, MediaRecorder={recorder_available}')
+        print(f'PASS {ENGINE} HTTP production assets: 8 touch pads, clip session, 8-track mixer, 8 banks, 128 steps, nonzero audio signal, transport, undo, FX, WAV, MediaRecorder={recorder_available}')
         context.close()
         browser.close()
 finally:

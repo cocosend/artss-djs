@@ -5,7 +5,7 @@
 export const PAD_NAMES = Object.freeze(['CLUB KICK','DEEP SUB','CLAP / SNARE','CLOSED HAT','OPEN HAT','RIM / PERC','303 ACID','GENRE HIT']);
 export const PAD_SHORT = Object.freeze(['KICK','SUB','CLAP','CH','OH','PERC','ACID','HIT']);
 export const KEYS = Object.freeze(['1','2','3','4','Q','W','E','R']);
-export const COLORS = Object.freeze(['#f04e5e','#cf6371','#e2a7a3','#d9dce3','#d3bca4','#a7b5bf','#8bd5c8','#ceb5e3']);
+export const COLORS = Object.freeze(['#ff8a36','#c5ff50','#ffad4e','#a8ee48','#d9ff77','#ff9e55','#b2f763','#ffbf56']);
 export const PRESETS = Object.freeze([
  {name:'WAREHOUSE',tag:'HYPNOTIC TECHNO',bpm:136,style:0,root:0},
  {name:'HARDGROOVE',tag:'DRIVING PERCUSSION',bpm:142,style:1,root:2},

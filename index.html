@@ -3,16 +3,16 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
-<meta name="theme-color" content="#0a0c10" />
+<meta name="theme-color" content="#0b100d" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="ARTSS STUDIO" />
-<meta name="description" content="ARTSS STUDIO — музыкальная мастерская: 8 драм-пэдов, секвенсор, запись и экспорт WAV." />
+<meta name="description" content="ARTSS STUDIO — 8 инструментов, клипы, секвенсор, канальный микшер и запись. Мобильная рабочая станция." />
 <link rel="manifest" href="./manifest.webmanifest" />
 <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="./icons/icon-180.png" />
-<link rel="stylesheet" href="./studio.css?v=9.0.0" />
-<title>ARTSS STUDIO 9 · 8-Pad Groovebox</title>
+<link rel="stylesheet" href="./studio.css?v=10.0.0" />
+<title>ARTSS STUDIO 10 · LIVE CLIP WORKSTATION</title>
 </head>
 <body>
 <div id="app" class="app">
@@ -21,27 +21,36 @@
     <div class="header-right"><span id="audioState" class="status"><i></i> AUDIO OFF</span><button id="install" class="icon-action" type="button" aria-label="Установить приложение" title="Установить"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 17v3h16v-3"/></svg></button></div>
   </header>
   <main class="main">
-    <div class="meta"><span>BEAT CREATOR <b>09</b></span><span>ONE ENGINE / ZERO DECKS</span></div>
+    <div class="meta"><span>LIVE WORKSTATION <b>10</b></span><span>8 TRACKS / CLIP SESSION</span></div>
     <section class="transport" aria-label="Управление воспроизведением">
       <div class="transport-left"><div class="transport-kicker">TEMPO <span id="presetLabel">WAREHOUSE</span></div><div class="tempo"><button id="bpmDown" class="bpm-nudge" type="button" aria-label="Уменьшить темп">−</button><div class="bpm"><strong id="bpm">136</strong><span>BPM</span></div><button id="bpmUp" class="bpm-nudge" type="button" aria-label="Увеличить темп">+</button></div><button class="tap" id="tap" type="button">TAP TEMPO <span>↗</span></button></div>
       <div class="transport-right"><button id="play" type="button" class="play" aria-pressed="false"><span class="play-symbol" id="playGlyph">▶</span><span id="playText">PLAY</span></button><button id="stop" type="button" class="stop" aria-label="Остановить">■</button></div>
       <div class="progress"><div class="progress-label"><span id="position">BAR 01 · STEP 01</span><span id="time">00:00</span></div><div class="progress-bars" id="progressBars" aria-hidden="true"></div></div>
     </section>
     <section class="section" id="tab-pads" data-panel="pads">
-      <div class="section-head"><div><div class="eyebrow">01 / LIVE PERFORMANCE</div><h1>DRUM PADS</h1></div><span class="small-label">8 VOICES <i class="live-dot"></i></span></div>
+      <div class="section-head"><div><div class="eyebrow">01 / PERFORMANCE</div><h1>PERFORMANCE PADS</h1></div><span class="small-label">8 VOICES <i class="live-dot"></i></span></div>
       <div class="pads" id="pads"></div>
-      <div class="after-pads"><span>TOUCH TO PLAY</span><span id="lastPad">READY TO GROOVE</span></div>
+      <div class="after-pads"><span>LIVE INSTRUMENTS · NO RANDOM NOTES</span><span id="lastPad">READY TO GROOVE</span></div><button class="session-jump" type="button" id="openClips"><span>▥</span> OPEN CLIP SESSION <span>↗</span></button>
       <div class="subsection"><div class="subsection-head"><h2>GENRE GROOVES</h2><span>NO RANDOM MELODIES</span></div><div class="bank-rail" id="presets"></div></div>
     </section>
+    <section class="section hide" id="tab-clips" data-panel="clips">
+      <div class="section-head"><div><div class="eyebrow">02 / LIVE ARRANGEMENT</div><h1>CLIP SESSION</h1></div><span class="small-label">BAR-QUANTIZED</span></div>
+      <p class="description">Запускай отдельные клипы или целые сцены. Переключения вступают в силу на границе следующего такта — без сбивок ритма.</p>
+      <div class="session-topline"><span>SCENE LAUNCH</span><span>INTRO → GROOVE → BUILD → DROP → BREAK</span></div>
+      <div class="scene-launch" id="sceneLaunch" aria-label="Запуск сцены"></div>
+      <div class="session-matrix" id="clipMatrix" aria-label="Матрица клипов: восемь дорожек, пять сцен"></div>
+      <div class="session-actions"><span id="clipStatus" role="status">8 CHANNELS ONLINE</span><button type="button" id="captureScene">↳ CAPTURE → BUILD</button></div>
+      <p class="hint">Оранжевый — активный клип, зелёный — ожидает запуска. Можешь смешивать клипы из разных сцен на одной восьмидорожечной сессии.</p>
+    </section>
     <section class="section hide" id="tab-sequence" data-panel="sequence">
-      <div class="section-head"><div><div class="eyebrow">02 / COMPOSITION</div><h1>SEQUENCER</h1></div><span class="small-label">16 STEPS · 8 TRACKS</span></div>
+      <div class="section-head"><div><div class="eyebrow">03 / STEP COMPOSITION</div><h1>SEQUENCER</h1></div><span class="small-label">16 STEPS · 8 TRACKS</span></div>
       <div class="scene-rail" id="scenes"></div>
       <div class="sequence-scroller" tabindex="0" aria-label="Горизонтально прокручиваемый секвенсор"><div id="sequence" class="sequence"></div></div>
       <div class="sequence-actions"><button type="button" id="undo">↶ UNDO</button><button type="button" id="fill">＋ FILL</button><button type="button" id="clear">× CLEAR</button></div>
       <label class="switch-line"><input type="checkbox" id="autoScene"/><span>AUTO SCENE ARRANGEMENT</span><small>INTRO / GROOVE / BUILD / DROP / BREAK</small></label>
     </section>
     <section class="section hide" id="tab-sounds" data-panel="sounds">
-      <div class="section-head"><div><div class="eyebrow">03 / SOUND SELECTION</div><h1>SOUND LAB</h1></div></div>
+      <div class="section-head"><div><div class="eyebrow">04 / SOUND DESIGN</div><h1>SOUND LAB</h1></div></div>
       <p class="description">Выбери инструмент, импортируй свой WAV / MP3 / M4A или используй готовый драм-кит.</p>
       <div class="sound-list" id="soundList"></div>
       <div class="sound-bottom"><strong id="selectedSound">CLUB KICK</strong><button type="button" id="importSample">＋ IMPORT SAMPLE</button><button type="button" id="resetSample">RESET</button></div>
@@ -49,22 +58,25 @@
       <p class="hint">Сэмплы хранятся в памяти текущей сессии. Экспорт проекта сохраняет паттерны и настройки.</p>
     </section>
     <section class="section hide" id="tab-mix" data-panel="mix">
-      <div class="section-head"><div><div class="eyebrow">04 / MASTER PROCESSING</div><h1>MIX & FX</h1></div></div>
+      <div class="section-head"><div><div class="eyebrow">05 / CHANNEL MIXER</div><h1>MIX & FX</h1></div></div>
+      <div class="subsection-head mix-title"><h2>8-CHANNEL MIXER</h2><span>LEVEL / SOLO / MUTE</span></div>
+      <div class="track-mixer" id="trackMixer"></div>
+      <div class="subsection-head mix-title"><h2>MASTER DEVICES</h2><span>LIVE MACROS</span></div>
       <div class="fx-list" id="fxList"></div>
-      <div class="meter-row"><span>MASTER OUTPUT</span><strong id="meterValue">−∞ dB</strong></div><div class="level-track"><div id="levelFill"></div></div>
+      <div class="meter-row"><span>MASTER OUTPUT / PRE-LIMITER</span><strong id="meterValue">−∞ dB</strong></div><div class="level-track"><div id="levelFill"></div></div>
       <p class="hint">Мягкая компрессия и ограничение пиков. Эффекты не используются для искусственного повышения громкости.</p>
     </section>
     <section class="section hide" id="tab-export" data-panel="export">
-      <div class="section-head"><div><div class="eyebrow">05 / SESSION</div><h1>RECORD & EXPORT</h1></div></div>
+      <div class="section-head"><div><div class="eyebrow">06 / PROJECT & EXPORT</div><h1>RECORD & EXPORT</h1></div></div>
       <div class="rec-card"><div class="rec-status"><i id="recordDot"></i><div><b id="recordTitle">LIVE RECORDING</b><span id="recordStatus">Готово к записи</span></div></div><button id="record" type="button">● START RECORDING</button></div>
       <div class="export-card"><h2>RENDER MASTER</h2><p>Рендер секвенсора в несжатый WAV. Без микрофона и без зависимости от MediaRecorder.</p><div class="export-control"><label for="bars">ДЛИНА</label><select id="bars"><option value="8">8 BARS</option><option selected value="16">16 BARS</option><option value="32">32 BARS</option></select></div><button type="button" id="render">↗ EXPORT WAV</button></div>
       <div class="export-card project-card"><h2>PROJECT</h2><p>Сохранение или загрузка сцен, темпа, звукового банка и эффектов.</p><div class="project-actions"><button id="save" type="button">↓ SAVE JSON</button><button id="load" type="button">↑ LOAD JSON</button></div><input hidden type="file" id="projectFile" accept="application/json,.json"/></div>
     </section>
   </main>
-  <nav class="tabs" aria-label="Навигация" id="navigation"><button type="button" class="tab active" data-tab="pads" aria-pressed="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg><span>PADS</span></button><button type="button" class="tab" data-tab="sequence" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18M6 3v18M12 3v18M18 3v18"/></svg><span>CREATE</span></button><button type="button" class="tab" data-tab="sounds" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13M9 18c0 4-7 4-7 1 0-2 4-4 7-1Zm12-2c0 4-7 4-7 1 0-2 4-4 7-1Z"/></svg><span>SOUNDS</span></button><button type="button" class="tab" data-tab="mix" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M4 4v16m8-16v16m8-16v16M1 9h6m2 6h6m2-8h6"/></svg><span>MIX</span></button><button type="button" class="tab" data-tab="export" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M12 3v13m-5-5 5 5 5-5M5 17v4h14v-4"/></svg><span>EXPORT</span></button></nav>
+  <nav class="tabs" aria-label="Навигация" id="navigation"><button type="button" class="tab active" data-tab="pads" aria-pressed="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg><span>PADS</span></button><button type="button" class="tab" data-tab="clips" aria-pressed="false"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="5" rx="1"/><rect x="13" y="3" width="8" height="5" rx="1"/><rect x="3" y="10" width="8" height="5" rx="1"/><rect x="13" y="10" width="8" height="5" rx="1"/><rect x="3" y="17" width="8" height="4" rx="1"/><rect x="13" y="17" width="8" height="4" rx="1"/></svg><span>CLIPS</span></button><button type="button" class="tab" data-tab="sequence" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18M6 3v18M12 3v18M18 3v18"/></svg><span>STEPS</span></button><button type="button" class="tab" data-tab="sounds" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13M9 18c0 4-7 4-7 1 0-2 4-4 7-1Zm12-2c0 4-7 4-7 1 0-2 4-4 7-1Z"/></svg><span>TOOLS</span></button><button type="button" class="tab" data-tab="mix" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M4 4v16m8-16v16m8-16v16M1 9h6m2 6h6m2-8h6"/></svg><span>MIX</span></button><button type="button" class="tab" data-tab="export" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M12 3v13m-5-5 5 5 5-5M5 17v4h14v-4"/></svg><span>FILES</span></button></nav>
   <div class="toast" id="toast" hidden role="status" aria-live="polite"></div>
   <dialog id="installDialog" class="dialog"><h2>INSTALL ARTSS STUDIO</h2><p>На iPhone открой эту страницу через Safari → Поделиться → <strong>На экран «Домой»</strong> → Добавить.</p><p>После первого посещения интерфейс и встроенные звуки доступны офлайн.</p><button id="closeInstall" type="button">ПОНЯТНО</button></dialog>
 </div>
-<script type="module" src="./studio.js?v=9.0.0"></script>
+<script type="module" src="./studio.js?v=10.0.0"></script>
 </body>
 </html>

@@ -1,9 +1,9 @@
 {
   "name": "artss-studio",
-  "version": "9.0.0",
+  "version": "10.0.0",
   "private": true,
   "type": "module",
-  "description": "Single-runtime, offline-ready music production PWA for iPhone and Android",
+  "description": "Orange / lime Live Session groovebox with eight tracks, clip launcher, step sequencer, per-track mixer and iOS PWA",
   "scripts": {
     "build": "node scripts/build.mjs",
     "test": "node --check studio.js && node --check sound-design.js && node --check sw.js && node tests/groove-engine.test.cjs",
