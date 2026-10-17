@@ -11,9 +11,26 @@ ENGINE=sys.argv[1] if len(sys.argv)>1 else 'chromium'
 if ENGINE not in ('chromium','webkit'):
     raise ValueError('Browser must be chromium or webkit')
 
+PROBE='''
+window.__qa=()=>({playing:engine.playing,context:engine.ctx?.state,rms:engine.meter(),bank:state.bank,bpm:state.bpm,ready:recordReady?.blob?.size||0,recPhase:engine.recPhase});
+window.__render=(bars)=>engine.offline(bars).then(async b=>({size:b.size,signature:Array.from(new Uint8Array(await b.arrayBuffer()).slice(0,4))}));
+'''
+
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self,*args,**kwargs):
         super().__init__(*args,directory=str(TARGET),**kwargs)
+    def do_GET(self):
+        # Expose read-only, test-only probes inside the real ESM module scope.
+        # Production build files remain byte-for-byte unchanged.
+        if self.path.split('?',1)[0]=='/studio.js':
+            data=((TARGET/'studio.js').read_text()+'\n'+PROBE).encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type','text/javascript; charset=utf-8')
+            self.send_header('Content-Length',str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+        else:
+            super().do_GET()
     def log_message(self,*args): pass
 
 server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
@@ -46,14 +63,13 @@ try:
             page.on('pageerror',lambda err:errors.append(str(err)))
             page.set_content((TARGET/'index.html').read_text().replace('<script type="module" src="./studio.js?v=8.1.0"></script>',''),wait_until='load')
             page.add_style_tag(content=(TARGET/'studio.css').read_text())
-            page.add_script_tag(content=(TARGET/'studio.js').read_text())
+            page.add_script_tag(content=(TARGET/'studio.js').read_text()+'\n'+PROBE)
 
         page.locator('#pads .pad').first.wait_for(timeout=18000)
         assert page.title()=='ARTSS STUDIO · Beat Creator'
         assert page.locator('#pads .pad').count()==16
         assert page.locator('#presets .bank').count()==8
         assert page.locator('#sequence .seq-cell[data-row]').count()==256
-        page.evaluate('''() => { window.__qa=()=>({playing:engine.playing,context:engine.ctx?.state,rms:engine.meter(),bank:state.bank,bpm:state.bpm,ready:recordReady?.blob?.size||0,recPhase:engine.recPhase});window.__render=(bars)=>engine.offline(bars).then(async b=>({size:b.size,signature:Array.from(new Uint8Array(await b.arrayBuffer()).slice(0,4))}));}''')
         page.locator('#pads .pad').first.tap()
         page.wait_for_function('window.__qa().context==="running"',timeout=15000)
         page.locator('#play').tap()
