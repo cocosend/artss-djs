@@ -1,20 +1,15 @@
-# ARTSS LIVE 11 — iPhone PWA Groove Studio
+# ARTSS LIVE 12 — Track Slicer / iPhone PWA
 
-Remixlive-inspired performance layout (original UI) over one deterministic Web Audio engine. No mixer decks and no duplicated clip matrix. The production entrypoint is `index.html`; project deploys automatically from `main` to `artss-djs.vercel.app`.
+Canonical production app: https://artss-djs.vercel.app. 8 performance pads, 16/32-step overdub recorder, transport pause/stop, separately saved master takes. This release replaces duplicate sound-list and loop-strip columns with one import workspace.
 
-## Live workflow
+## Full track workflow
 
-1. Select a genre and press **LIVE REC**. Transport starts and the loop is armed.
-2. Play any of the eight pads. The hit sounds immediately and is quantized to the nearest active step, stored in the active scene and added to the repeating loop. Multiple tracks are independent; overdub does not replace earlier steps.
-3. Press **LIVE REC** to disarm without stopping playback; press **PAUSE** to stop sound without resetting position, **PLAY** to resume, or **STOP** to reset the playhead. None of these erase notes; **CLEAR SCENE** needs a double press.
-4. Switch **16 STEPS / 32 STEPS** in STEPS; pages 1–16 and 17–32 are editable. 32 steps are not duplications of the first 16 and start empty.
-5. **FILES → AUDIO TAKE** records the master output (both pad performance and sequencer) to an M4A/WebM recording via MediaRecorder. Every stopped take is stored in local IndexedDB with a playable/downloadable list, independent from the loop pattern. Browser storage can be evicted; export copies to Files for permanence.
-6. Use **EXPORT WAV** for offline rendering; save/import project JSON for backup. Custom imported audio is in-memory for the session and not serialized.
+1. Open **SLICES**, choose 16 (default) or 32, then **LOAD FULL TRACK** (.mp3/.m4a/.wav etc supported by the browser).
+2. The browser decodes the full recording locally, selects six-second excerpts across its duration using energy and onset changes, and places them from lower to higher estimated tone/brightness. The source recording is never uploaded.
+3. Select a bank of eight slices; the same eight LIVE performance pads now trigger that bank. Tap **KIT SOUNDS** to switch back to the original synthesizer.
+4. Open **MIX** for individual channel pitch adjustment (-12 to +12 semitones), level, mute and solo. There are no per-pad volume/pitch sliders.
+5. Play and record as before. The selected bank plays in the sequencer and real-time audio take capture. Slice data is stored in IndexedDB for future sessions when storage permits.
 
-## Mobile compatibility
+**Limitations:** This is on-device acoustic event detection and slicing, **not** neural stem/source separation. Complex polyphonic mixes remain mixed within each excerpt; precise kick/vocal/bass isolation is not claimed. Estimated frequency sorting is approximate. Browser decoding of very large or long tracks is memory-intensive on older iPhones; this implementation has 80 MiB file and 45-minute decoded-duration guards. Storage is device-local; exporting a pattern as JSON does not embed copyrighted audio. 6-second clips are mono at 22.05 kHz with fades to cap mobile memory.
 
-iPhone Safari/WebKit and Android mobile Chromium; immediate pointerdown audio unlock, installable PWA, root scope and offline static shell, touch-targeted pads, iPhone safe areas. Transport stops on background for predictable Safari audio behavior. Physical device testing still recommended.
-
-## Engineering
-
-No external audio or runtime dependencies. UI is currently a native ES module frontend (not React); maintaining the Web Audio engine rather than introducing an unverified React migration prevents audio regressions. `npm test && npm run build` and `python3 tests/production-qa.py webkit` are run in CI before merge. Offline WAV uses identical patterns, lane volumes and synthesis to the live scheduler.
+Run `npm test && npm run build` (no npm dependencies). Browser smoke: `python3 tests/production-qa.py chromium`; WebKit: `python3 tests/production-qa.py webkit` with Playwright installed.

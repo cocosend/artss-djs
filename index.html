@@ -11,8 +11,8 @@
 <link rel="manifest" href="./manifest.webmanifest" />
 <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="./icons/icon-180.png" />
-<link rel="stylesheet" href="./studio.css?v=11.0.0" />
-<title>ARTSS LIVE 11 · REMIX GROOVE STUDIO</title>
+<link rel="stylesheet" href="./studio.css?v=12.0.0" />
+<title>ARTSS LIVE 12 · TRACK SLICER</title>
 </head>
 <body>
 <div class="app" id="app">
@@ -21,7 +21,7 @@
   <div class="header-right"><span id="audioState" class="status"><i></i> AUDIO OFF</span><button id="install" class="icon-action" type="button" aria-label="Установить приложение" title="Установить">↓</button></div>
 </header>
 <main class="main">
-<div class="meta"><span>PERFORMANCE GROOVEBOX <b>11</b></span><span id="presetLabel">WAREHOUSE</span></div>
+<div class="meta"><span>PERFORMANCE GROOVEBOX <b>12</b></span><span id="presetLabel">WAREHOUSE</span></div>
 <section class="transport" aria-label="Транспорт и live-запись">
   <div class="transport-layout">
     <div class="transport-left"><div class="transport-kicker">TEMPO / <span id="loopLengthLabel">16 STEP LOOP</span></div><div class="tempo"><button id="bpmDown" class="bpm-nudge" aria-label="Уменьшить BPM">−</button><div class="bpm"><strong id="bpm">136</strong><span>BPM</span></div><button id="bpmUp" class="bpm-nudge" aria-label="Увеличить BPM">+</button></div></div>
@@ -35,7 +35,7 @@
   <div class="pads" id="pads"></div>
   <div class="after-pads"><span>ONE TOUCH · ONE SOUND · NO DUPLICATES</span><span id="lastPad">READY</span></div>
   <div class="subsection"><div class="subsection-head"><h2>GENRE BANKS</h2><span>8 KITS</span></div><div class="bank-rail" id="presets"></div></div>
-  <div class="subsection strip-section"><div class="subsection-head"><h2>LOOP STRIPS</h2><span>TOUCH TO MUTE / UNMUTE</span></div><div class="loop-strips" id="loopStrips"></div></div>
+  
 </section>
 <section class="section hide" data-panel="sequence" id="tab-sequence">
   <div class="section-head"><div><div class="eyebrow">02 / LOOP EDITOR</div><h1>STEP SEQUENCER</h1></div><span class="small-label" id="seqDetail">8 × 16</span></div>
@@ -53,11 +53,18 @@
   <div class="meter-row"><span>MASTER LEVEL</span><strong id="meterValue">−∞ dB</strong></div><div class="level-track"><div id="levelFill"></div></div>
 </section>
 <section class="section hide" data-panel="sounds" id="tab-sounds">
-  <div class="section-head"><div><div class="eyebrow">04 / AUDIO</div><h1>SOUND BANK</h1></div></div>
-  <div class="sound-list" id="soundList"></div>
-  <div class="sound-bottom"><strong id="selectedSound">CLUB KICK</strong><button id="importSample" type="button">＋ SAMPLE</button><button id="resetSample" type="button">RESET</button></div>
-  <input hidden type="file" id="sampleFile" accept="audio/*,.wav,.mp3,.m4a,.aac" />
-  <p class="hint">Импорт звука заменяет выбранный пэд до закрытия вкладки. Записанные паттерны остаются в проекте.</p>
+ <div class="section-head"><div><div class="eyebrow">04 / TRACK ANALYSIS</div><h1>TRACK SLICER</h1></div><span class="small-label">6 SEC PER SLICE</span></div>
+ <div class="import-box">
+  <div class="import-title"><span class="import-glyph">↗</span><div><strong>FULL TRACK → SAMPLES</strong><p>Загрузи целую композицию. Анализ атак, энергии и высоты звучания проходит на устройстве. Звук никуда не отправляется.</p></div></div>
+  <div class="slice-toolbar"><div class="segmented" id="sliceCounts" role="group" aria-label="Количество сэмплов"><button type="button" data-slice-count="16" class="selected" aria-pressed="true">16 SLICES</button><button type="button" data-slice-count="32" aria-pressed="false">32 SLICES</button></div><button id="importTrack" class="import-primary" type="button">＋ LOAD FULL TRACK</button></div>
+  <input hidden type="file" id="trackFile" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac" />
+  <div class="analyze-status"><div id="sliceStatus" role="status" aria-live="polite">Нет загруженного трека. Режим KIT активен.</div><progress id="sliceProgress" max="100" value="0" hidden></progress></div>
+ </div>
+ <div class="slice-control"><button id="sampleMode" type="button" aria-pressed="false">KIT SOUNDS</button><div class="sample-bank-switch"><button type="button" id="bankPrev" aria-label="Предыдущие 8 сэмплов">‹</button><strong id="sliceBankLabel">PAD BANK 1 / 2</strong><button type="button" id="bankNext" aria-label="Следующие 8 сэмплов">›</button></div></div>
+ <div class="slice-info">LOW TONE <span>→</span> HIGH TONE <small>Порядок примерный: тональность определяется по смешанному треку.</small></div>
+ <div id="sliceGrid" class="slice-grid" aria-label="Автоматически извлечённые сэмплы"></div>
+ <div class="slice-foot"><span id="sliceTrackName">NO TRACK LOADED</span><button type="button" id="clearSamples">REMOVE TRACK</button></div>
+ <p class="hint">Важно: нарезка и акустический анализ — не разделение вокала, кика и баса на отдельные stems. Настоящий AI stem separation требует отдельной тяжёлой модели. Высоту звука меняй в MIX.</p>
 </section>
 <section class="section hide" data-panel="export" id="tab-export">
   <div class="section-head"><div><div class="eyebrow">05 / SESSIONS</div><h1>TAKES & FILES</h1></div></div>
@@ -68,10 +75,10 @@
   <div class="export-card project-card"><h2>PROJECT</h2><p>Автосохранение секвенсора, сцен и настроек. Сохраняй отдельные копии в Files.</p><div class="project-actions"><button id="save" type="button">↓ SAVE PROJECT</button><button id="load" type="button">↑ LOAD PROJECT</button></div><input hidden type="file" id="projectFile" accept="application/json,.json" /></div>
 </section>
 </main>
-<nav class="tabs" id="navigation" aria-label="Разделы"><button class="tab active" data-tab="pads" type="button" aria-pressed="true"><span class="tab-icon">▦</span><span>LIVE</span></button><button class="tab" data-tab="sequence" type="button" aria-pressed="false"><span class="tab-icon">≡</span><span>STEPS</span></button><button class="tab" data-tab="mix" type="button" aria-pressed="false"><span class="tab-icon">≋</span><span>MIX</span></button><button class="tab" data-tab="sounds" type="button" aria-pressed="false"><span class="tab-icon">◈</span><span>SOUND</span></button><button class="tab" data-tab="export" type="button" aria-pressed="false"><span class="tab-icon">↓</span><span>FILES</span></button></nav>
+<nav class="tabs" id="navigation" aria-label="Разделы"><button class="tab active" data-tab="pads" type="button" aria-pressed="true"><span class="tab-icon">▦</span><span>LIVE</span></button><button class="tab" data-tab="sequence" type="button" aria-pressed="false"><span class="tab-icon">≡</span><span>STEPS</span></button><button class="tab" data-tab="mix" type="button" aria-pressed="false"><span class="tab-icon">≋</span><span>MIX</span></button><button class="tab" data-tab="sounds" type="button" aria-pressed="false"><span class="tab-icon">◈</span><span>SLICES</span></button><button class="tab" data-tab="export" type="button" aria-pressed="false"><span class="tab-icon">↓</span><span>FILES</span></button></nav>
 <div class="toast" id="toast" hidden role="status" aria-live="polite"></div>
 <dialog id="installDialog" class="dialog"><h2>INSTALL ARTSS LIVE</h2><p>iPhone Safari → Поделиться → На экран «Домой». Приложение и звуки работают офлайн после первого запуска.</p><button id="closeInstall" type="button">ПОНЯТНО</button></dialog>
 </div>
-<script type="module" src="./studio.js?v=11.0.0"></script>
+<script type="module" src="./studio.js?v=12.0.0"></script>
 </body>
 </html>

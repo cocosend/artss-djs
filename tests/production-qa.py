@@ -3,7 +3,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
 from playwright.sync_api import sync_playwright, Error as BrowserError
-import os, sys, shutil
+import os, sys, shutil, wave, math, tempfile, struct
 
 ROOT=Path(__file__).resolve().parents[1]
 TARGET=ROOT/'dist'
@@ -11,7 +11,7 @@ ENGINE=sys.argv[1] if len(sys.argv)>1 else 'chromium'
 if ENGINE not in ('chromium','webkit'): raise ValueError('Browser must be chromium or webkit')
 PROBE='''
 window.__qa=()=>({playing:engine.playing,armed:liveRec,context:engine.ctx?.state,level:engine.meter(),bank:state.bank,
- steps:state.steps,scene:state.scene,pattern:state.patterns[state.scene].map(row=>Array.from(row)),stepIndex:engine.stepIndex,
+ steps:state.steps,scene:state.scene, sampleCount:engine.clips.length,sampleMode:state.sampleMode,sampleBank:state.samplePage,pitch:state.trackPitch,pattern:state.patterns[state.scene].map(row=>Array.from(row)),stepIndex:engine.stepIndex,
  pausedAt:engine.elapsed,recPhase:engine.recPhase,hasTakeFallback:!!recordReady});
 window.__render=(bars)=>engine.offline(bars).then(async b=>({size:b.size,magic:Array.from(new Uint8Array(await b.arrayBuffer()).slice(0,4))}));
 '''
@@ -46,17 +46,18 @@ try:
    local_origin=False
    page.close();page=context.new_page()
    page.on('pageerror',lambda e:errors.append(str(e)))
-   source=(TARGET/'index.html').read_text().replace('<script type="module" src="./studio.js?v=11.0.0"></script>','')
+   source=(TARGET/'index.html').read_text().replace('<script type="module" src="./studio.js?v=12.0.0"></script>','')
    page.set_content(source,wait_until='load')
    page.add_style_tag(content=(TARGET/'studio.css').read_text())
    sound=(TARGET/'sound-design.js').read_text().replace('export ','')
    symbols='{PAD_COUNT,PAD_NAMES,PAD_SHORT,KEYS,COLORS,PRESETS,SCENES,createGrid,presetPattern,makePCM,noteOffset}'
-   app=(TARGET/'studio.js').read_text().split('\n',1)[1]
-   page.add_script_tag(content='const SOUND=(()=>{'+sound+';return '+symbols+';})();\nconst '+symbols+'=SOUND;\n'+app+'\n'+PROBE)
+   slicer=(TARGET/'track-slicer.js').read_text().replace('export ','')
+   app=(TARGET/'studio.js').read_text().split('\n',2)[2]
+   page.add_script_tag(content='const SOUND=(()=>{'+sound+';return '+symbols+';})();\nconst '+symbols+'=SOUND;\n'+slicer+'\n'+app+'\n'+PROBE)
   page.locator('#pads .pad').first.wait_for(timeout=12000)
-  assert page.title()=='ARTSS LIVE 11 · REMIX GROOVE STUDIO'
+  assert page.title()=='ARTSS LIVE 12 · TRACK SLICER'
   assert page.locator('#pads .pad').count()==8
-  assert page.locator('#loopStrips .loop-strip').count()==8
+  assert page.locator('#loopStrips').count()==0
   assert page.locator('#presets .bank').count()==8
   assert page.locator('#navigation .tab').count()==5
   assert page.evaluate('window.__qa().steps')==16
@@ -64,6 +65,37 @@ try:
   page.locator('#pads .pad').first.tap()
   page.wait_for_function('window.__qa().context==="running"',timeout=12000)
   page.wait_for_function('window.__qa().level>0.001',timeout=3000)
+  # Full-track intake: one complete WAV, 16/32 6-second excerpts, low-to-high grid.
+  page.locator('[data-tab="sounds"]').tap()
+  assert page.locator('#soundList').count()==0, 'Duplicate sound-list must be removed'
+  assert page.locator('#sliceGrid .slice-cell').count()==0
+  with tempfile.NamedTemporaryFile(suffix='.wav',delete=False) as source:
+   wav_path=source.name
+  try:
+   with wave.open(wav_path,'wb') as w:
+    w.setnchannels(1);w.setsampwidth(2);w.setframerate(8000)
+    for t in range(16*8000):
+     secs=t/8000;freq=92 if secs<8 else 330
+     w.writeframesraw(struct.pack('<h',int(11000*math.sin(2*math.pi*freq*secs))))
+   page.locator('#trackFile').set_input_files(wav_path)
+   page.wait_for_function('window.__qa().sampleCount===16',timeout=45000)
+   assert page.locator('#sliceGrid .slice-cell').count()==16
+   assert page.evaluate('window.__qa().sampleMode')
+   assert 'SLICE' in page.locator('#pads .pad').first.inner_text() or page.locator('#pads .pad').first.count()==0
+   page.locator('#bankNext').tap()
+   assert page.evaluate('window.__qa().sampleBank')==1
+   page.locator('#bankPrev').tap()
+   page.locator('[data-slice-count="32"]').tap()
+   page.locator('#trackFile').set_input_files(wav_path)
+   page.wait_for_function('window.__qa().sampleCount===32',timeout=60000)
+   assert page.locator('#sliceGrid .slice-cell').count()==32
+  finally:
+   os.unlink(wav_path)
+  page.locator('[data-tab="mix"]').tap()
+  page.locator('[data-track-pitch="0"]').fill('5')
+  assert page.evaluate('window.__qa().pitch[0]')==5
+  page.locator('[data-tab="pads"]').tap()
+  page.locator('#pads .pad').first.tap()
   page.locator('[data-tab="sequence"]').tap()
   page.locator('[data-length="32"]').tap()
   assert page.evaluate('window.__qa().steps')==32
@@ -100,7 +132,7 @@ try:
   assert page.evaluate('window.__qa().pattern[7]')==saved
   if local_origin:
    page.wait_for_timeout(240)
-   assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v11")).steps')==32
+   assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v12")).steps')==32
   page.locator('[data-tab="sequence"]').tap()
   recorded_step=next(i for i in range(16,32) if saved[i]>0)
   assert page.locator(f'[data-row="7"][data-step="{recorded_step}"]').get_attribute('aria-pressed')=='true'
@@ -141,7 +173,7 @@ try:
     assert download.value.suggested_filename.endswith(('.m4a','.webm'))
   assert not errors,errors
   assert not failed,failed
-  print(f'PASS {ENGINE}: 8 pads, 16/32 steps, quantized live overdub, pause/resume, stop/save, undo, mixer, WAV, persistent audio takes={local_origin and media}')
+  print(f'PASS {ENGINE}: full-track 16/32 slicing, persisted take recording, pitch MIX, 8 pads, 16/32 steps, quantized live overdub, pause/resume, stop/save, undo, mixer, WAV, persistent audio takes={local_origin and media}')
   context.close();browser.close()
 finally:
  server.shutdown();server.server_close()

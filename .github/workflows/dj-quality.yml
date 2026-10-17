@@ -1,4 +1,4 @@
-name: ARTSS LIVE 11 Loop Recording Quality Gate
+name: ARTSS LIVE 12 Track Slicer Quality Gate
 
 on:
   pull_request:
@@ -32,7 +32,7 @@ jobs:
           python-version: '3.12'
       - name: Install mobile browser test runner
         run: python3 -m pip install playwright==1.55.0
-      - name: Verify 16/32-step live overdub, pause, WAV and takes in Chromium
+      - name: Verify track import, loop overdub, pause, WAV and takes in Chromium
         run: CHROME_BIN=/usr/bin/google-chrome python3 tests/production-qa.py chromium
 
   ios-webkit:
@@ -52,5 +52,5 @@ jobs:
           python-version: '3.12'
       - name: Install iOS WebKit browser and dependencies
         run: python3 -m pip install playwright==1.55.0 && python3 -m playwright install --with-deps webkit
-      - name: Verify iPhone touch overdub, pause, takes and WAV in WebKit
+      - name: Verify iPhone slicing, overdub, pause, takes and WAV in WebKit
         run: python3 tests/production-qa.py webkit
