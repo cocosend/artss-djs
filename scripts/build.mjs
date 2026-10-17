@@ -2,23 +2,23 @@ import {readFile,writeFile,mkdir,cp,rm,stat} from 'node:fs/promises';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 const root=fileURLToPath(new URL('../',import.meta.url));
-const files=['index.html','styles.css','app.js','midi-controller.js','music-composer.js','creative-pack.js','sw.js','manifest.webmanifest'];
 const pkg=JSON.parse(await readFile(root+'package.json','utf8'));
+const files=['index.html','studio.css','studio.js','sw.js','manifest.webmanifest'];
+const html=await readFile(root+'index.html','utf8');
+const sw=await readFile(root+'sw.js','utf8');
+if(!html.includes('studio.js?v='+pkg.version)||!html.includes('studio.css?v='+pkg.version)) throw Error('HTML entrypoint version mismatch');
+if(!sw.includes('artss-studio-v'+pkg.version))throw Error('PWA cache version mismatch');
 for(const file of files){
- const source=await readFile(root+file,'utf8');
+ await stat(root+file);
  if(file.endsWith('.js')){
-  const check=spawnSync(process.execPath,['--check',root+file],{encoding:'utf8'});
-  if(check.status!==0)throw Error(check.stderr);
-  for(const match of source.matchAll(/from\s+['"]\.\/([^'"]+)['"]/g))await stat(root+match[1]);
+  const result=spawnSync(process.execPath,['--check',root+file],{encoding:'utf8'});
+  if(result.status!==0)throw Error('Invalid JS in '+file+': '+result.stderr);
  }
- if(file==='index.html'&&!source.includes('app.js?v='+pkg.version))throw Error('Entrypoint cache version mismatch');
- if(file==='sw.js'&&!source.includes('artss-djs-v'+pkg.version))throw Error('PWA cache version mismatch');
 }
-JSON.parse(await readFile(root+'manifest.webmanifest','utf8'));
+const manifest=JSON.parse(await readFile(root+'manifest.webmanifest','utf8'));
+if(manifest.id!=='/'||manifest.start_url!=='./'||manifest.display!=='standalone')throw Error('PWA manifest not root installable');
 await rm(root+'dist',{recursive:true,force:true});await mkdir(root+'dist');
 for(const file of files)await cp(root+file,root+'dist/'+file);
 await cp(root+'icons',root+'dist/icons',{recursive:true});
-// Publish SOUNDLAB as isolated /studio preview without changing the legacy entrypoint.
-await cp(root+'studio',root+'dist/studio',{recursive:true});
-await writeFile(root+'dist/release.json',JSON.stringify({name:pkg.name,version:pkg.version,creativePads:32,factoryPresets:40}));
-console.log('PASS production build: '+pkg.version+'; verified ESM imports, PWA versions and static assets');
+await writeFile(root+'dist/release.json',JSON.stringify({name:'ARTSS STUDIO',version:pkg.version,entrypoint:'/',audioEngine:'studio.js',pads:16,tracks:16,steps:16,offline:true})+'\n');
+console.log('PASS canonical ARTSS STUDIO v'+pkg.version+' (one audio runtime)');
