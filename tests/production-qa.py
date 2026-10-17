@@ -11,7 +11,7 @@ ENGINE=sys.argv[1] if len(sys.argv)>1 else 'chromium'
 if ENGINE not in ('chromium','webkit'): raise ValueError('Browser must be chromium or webkit')
 PROBE='''
 window.__qa=()=>({playing:engine.playing,armed:liveRec,context:engine.ctx?.state,level:engine.meter(),bank:state.bank,
- steps:state.steps,scene:state.scene, sampleCount:engine.clips.length,sampleMode:state.sampleMode,sampleBank:state.samplePage,pitch:state.trackPitch,pattern:state.patterns[state.scene].map(row=>Array.from(row)),stepIndex:engine.stepIndex,
+ steps:state.steps,scene:state.scene, sampleCount:engine.clips.length,sampleMode:state.sampleMode,sampleBank:state.samplePage,sourceRate:engine.clips[0]?.sampleRate||null,pitch:state.trackPitch,pattern:state.patterns[state.scene].map(row=>Array.from(row)),stepIndex:engine.stepIndex,
  pausedAt:engine.elapsed,recPhase:engine.recPhase,hasTakeFallback:!!recordReady});
 window.__render=(bars)=>engine.offline(bars).then(async b=>({size:b.size,magic:Array.from(new Uint8Array(await b.arrayBuffer()).slice(0,4))}));
 '''
@@ -46,7 +46,7 @@ try:
    local_origin=False
    page.close();page=context.new_page()
    page.on('pageerror',lambda e:errors.append(str(e)))
-   source=(TARGET/'index.html').read_text().replace('<script type="module" src="./studio.js?v=13.0.0"></script>','')
+   source=(TARGET/'index.html').read_text().replace('<script type="module" src="./studio.js?v=14.0.0"></script>','')
    page.set_content(source,wait_until='load')
    page.add_style_tag(content=(TARGET/'studio.css').read_text())
    sound=(TARGET/'sound-design.js').read_text().replace('export ','')
@@ -55,7 +55,7 @@ try:
    app=(TARGET/'studio.js').read_text().split('\n',2)[2]
    page.add_script_tag(content='const SOUND=(()=>{'+sound+';return '+symbols+';})();\nconst '+symbols+'=SOUND;\n'+slicer+'\n'+app+'\n'+PROBE)
   page.locator('#pads .pad').first.wait_for(timeout=12000)
-  assert page.title()=='ARTSS LIVE 13 · SMART TRACK KIT'
+  assert page.title()=='ARTSS LIVE 14 · HIGH-FIDELITY KIT'
   assert page.locator('#pads .pad').count()==8
   assert page.locator('#loopStrips').count()==0
   assert page.locator('#presets .bank').count()==8
@@ -81,6 +81,7 @@ try:
    page.wait_for_function('window.__qa().sampleCount===16',timeout=45000)
    assert page.locator('#sliceGrid .slice-cell').count()==16
    assert page.evaluate('window.__qa().sampleMode')
+   assert page.evaluate('window.__qa().sourceRate')==44100
    assert page.evaluate('window.__qa().pattern[0][0]')>0
    assert page.evaluate('window.__qa().pattern[1][4]')>0
    assert 'KICK' in page.locator('#pads .pad').first.inner_text()
@@ -135,7 +136,7 @@ try:
   assert page.evaluate('window.__qa().pattern[7]')==saved
   if local_origin:
    page.wait_for_timeout(240)
-   assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v13")).steps')==32
+   assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v14")).steps')==32
   page.locator('[data-tab="sequence"]').tap()
   recorded_step=next(i for i in range(16,32) if saved[i]>0)
   assert page.locator(f'[data-row="7"][data-step="{recorded_step}"]').get_attribute('aria-pressed')=='true'

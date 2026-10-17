@@ -1,4 +1,4 @@
-# ARTSS LIVE 13 — Smart Track Kit
+# ARTSS LIVE 14 — High-Fidelity Sample Engine
 
 One existing Web Audio audio engine, 8 touch pads, 16 or 32 sequencer steps, live overdub and audio takes.
 
@@ -11,3 +11,10 @@ Import creates an immediately playable musical arrangement in INTRO/GROOVE/BUILD
 The UI lists musical roles, not timestamps; no arbitrary 6-second excerpts or irrelevant sorting by pitch. Existing LIVE REC, STOP/PAUSE, WAV export, MIX pitch and PWA remain.
 
 Run `npm test && npm run build`; Chromium / WebKit tests use `python3 tests/production-qa.py chromium|webkit` with Playwright.
+
+## Sample sound quality (v14)
+- 44.1 kHz capture of extracted one-shots, with four-tap interpolation rather than 22.05 kHz linear decimation. Existing v13 banks at 22.05 kHz remain playable and can be reimported to obtain the new processing.
+- Stereo preservation for four arrangement phrases, avoiding collapsed spatial FX; the individual drum/synth one-shots remain mono for tightness and lower memory use.
+- DC correction, bounded peak/RMS leveling, click-free sine fade-in/out and reduced 2 ms sample playback attack.
+- 16 role samples remain estimates from a mixed track; this is not instrument-isolating stem separation or an audio mastering replacement.
+- All processing stays local on device. Real-world output depends on the source recording and connected audio hardware.

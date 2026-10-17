@@ -4,8 +4,8 @@ import {analyzeTrack, MAX_TRACK_BYTES, serializeClips, deserializeClips, ROLES} 
 const $=(sel,root=document)=>root.querySelector(sel);
 const $$=(sel,root=document)=>Array.from(root.querySelectorAll(sel));
 const bound=(n,min,max)=>Math.max(min,Math.min(max,Number.isFinite(+n)?+n:min));
-const key='artss-live-session-v13';
-const previousKeys=['artss-live-session-v12','artss-live-session-v11','artss-studio-session-v10','artss-studio-session-v9'];
+const key='artss-live-session-v14';
+const previousKeys=['artss-live-session-v13','artss-live-session-v12','artss-live-session-v11','artss-studio-session-v10','artss-studio-session-v9'];
 const MAX_STEPS=32;
 const to32=(row)=>Array.from({length:MAX_STEPS},(_,i)=>bound(row?.[i]??0,0,1));
 function blank(bank=0){const p=PRESETS[bank];return {bank,bpm:p.bpm,scene:'GROOVE',steps:16,auto:false,swing:0,master:.75,filter:1,drive:.05,space:.09,delay:.02,mutes:Array(PAD_COUNT).fill(false),solos:Array(PAD_COUNT).fill(false),trackVolumes:Array(PAD_COUNT).fill(.85),trackPitch:Array(PAD_COUNT).fill(0),sampleMode:false,samplePage:0,patterns:Object.fromEntries(SCENES.map(scene=>[scene,presetPattern(p,scene).map(to32)]))};}
@@ -56,7 +56,8 @@ class AudioStudio {
  async unlock(){if(!this.ctx){const C=window.AudioContext||window.webkitAudioContext;if(!C)throw Error('Web Audio API is unavailable');this.ctx=new C({latencyHint:'interactive'});this.stream=this.ctx.createMediaStreamDestination();this.nodes=graph(this.ctx,this.ctx.destination,state);this.nodes.master.connect(this.stream);}
   if(this.ctx.state!=='running')await this.ctx.resume();if(this.ctx.state!=='running')throw Error('Audio suspended: touch a pad again');return this.ctx;}
  set(){if(this.nodes)this.nodes.set(state)}
- buffer(ctx,slot,pitch=0){if(state.sampleMode&&this.clips.length){const index=state.samplePage*PAD_COUNT+slot,clip=this.clips[index];if(clip){let cache=this.clipCache.get(ctx);if(!cache){cache=new Map();this.clipCache.set(ctx,cache);}if(!cache.has(index)){const b=ctx.createBuffer(1,clip.pcm.length,clip.sampleRate);b.copyToChannel(clip.pcm,0);cache.set(index,b);}return cache.get(index);}}
+ buffer(ctx,slot,pitch=0){if(state.sampleMode&&this.clips.length){const index=state.samplePage*PAD_COUNT+slot,clip=this.clips[index];if(clip){let cache=this.clipCache.get(ctx);if(!cache){cache=new Map();this.clipCache.set(ctx,cache);}if(!cache.has(index)){const stereo=clip.pcmRight instanceof Float32Array&&clip.pcmRight.length===clip.pcm.length;
+ const b=ctx.createBuffer(stereo?2:1,clip.pcm.length,clip.sampleRate);b.copyToChannel(clip.pcm,0);if(stereo)b.copyToChannel(clip.pcmRight,1);cache.set(index,b);}return cache.get(index);}}
  const user=this.custom.get(slot);if(user)return user;const k=`${ctx.sampleRate}-${state.bank}-${slot}-${pitch}`;if(!this.cache.has(k)){this.cache.set(k,createBuffer(ctx,makePCM(slot,ctx.sampleRate,state.bank,pitch)));if(this.cache.size>100)this.cache.delete(this.cache.keys().next().value)}return this.cache.get(k)}
  note(ctx,out,slot,when,velocity,step,track=true,bar=0){
   const pitch=noteOffset(state.bank,slot,step%16,bar),src=ctx.createBufferSource(),gain=ctx.createGain();
@@ -71,7 +72,7 @@ class AudioStudio {
    for(const voice of previous){try{voice.gain.gain.cancelScheduledValues(playAt);voice.gain.gain.setTargetAtTime(0,playAt,.008);voice.src.stop(playAt+.045);}catch{}}
   }
  src.connect(gain).connect(out);src.start(playAt);
- if(state.sampleMode&&this.clips.length){gain.gain.setValueAtTime(0,playAt);gain.gain.linearRampToValueAtTime(bound(velocity,0,1)*.57*state.trackVolumes[slot],playAt+.012);const dur=src.buffer.duration/src.playbackRate.value;gain.gain.setTargetAtTime(0,playAt+Math.max(.02,dur-.035),.009);}
+ if(state.sampleMode&&this.clips.length){gain.gain.setValueAtTime(0,playAt);gain.gain.linearRampToValueAtTime(bound(velocity,0,1)*.57*state.trackVolumes[slot],playAt+.002);const dur=src.buffer.duration/src.playbackRate.value;gain.gain.setTargetAtTime(0,playAt+Math.max(.02,dur-.035),.009);}
   if(track){const voice={src,gain,slot};this.sources.add(voice);src.onended=()=>{this.sources.delete(voice);try{src.disconnect();gain.disconnect()}catch{}};}
  }
  quantizedStep(){if(!this.playing||!this.ctx)return 0;const duration=60/state.bpm/4;
@@ -157,10 +158,10 @@ function renderSlices(){const count=engine.clips.length;const root=$('#sliceGrid
  b.append(index,label,detail);b.setAttribute('aria-label',`${c.role||ROLES[i].id}, воспроизвести`);root.append(b)}
 }
 function renderPads(){const root=$('#pads');root.replaceChildren(...PAD_NAMES.map((name,i)=>{const b=document.createElement('button');b.type='button';b.className='pad'+(state.sampleMode?' imported':'');b.dataset.pad=String(i);b.style.setProperty('--pad-color',COLORS[i]);b.setAttribute('aria-label',padLabel(i));b.innerHTML=`<span class="pad-index">${String(state.sampleMode?state.samplePage*8+i+1:i+1).padStart(2,'0')}</span><strong class="pad-label">${padLabel(i)}</strong><span class="pad-key">${KEYS[i]} / PLAY</span>`;return b}));}
-const SAMPLE_DB='artss-track-slices-v1';
+const SAMPLE_DB='artss-track-slices-v1'; // retain existing user banks
 function sampleStore(mode,callback){return new Promise((resolve,reject)=>{if(!('indexedDB' in window))return reject(Error('IndexedDB unavailable'));const open=indexedDB.open(SAMPLE_DB,1);open.onupgradeneeded=()=>{open.result.createObjectStore('sampleBanks',{keyPath:'id'});};open.onerror=()=>reject(open.error);open.onsuccess=()=>{const db=open.result,tx=db.transaction('sampleBanks',mode),request=callback(tx.objectStore('sampleBanks'));let result;request.onsuccess=()=>result=request.result;tx.oncomplete=()=>{db.close();resolve(result)};tx.onerror=()=>{db.close();reject(tx.error)};tx.onabort=()=>{db.close();reject(tx.error)};};});}
 async function restoreSlices(){try{const saved=await sampleStore('readonly',store=>store.get('active'));if(!saved)return;
- if(saved.schema!=='musical-roles-v13'){state.sampleMode=false;renderPads();$('#sliceStatus').textContent='Обновлён анализ звуков · загрузи трек повторно для 16 музыкальных ячеек';return;}
+ if(!['musical-roles-v13','musical-roles-v14'].includes(saved.schema)){state.sampleMode=false;renderPads();$('#sliceStatus').textContent='Обновлён анализ звуков · загрузи трек повторно для 16 музыкальных ячеек';return;}
  engine.clips=deserializeClips(saved.clips);engine.trackName=saved.name;trackName=saved.name;state.samplePage=Math.min(state.samplePage,1);
  renderSlices();renderPads();$('#sliceStatus').textContent=`ВОССТАНОВЛЕНО: ${saved.name} · 16 ROLES`;}
  catch(e){state.sampleMode=false;renderPads();$('#sliceStatus').textContent='Не удалось восстановить нарезку. Повтори импорт.';}}
@@ -169,7 +170,7 @@ async function importFullTrack(file){if(analyzing)return;if(!file) return;if(fil
  try{await engine.unlock();const bytes=await file.arrayBuffer();$('#sliceStatus').textContent='ДЕКОДИРОВАНИЕ ТРЕКА...';const decoded=await engine.ctx.decodeAudioData(bytes);
   if(decoded.duration>2700)throw Error('Трек длиннее 45 минут не поддерживается');
   const clips=await analyzeTrack(decoded,16,n=>{$('#sliceProgress').value=n;$('#sliceStatus').textContent=`АНАЛИЗ ${n}% · ПОИСК ФРАГМЕНТОВ`});
-  const bank={id:'active',schema:'musical-roles-v13',name:file.name.slice(0,120),created:Date.now(),clips:serializeClips(clips)};
+  const bank={id:'active',schema:'musical-roles-v14',name:file.name.slice(0,120),created:Date.now(),clips:serializeClips(clips)};
   // Keep the previous bank intact until the next one is fully constructed.
   engine.stop();engine.clips=clips;engine.clipCache=new WeakMap();engine.trackName=bank.name;trackName=bank.name;state.sampleMode=true;state.samplePage=0;state.bpm=Math.round(bound(clips[0]?.bpm||state.bpm,90,175));
   autoArrangeImportedKit();
