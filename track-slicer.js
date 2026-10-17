@@ -1,5 +1,5 @@
 /** Local role-aware sampling of a mixed recording. No network and no stem-separation claims. */
-export const SLICE_RATE=22050;
+export const SLICE_RATE=44100; // Preserve full-resolution transients and hi-hat detail
 export const SLICE_SECONDS=6; // maximum phrase length, never a fixed slice duration
 export const MAX_SLICES=16;
 export const MAX_TRACK_BYTES=80*1024*1024;
@@ -126,39 +126,102 @@ function processRole(pcm,kind){
  for(let i=0;i<pcm.length;i++)pcm[i]=clamp(apply(pcm[i]),-1,1);
  return pcm;
 }
-function extract(audio,entry){
- const count=Math.max(64,Math.min(SLICE_RATE*SLICE_SECONDS,Math.ceil(entry.length*SLICE_RATE))),pcm=new Float32Array(count);
- const channels=Array.from({length:Math.min(2,audio.numberOfChannels)},(_,i)=>audio.getChannelData(i));
- for(let i=0;i<count;i++){
-  const pos=(entry.start+i/SLICE_RATE)*audio.sampleRate,base=Math.floor(pos),t=pos-base;
-  let v=0;for(const c of channels)v+=((c[base]||0)*(1-t)+(c[base+1]||0)*t)/channels.length;
-  pcm[i]=clamp(v,-1,1);
+/** Four-point interpolation avoids the high-frequency loss of linear resampling.
+ * A fixed PCM rate keeps the resulting IndexedDB bank portable between iPhone devices. */
+function sampleAt(ch,pos){
+ const i=Math.floor(pos),t=pos-i;
+ const a=ch[Math.max(0,i-1)]||0,b=ch[Math.max(0,i)]||0,c=ch[Math.min(ch.length-1,i+1)]||0,d=ch[Math.min(ch.length-1,i+2)]||0;
+ const a0=-.5*a+1.5*b-1.5*c+.5*d,a1=a-2.5*b+2*c-.5*d,a2=-.5*a+.5*c;
+ return clamp(((a0*t+a1)*t+a2)*t+b,-1,1);
+}
+/** Normalize with both peak and RMS ceilings, never an uncapped loudness boost.
+ * The source is already a full mix; filtering only attenuates spill, not stems. */
+export function polishPCM(pcm,kind='mid'){
+ if(!(pcm instanceof Float32Array)||!pcm.length)throw Error('Invalid PCM');
+ const len=pcm.length,nominal=kind==='low'?.78:kind==='high'?.66:kind==='full'?.75:.70;
+ let mean=0,peak=0,power=0;
+ for(let i=0;i<len;i++)mean+=Number.isFinite(pcm[i])?pcm[i]:0;
+ mean/=len;
+ for(let i=0;i<len;i++){
+  const x=clamp((Number.isFinite(pcm[i])?pcm[i]:0)-mean,-1.5,1.5);
+  pcm[i]=x;peak=Math.max(peak,Math.abs(x));power+=x*x;
  }
- processRole(pcm,entry.kind);
- // Tiny attack and release prevent ticks, while leaving the original performance's transient intact.
- const fadeIn=Math.max(1,Math.floor(.003*SLICE_RATE)),fadeOut=Math.max(1,Math.floor(Math.min(.024,entry.length*.20)*SLICE_RATE));
- for(let i=0;i<count;i++)pcm[i]*=Math.min(1,i/fadeIn,(count-1-i)/fadeOut);
+ const rms=Math.sqrt(power/len);
+ if(peak<.00075||rms<.0001){pcm.fill(0);return pcm;}
+ const rmsTarget=kind==='low'?.19:kind==='high'?.13:kind==='full'?.20:.16;
+ const gain=Math.max(.08,Math.min(3,nominal/peak,rmsTarget/rms));
+ // Short 1.5 ms equal-power fade retains kick punch; longer fades smooth full phrases.
+ const attack=Math.max(1,Math.round(SLICE_RATE*(kind==='full'?.004:.0015)));
+ const release=Math.max(1,Math.min(Math.floor(len*.3),Math.round(SLICE_RATE*(kind==='full'?.06:kind==='low'?.035:.018))));
+ for(let i=0;i<len;i++){
+  const fadeIn=i<attack?Math.sin(.5*Math.PI*i/attack):1;
+  const end=len-1-i,fadeOut=end<release?Math.sin(.5*Math.PI*end/release):1;
+  pcm[i]=clamp(pcm[i]*gain*fadeIn*fadeOut,-.9,.9);
+ }
  return pcm;
+}
+/** Shared stereo gain preserves the original L/R balance of arrangement phrases. */
+export function polishStereoPCM(left,right){
+ if(!(left instanceof Float32Array)||!(right instanceof Float32Array)||left.length!==right.length||!left.length)throw Error('Invalid stereo PCM');
+ const n=left.length;let dcL=0,dcR=0,power=0,peak=0;
+ for(let i=0;i<n;i++){dcL+=Number.isFinite(left[i])?left[i]:0;dcR+=Number.isFinite(right[i])?right[i]:0;}
+ dcL/=n;dcR/=n;
+ for(let i=0;i<n;i++){
+  const a=clamp((Number.isFinite(left[i])?left[i]:0)-dcL,-1.5,1.5);
+  const b=clamp((Number.isFinite(right[i])?right[i]:0)-dcR,-1.5,1.5);
+  left[i]=a;right[i]=b;power+=a*a+b*b;peak=Math.max(peak,Math.abs(a),Math.abs(b));
+ }
+ const rms=Math.sqrt(power/(2*n));
+ if(peak<.00075||rms<.0001){left.fill(0);right.fill(0);return {left,right};}
+ const gain=Math.max(.08,Math.min(3,.75/peak,.20/rms));
+ const attack=Math.max(1,Math.round(SLICE_RATE*.004));
+ const release=Math.max(1,Math.min(Math.floor(n*.3),Math.round(SLICE_RATE*.06)));
+ for(let i=0;i<n;i++){
+  const fadeIn=i<attack?Math.sin(.5*Math.PI*i/attack):1;
+  const end=n-1-i,fadeOut=end<release?Math.sin(.5*Math.PI*end/release):1;
+  const g=gain*fadeIn*fadeOut;
+  left[i]=clamp(left[i]*g,-.9,.9);right[i]=clamp(right[i]*g,-.9,.9);
+ }
+ return {left,right};
+}
+function extract(audio,entry){
+ const count=Math.max(64,Math.min(SLICE_RATE*SLICE_SECONDS,Math.ceil(entry.length*SLICE_RATE)));
+ const left=new Float32Array(count),stereo=entry.kind==='full'&&audio.numberOfChannels>1;
+ const right=stereo?new Float32Array(count):null;
+ const a=audio.getChannelData(0),b=audio.numberOfChannels>1?audio.getChannelData(1):a;
+ const ratio=audio.sampleRate/SLICE_RATE,offset=entry.start*audio.sampleRate;
+ for(let i=0;i<count;i++){
+  const pos=offset+i*ratio,l=sampleAt(a,pos);
+  if(stereo){left[i]=l;right[i]=sampleAt(b,pos);}
+  else left[i]=(l+sampleAt(b,pos))*.5;
+ }
+ if(stereo)polishStereoPCM(left,right);
+ else {processRole(left,entry.kind);polishPCM(left,entry.kind);}
+ return {pcm:left,pcmRight:right};
 }
 export async function analyzeTrack(audio,count=16,onProgress=()=>{}){
  if(count!==16)throw Error('This sampler uses 16 instrument/arrangement slots');
  const frames=scanTrack(audio),events=chooseEvents(audio,frames),bpm=estimateBpm(frames),clips=[];
  for(let i=0;i<events.length;i++){
-  const event=events[i],pcm=extract(audio,event);
-  clips.push({index:i,role:event.role,kind:event.kind,pcm,sampleRate:SLICE_RATE,start:event.start,seconds:pcm.length/SLICE_RATE,bpm});
+  const event=events[i],{pcm,pcmRight}=extract(audio,event);
+  clips.push({index:i,role:event.role,kind:event.kind,pcm,pcmRight,sampleRate:SLICE_RATE,start:event.start,seconds:pcm.length/SLICE_RATE,bpm});
   onProgress(Math.round((i+1)/events.length*100));if(i%2===1)await tick();
  }
  return clips;
 }
 export function serializeClips(clips){
- return clips.map(c=>({role:c.role,kind:c.kind,seconds:c.seconds,bpm:c.bpm,sampleRate:SLICE_RATE,
-  pcm:Int16Array.from(c.pcm,v=>Math.round(clamp(v,-1,1)*32767))}));
+ return clips.map(c=>({role:c.role,kind:c.kind,seconds:c.seconds,bpm:c.bpm,sampleRate:c.sampleRate||SLICE_RATE,
+  pcm:Int16Array.from(c.pcm,v=>Math.round(clamp(v,-1,1)*32767)),
+  pcmRight:c.pcmRight?Int16Array.from(c.pcmRight,v=>Math.round(clamp(v,-1,1)*32767)):null}));
 }
 export function deserializeClips(saved){
  if(!Array.isArray(saved)||saved.length!==16)throw Error('Invalid sample pack');
  return saved.map((c,index)=>{
-  if(!(c.pcm instanceof Int16Array)||c.pcm.length<64||c.pcm.length>SLICE_RATE*SLICE_SECONDS+100)throw Error('Invalid audio clip');
-  return {index,role:ROLES[index].id,kind:ROLES[index].kind,pcm:Float32Array.from(c.pcm,v=>v/32767),sampleRate:SLICE_RATE,
-   seconds:c.pcm.length/SLICE_RATE,bpm:clamp(c.bpm,90,175)||132};
+  const rate=Number(c.sampleRate)||22050;
+  if(![22050,44100].includes(rate)||!(c.pcm instanceof Int16Array)||c.pcm.length<64||c.pcm.length>rate*SLICE_SECONDS+100)throw Error('Invalid audio clip');
+  if(c.pcmRight!=null&&(!(c.pcmRight instanceof Int16Array)||c.pcmRight.length!==c.pcm.length))throw Error('Invalid stereo clip');
+  return {index,role:ROLES[index].id,kind:ROLES[index].kind,
+   pcm:Float32Array.from(c.pcm,v=>v/32767),pcmRight:c.pcmRight?Float32Array.from(c.pcmRight,v=>v/32767):null,sampleRate:rate,
+   seconds:c.pcm.length/rate,bpm:clamp(c.bpm,90,175)||132};
  });
 }
