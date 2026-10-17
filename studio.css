@@ -106,3 +106,38 @@ html,body{background:var(--bg);}
 @media(prefers-reduced-motion:reduce){.rec-beacon{animation:none!important}}
 
 .strip-steps i.playing{outline:1px solid #eef5cc;outline-offset:-1px;background:#d5ff81!important;box-shadow:0 0 7px #beff5170}
+/* v12 — no duplicate loop-strip column. Full-track slicer and key controls only in MIX. */
+.mix-channel{grid-template-columns:66px 34px 34px minmax(0,1fr);row-gap:5px;column-gap:7px}
+.channel-pitch{grid-column:2 / -1;display:flex;align-items:center;min-width:0;gap:9px;padding:0 3px 0 0}
+.channel-pitch span{font:800 9px ui-monospace,SFMono-Regular,monospace;color:var(--orange)}
+.channel-pitch input{flex:1;width:0;min-width:0;height:32px;accent-color:var(--orange)}
+.channel-pitch output{color:var(--lime);font:800 11px ui-monospace,SFMono-Regular,monospace;min-width:42px;text-align:right}
+.import-box{padding:16px;border:1px solid #476449;border-radius:12px;background:linear-gradient(125deg,#1c2c21,#151c18)}
+.import-title{display:flex;align-items:flex-start;gap:12px}
+.import-glyph{display:flex;align-items:center;justify-content:center;min-width:48px;height:48px;background:#bfff4b;color:#0b1b09;font-size:27px;font-weight:800;border-radius:9px}
+.import-title strong{font-size:14px;letter-spacing:.02em}
+.import-title p{font-size:11px;line-height:1.6;color:#adbeae;margin:6px 0 0}
+.slice-toolbar{margin-top:17px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:space-between}
+.import-primary{border-radius:8px;background:var(--orange);color:#1e1309;padding:14px 16px;min-height:45px;font-size:11px;font-weight:950;letter-spacing:.02em}
+.import-primary:disabled{opacity:.45}
+.analyze-status{margin-top:14px;font:700 10px ui-monospace,SFMono-Regular,monospace;line-height:1.5;color:var(--lime);word-break:break-word}
+.analyze-status progress{display:block;width:100%;margin-top:10px;height:8px;accent-color:var(--lime)}
+.slice-control{margin-top:15px;display:flex;justify-content:space-between;gap:9px;align-items:center}
+#sampleMode{min-width:0;text-align:center;flex:1;background:#24382a;border:1px solid #53834d;color:var(--lime);padding:11px 6px;border-radius:8px;font-weight:900;font-size:10px}
+#sampleMode[aria-pressed=true]{background:var(--lime);color:#15210b}
+.sample-bank-switch{display:flex;flex:1;align-items:center;justify-content:space-around;gap:5px;background:#1b2a1e;border:1px solid #476449;border-radius:8px;min-height:41px}
+.sample-bank-switch button{font-size:25px;color:var(--orange);padding:0 12px;min-height:40px}
+.sample-bank-switch button:disabled{opacity:.3}
+.sample-bank-switch strong{font:850 9px ui-monospace,SFMono-Regular,monospace;white-space:nowrap}
+.slice-info{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin:19px 0 12px;font:900 10px ui-monospace,SFMono-Regular,monospace;color:var(--orange)}
+.slice-info span{color:var(--lime)}.slice-info small{color:#9cb398;font-size:9px;font-weight:500;flex:1 1 100%;line-height:1.45}
+.slice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;min-height:70px}
+.slice-cell{background:#19271d;border:1px solid #34543a;border-left:3px solid var(--orange);border-radius:8px;min-height:74px;text-align:left;padding:10px 11px;display:flex;flex-direction:column;justify-content:space-between;gap:4px;min-width:0;color:var(--white)}
+.slice-cell:nth-child(even){border-left-color:var(--lime)}.slice-cell.current-bank{background:#284231;border-color:#739c56}
+.slice-cell:active{background:#556b39}.slice-index{font:700 9px ui-monospace,SFMono-Regular,monospace;color:var(--orange)}
+.slice-cell strong{font-size:13px;white-space:nowrap}.slice-cell small{font:700 10px ui-monospace,SFMono-Regular,monospace;color:#abc09d}
+.slice-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:15px 0 10px;border-top:1px solid #3b5141;padding-top:12px}
+.slice-foot>span{font:700 10px ui-monospace,SFMono-Regular,monospace;color:#b2c8ac;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.slice-foot button{border:1px solid #806444;border-radius:7px;padding:10px 9px;color:var(--orange);white-space:nowrap;font-size:10px;font-weight:850}
+@media(min-width:720px){.slice-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:390px){.mix-channel{grid-template-columns:52px 30px 30px minmax(0,1fr)}.slice-toolbar .segmented button{padding:9px 7px;font-size:9px}.import-primary{padding:12px 10px}.sample-bank-switch button{padding:0 5px}.slice-info{margin-top:15px}}
