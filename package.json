@@ -1,12 +1,12 @@
 {
   "name": "artss-studio",
-  "version": "8.1.0",
+  "version": "9.0.0",
   "private": true,
   "type": "module",
   "description": "Single-runtime, offline-ready music production PWA for iPhone and Android",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "node --check studio.js && node --check sw.js && node tests/sound-signature.cjs",
+    "test": "node --check studio.js && node --check sound-design.js && node --check sw.js && node tests/groove-engine.test.cjs",
     "test:browser": "python3 tests/production-qa.py chromium",
     "test:webkit": "python3 tests/production-qa.py webkit"
   }

@@ -1,4 +1,4 @@
-name: ARTSS STUDIO Production Gate
+name: ARTSS STUDIO Groovebox Quality Gate
 
 on:
   pull_request:
@@ -25,14 +25,14 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
-      - name: Verify approved audio signature and build root-only PWA
+      - name: Verify 8-pad groove design, DSP safety and production build
         run: npm test && npm run build
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12'
       - name: Install mobile browser test runner
         run: python3 -m pip install playwright==1.55.0
-      - name: Exercise 16 pads, recording and offline WAV in Chromium
+      - name: Verify 8 touch pads, sequence, recording and WAV in Chromium
         run: CHROME_BIN=/usr/bin/google-chrome python3 tests/production-qa.py chromium
 
   ios-webkit:
@@ -52,5 +52,5 @@ jobs:
           python-version: '3.12'
       - name: Install iOS WebKit browser and dependencies
         run: python3 -m pip install playwright==1.55.0 && python3 -m playwright install --with-deps webkit
-      - name: Verify mobile touch, audio output, recording and WAV
+      - name: Verify thumb input, audio playback, recording and WAV in WebKit
         run: python3 tests/production-qa.py webkit

@@ -1,28 +1,34 @@
-# ARTSS STUDIO 8.1 — canonical DJ Creator
+# ARTSS STUDIO 9 — 8-Pad Groovebox
 
-**Live:** https://artss-djs.vercel.app/ — single canonical installation entrypoint.
-**Repository:** `cocosend/artss-djs`, production branch `main`, Vercel project `artss-djs`.
+Primary iOS/Android PWA: https://artss-djs.vercel.app/
 
-ARTSS STUDIO is the approved eight-bank, 16-pad beat creator. The original v8.0 sound synthesis (`makePCM`), arrangement presets and compressor routing are preserved as tested. No DJ decks, duplicated audio engine, or external sample service.
+**Concept:** Eight large touch pads, sixteen steps per instrument. One Web Audio engine for live, sequencing, recording and offline WAV. No toy melodies, no decks, no randomized chromatic note triggers.
 
-## Source layout
+## Pads
 
-- `index.html` / `studio.css` — mobile touch interface and five tabs.
-- `studio.js` — one Web Audio engine, sequencer, sound banks, effects, sample import, recording and WAV/JSON export.
-- `manifest.webmanifest`, `sw.js`, `icons/` — installable PWA and offline assets.
-- `scripts/build.mjs` — only the above static runtime files are copied to `dist/`.
-- `tests/` — sound fingerprint, Chromium and WebKit transport/record/export gates.
+| Slot | Role |
+|---|---|
+| 1 | CLUB KICK — deep four-on-floor transient |
+| 2 | DEEP SUB — bank-root-tuned sustained 808/sub |
+| 3 | CLAP / SNARE — backbeat |
+| 4 | CLOSED HAT — tight off-beat high-frequency pulse |
+| 5 | OPEN HAT — atmospheric open eighth offbeat |
+| 6 | RIM / PERC — genre-specific syncopation |
+| 7 | 303 ACID — controlled low resonant sequence |
+| 8 | GENRE HIT — rave stab or phonk cowbell, otherwise a short noise accent |
 
-## Develop and release
+Eight genres: Warehouse Techno, Hardgroove, Deep Dub/Minimal, Acid, Industrial, Dark Hypno, Rave, Drift Phonk. Each template has a deliberately sparse arrangement. Only SUB, ACID and GENRE HIT have rooted minor-scale changes; the other five are unpitched.
 
-```bash
-npm test
-npm run build
-npm run test:browser
-```
+## Architecture
 
-No npm runtime dependencies or server/database required. Publish via GitHub `main` to the existing linked Vercel project. A change is acceptable only after Chromium and WebKit mobile tests pass and `https://artss-djs.vercel.app/release.json` matches the expected version.
+`studio.js` owns transport and Web Audio bus. `sound-design.js` is pure genre programming and deterministic one-shot PCM synth. The 8×16 sequence layout and sampling use the same source for both live and offline WAV export. Recorded audio uses `MediaRecorder`, and WAV export uses `OfflineAudioContext`. No backend, external assets or npm runtime packages.
 
-**iOS:** Safari → Share → Add to Home Screen. Web Audio starts on a user gesture. Imported audio is session-local; session patterns and settings are stored on-device. Live recording requires browser MediaRecorder; WAV export uses offline Web Audio. The app does not send music projects to Supabase or other external services.
+Project migration: fresh v9 startup state, old 16-track JSON project files can be imported with a defined 16→8 track mapping. Samples are ephemeral and are never included in the JSON project file.
 
-Production replaces the old 7.x root. Older implementations remain accessible in Git history for rollback rather than as duplicate production runtimes.
+## Checks
+
+`npm test && npm run build`, then Playwright Chromium and WebKit tests when the engines are installed: `npm run test:browser`, `npm run test:webkit`. CI blocks merge if any of the production checks fail.
+
+## Notes
+
+Sound quality is subjective. These original algorithmically-generated one-shots are not recordings from professional hardware or commercial licensed sample packs. Test on real iPhone speakers/headphones before relying on it in a performance. iOS PWA install: Safari → Share → Add to Home Screen.

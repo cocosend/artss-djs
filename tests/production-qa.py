@@ -56,20 +56,27 @@ try:
         except BrowserError as error:
             if 'ERR_BLOCKED_BY_ADMINISTRATOR' not in str(error):
                 raise
-            # Some sandbox hosts prevent local HTTP navigation. Fall back to the
-            # exact same built source injected on about:blank; CI tests real HTTP.
+            # Restricted local sandbox fallback only: concatenate the checked ESM modules.
+            # GitHub CI still executes the real network-loaded module tree.
             page.close()
             page=context.new_page()
             page.on('pageerror',lambda err:errors.append(str(err)))
-            page.set_content((TARGET/'index.html').read_text().replace('<script type="module" src="./studio.js?v=8.1.0"></script>',''),wait_until='load')
+            page.set_content((TARGET/'index.html').read_text().replace('<script type="module" src="./studio.js?v=9.0.0"></script>',''),wait_until='load')
             page.add_style_tag(content=(TARGET/'studio.css').read_text())
-            page.add_script_tag(content=(TARGET/'studio.js').read_text()+'\n'+PROBE)
+            sound=(TARGET/'sound-design.js').read_text().replace('export ','')
+            exports='{PAD_COUNT,PAD_NAMES,PAD_SHORT,KEYS,COLORS,PRESETS,SCENES,createGrid,presetPattern,makePCM,noteOffset}'
+            app=(TARGET/'studio.js').read_text()
+            app=app[app.find('\n')+1:]
+            page.add_script_tag(content='const SOUND=(()=>{'+sound+';return '+exports+';})();\nconst '+exports+'=SOUND;\n'+app+'\n'+PROBE)
 
-        page.locator('#pads .pad').first.wait_for(timeout=18000)
-        assert page.title()=='ARTSS STUDIO · Beat Creator'
-        assert page.locator('#pads .pad').count()==16
+        try:
+            page.locator('#pads .pad').first.wait_for(timeout=18000)
+        except Exception:
+            raise AssertionError('Startup errors: '+repr(errors))
+        assert page.title()=='ARTSS STUDIO 9 · 8-Pad Groovebox'
+        assert page.locator('#pads .pad').count()==8
         assert page.locator('#presets .bank').count()==8
-        assert page.locator('#sequence .seq-cell[data-row]').count()==256
+        assert page.locator('#sequence .seq-cell[data-row]').count()==128
         page.locator('#pads .pad').first.tap()
         page.wait_for_function('window.__qa().context==="running"',timeout=15000)
         page.locator('#play').tap()
@@ -84,7 +91,7 @@ try:
         page.locator('#presets .bank').nth(3).tap()
         assert page.evaluate('window.__qa().bank')==3
         page.locator('#bpmUp').tap()
-        assert page.evaluate('window.__qa().bpm')==143
+        assert page.evaluate('window.__qa().bpm')==141
         page.locator('[data-tab="sequence"]').tap()
         cell=page.locator('[data-row="0"][data-step="1"]')
         before=cell.get_attribute('aria-pressed')
@@ -115,7 +122,7 @@ try:
             assert info.value.suggested_filename.startswith('ARTSS-LIVE-')
         assert not errors,errors
         assert not failed,failed
-        print(f'PASS {ENGINE} HTTP production assets: 16 touch pads, 8 banks, 256 steps, nonzero audio signal, transport, undo, FX, WAV, MediaRecorder={recorder_available}')
+        print(f'PASS {ENGINE} HTTP production assets: 8 touch pads, 8 banks, 128 steps, nonzero audio signal, transport, undo, FX, WAV, MediaRecorder={recorder_available}')
         context.close()
         browser.close()
 finally:
