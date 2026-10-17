@@ -46,7 +46,7 @@ try:
    local_origin=False
    page.close();page=context.new_page()
    page.on('pageerror',lambda e:errors.append(str(e)))
-   source=(TARGET/'index.html').read_text().replace('<script type="module" src="./studio.js?v=12.0.0"></script>','')
+   source=(TARGET/'index.html').read_text().replace('<script type="module" src="./studio.js?v=13.0.0"></script>','')
    page.set_content(source,wait_until='load')
    page.add_style_tag(content=(TARGET/'studio.css').read_text())
    sound=(TARGET/'sound-design.js').read_text().replace('export ','')
@@ -55,7 +55,7 @@ try:
    app=(TARGET/'studio.js').read_text().split('\n',2)[2]
    page.add_script_tag(content='const SOUND=(()=>{'+sound+';return '+symbols+';})();\nconst '+symbols+'=SOUND;\n'+slicer+'\n'+app+'\n'+PROBE)
   page.locator('#pads .pad').first.wait_for(timeout=12000)
-  assert page.title()=='ARTSS LIVE 12 · TRACK SLICER'
+  assert page.title()=='ARTSS LIVE 13 · SMART TRACK KIT'
   assert page.locator('#pads .pad').count()==8
   assert page.locator('#loopStrips').count()==0
   assert page.locator('#presets .bank').count()==8
@@ -81,14 +81,17 @@ try:
    page.wait_for_function('window.__qa().sampleCount===16',timeout=45000)
    assert page.locator('#sliceGrid .slice-cell').count()==16
    assert page.evaluate('window.__qa().sampleMode')
-   assert 'SLICE' in page.locator('#pads .pad').first.inner_text() or page.locator('#pads .pad').first.count()==0
+   assert page.evaluate('window.__qa().pattern[0][0]')>0
+   assert page.evaluate('window.__qa().pattern[1][4]')>0
+   assert 'KICK' in page.locator('#pads .pad').first.inner_text()
    page.locator('#bankNext').tap()
    assert page.evaluate('window.__qa().sampleBank')==1
    page.locator('#bankPrev').tap()
-   page.locator('[data-slice-count="32"]').tap()
-   page.locator('#trackFile').set_input_files(wav_path)
-   page.wait_for_function('window.__qa().sampleCount===32',timeout=60000)
-   assert page.locator('#sliceGrid .slice-cell').count()==32
+   page.locator('#bankNext').tap()
+   assert 'KICK ALT' in page.locator('#pads .pad').first.inner_text()
+   assert ':' not in page.locator('#sliceGrid .slice-cell').first.inner_text()
+   assert page.locator('#sliceGrid [data-slice="15"]').count()==1
+   page.locator('#bankPrev').tap()
   finally:
    os.unlink(wav_path)
   page.locator('[data-tab="mix"]').tap()
@@ -132,7 +135,7 @@ try:
   assert page.evaluate('window.__qa().pattern[7]')==saved
   if local_origin:
    page.wait_for_timeout(240)
-   assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v12")).steps')==32
+   assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v13")).steps')==32
   page.locator('[data-tab="sequence"]').tap()
   recorded_step=next(i for i in range(16,32) if saved[i]>0)
   assert page.locator(f'[data-row="7"][data-step="{recorded_step}"]').get_attribute('aria-pressed')=='true'
@@ -173,7 +176,7 @@ try:
     assert download.value.suggested_filename.endswith(('.m4a','.webm'))
   assert not errors,errors
   assert not failed,failed
-  print(f'PASS {ENGINE}: full-track 16/32 slicing, persisted take recording, pitch MIX, 8 pads, 16/32 steps, quantized live overdub, pause/resume, stop/save, undo, mixer, WAV, persistent audio takes={local_origin and media}')
+  print(f'PASS {ENGINE}: full-track 16 musical roles, persisted take recording, pitch MIX, 8 pads, 16/32 steps, quantized live overdub, pause/resume, stop/save, undo, mixer, WAV, persistent audio takes={local_origin and media}')
   context.close();browser.close()
 finally:
  server.shutdown();server.server_close()

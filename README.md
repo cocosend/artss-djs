@@ -1,15 +1,13 @@
-# ARTSS LIVE 12 — Track Slicer / iPhone PWA
+# ARTSS LIVE 13 — Smart Track Kit
 
-Canonical production app: https://artss-djs.vercel.app. 8 performance pads, 16/32-step overdub recorder, transport pause/stop, separately saved master takes. This release replaces duplicate sound-list and loop-strip columns with one import workspace.
+One existing Web Audio audio engine, 8 touch pads, 16 or 32 sequencer steps, live overdub and audio takes.
 
-## Full track workflow
+**TRACK IMPORT:** upload complete audio locally, detect onset candidates across the entire track, rank candidates by low/high-frequency energy, transients and arrangement position, and fill sixteen fixed musical roles (KICK, CLAP, HAT, OPEN HAT, PERC, BASS, ACID, HIT, KICK ALT, SNARE, RIDE, STAB, GROOVE, BUILD, DROP, BREAK). Two banks of eight physical pads.
 
-1. Open **SLICES**, choose 16 (default) or 32, then **LOAD FULL TRACK** (.mp3/.m4a/.wav etc supported by the browser).
-2. The browser decodes the full recording locally, selects six-second excerpts across its duration using energy and onset changes, and places them from lower to higher estimated tone/brightness. The source recording is never uploaded.
-3. Select a bank of eight slices; the same eight LIVE performance pads now trigger that bank. Tap **KIT SOUNDS** to switch back to the original synthesizer.
-4. Open **MIX** for individual channel pitch adjustment (-12 to +12 semitones), level, mute and solo. There are no per-pad volume/pitch sliders.
-5. Play and record as before. The selected bank plays in the sequencer and real-time audio take capture. Slice data is stored in IndexedDB for future sessions when storage permits.
+Clips have role-specific lengths: short one-shots for drums, longer phrases for tonal elements and arrangement stages. Frequency-selective filtering attenuates some unrelated material; because the input is a mastered mix, it **does not** isolate authentic independent stems. We do not claim neural source separation or an AI server. No track is uploaded to a backend.
 
-**Limitations:** This is on-device acoustic event detection and slicing, **not** neural stem/source separation. Complex polyphonic mixes remain mixed within each excerpt; precise kick/vocal/bass isolation is not claimed. Estimated frequency sorting is approximate. Browser decoding of very large or long tracks is memory-intensive on older iPhones; this implementation has 80 MiB file and 45-minute decoded-duration guards. Storage is device-local; exporting a pattern as JSON does not embed copyrighted audio. 6-second clips are mono at 22.05 kHz with fades to cap mobile memory.
+Import creates an immediately playable musical arrangement in INTRO/GROOVE/BUILD/DROP/BREAK with 4-on-the-floor kick, sparse bass and acid, genre-appropriate percussion. Prior session state is backed up in browser localStorage under `artss-before-track-import-v13`. Imported PCM stored in IndexedDB.
 
-Run `npm test && npm run build` (no npm dependencies). Browser smoke: `python3 tests/production-qa.py chromium`; WebKit: `python3 tests/production-qa.py webkit` with Playwright installed.
+The UI lists musical roles, not timestamps; no arbitrary 6-second excerpts or irrelevant sorting by pitch. Existing LIVE REC, STOP/PAUSE, WAV export, MIX pitch and PWA remain.
+
+Run `npm test && npm run build`; Chromium / WebKit tests use `python3 tests/production-qa.py chromium|webkit` with Playwright.

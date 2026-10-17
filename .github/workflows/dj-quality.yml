@@ -1,4 +1,4 @@
-name: ARTSS LIVE 12 Track Slicer Quality Gate
+name: ARTSS LIVE 13 Musical Kit Quality Gate
 
 on:
   pull_request:

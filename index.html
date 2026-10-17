@@ -11,8 +11,8 @@
 <link rel="manifest" href="./manifest.webmanifest" />
 <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="./icons/icon-180.png" />
-<link rel="stylesheet" href="./studio.css?v=12.0.0" />
-<title>ARTSS LIVE 12 · TRACK SLICER</title>
+<link rel="stylesheet" href="./studio.css?v=13.0.0" />
+<title>ARTSS LIVE 13 · SMART TRACK KIT</title>
 </head>
 <body>
 <div class="app" id="app">
@@ -53,18 +53,18 @@
   <div class="meter-row"><span>MASTER LEVEL</span><strong id="meterValue">−∞ dB</strong></div><div class="level-track"><div id="levelFill"></div></div>
 </section>
 <section class="section hide" data-panel="sounds" id="tab-sounds">
- <div class="section-head"><div><div class="eyebrow">04 / TRACK ANALYSIS</div><h1>TRACK SLICER</h1></div><span class="small-label">6 SEC PER SLICE</span></div>
+ <div class="section-head"><div><div class="eyebrow">04 / TRACK ANALYSIS</div><h1>TRACK SLICER</h1></div><span class="small-label">16 MUSICAL ROLES</span></div>
  <div class="import-box">
-  <div class="import-title"><span class="import-glyph">↗</span><div><strong>FULL TRACK → SAMPLES</strong><p>Загрузи целую композицию. Анализ атак, энергии и высоты звучания проходит на устройстве. Звук никуда не отправляется.</p></div></div>
-  <div class="slice-toolbar"><div class="segmented" id="sliceCounts" role="group" aria-label="Количество сэмплов"><button type="button" data-slice-count="16" class="selected" aria-pressed="true">16 SLICES</button><button type="button" data-slice-count="32" aria-pressed="false">32 SLICES</button></div><button id="importTrack" class="import-primary" type="button">＋ LOAD FULL TRACK</button></div>
+  <div class="import-title"><span class="import-glyph">↗</span><div><strong>FULL TRACK → SAMPLES</strong><p>Загрузи композицию: приложение найдёт удары и музыкальные фразы, распределит их на 16 пэдов и подготовит INTRO, GROOVE, BUILD, DROP, BREAK. Анализ выполняется на iPhone.</p></div></div>
+  <div class="slice-toolbar"><span class="small-label">16 PADS · AUTO ARRANGE</span><button id="importTrack" class="import-primary" type="button">＋ LOAD FULL TRACK</button></div>
   <input hidden type="file" id="trackFile" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac" />
   <div class="analyze-status"><div id="sliceStatus" role="status" aria-live="polite">Нет загруженного трека. Режим KIT активен.</div><progress id="sliceProgress" max="100" value="0" hidden></progress></div>
  </div>
  <div class="slice-control"><button id="sampleMode" type="button" aria-pressed="false">KIT SOUNDS</button><div class="sample-bank-switch"><button type="button" id="bankPrev" aria-label="Предыдущие 8 сэмплов">‹</button><strong id="sliceBankLabel">PAD BANK 1 / 2</strong><button type="button" id="bankNext" aria-label="Следующие 8 сэмплов">›</button></div></div>
- <div class="slice-info">LOW TONE <span>→</span> HIGH TONE <small>Порядок примерный: тональность определяется по смешанному треку.</small></div>
+ <div class="slice-info">DRUMS → SYNTHS → ARRANGEMENT <small>Набор ячеек определяется по характеру звука, а не по минутам трека.</small></div>
  <div id="sliceGrid" class="slice-grid" aria-label="Автоматически извлечённые сэмплы"></div>
  <div class="slice-foot"><span id="sliceTrackName">NO TRACK LOADED</span><button type="button" id="clearSamples">REMOVE TRACK</button></div>
- <p class="hint">Важно: нарезка и акустический анализ — не разделение вокала, кика и баса на отдельные stems. Настоящий AI stem separation требует отдельной тяжёлой модели. Высоту звука меняй в MIX.</p>
+ <p class="hint">Из смешанного трека выделяются и фильтруются подходящие события; они могут содержать другие звучащие инструменты. Это не нейросетевое выделение чистых stems. Высота и громкость регулируются в MIX.</p>
 </section>
 <section class="section hide" data-panel="export" id="tab-export">
   <div class="section-head"><div><div class="eyebrow">05 / SESSIONS</div><h1>TAKES & FILES</h1></div></div>
@@ -79,6 +79,6 @@
 <div class="toast" id="toast" hidden role="status" aria-live="polite"></div>
 <dialog id="installDialog" class="dialog"><h2>INSTALL ARTSS LIVE</h2><p>iPhone Safari → Поделиться → На экран «Домой». Приложение и звуки работают офлайн после первого запуска.</p><button id="closeInstall" type="button">ПОНЯТНО</button></dialog>
 </div>
-<script type="module" src="./studio.js?v=12.0.0"></script>
+<script type="module" src="./studio.js?v=13.0.0"></script>
 </body>
 </html>
