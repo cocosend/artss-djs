@@ -130,6 +130,7 @@ try:
     page.locator('#takeList .take-row').first.wait_for(timeout=15000)
     assert page.locator('#takeList .take-row').count()>=1
     page.reload(wait_until='load')
+    page.locator('[data-tab="export"]').tap()
     page.locator('#takeList .take-row').first.wait_for(timeout=15000)
     assert page.locator('#takeList .take-row').count()>=1,'IndexedDB audio takes must survive reload'
     with page.expect_download(timeout=15000) as download:page.locator('[data-take-action="download"]').first.tap()
