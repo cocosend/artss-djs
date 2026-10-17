@@ -7,12 +7,12 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="ARTSS STUDIO" />
-<meta name="description" content="ARTSS STUDIO — музыкальная мастерская: 16 драм-пэдов, секвенсор, запись и экспорт WAV." />
+<meta name="description" content="ARTSS STUDIO — музыкальная мастерская: 8 драм-пэдов, секвенсор, запись и экспорт WAV." />
 <link rel="manifest" href="./manifest.webmanifest" />
 <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="./icons/icon-180.png" />
-<link rel="stylesheet" href="./studio.css?v=8.1.0" />
-<title>ARTSS STUDIO · Beat Creator</title>
+<link rel="stylesheet" href="./studio.css?v=9.0.0" />
+<title>ARTSS STUDIO 9 · 8-Pad Groovebox</title>
 </head>
 <body>
 <div id="app" class="app">
@@ -21,20 +21,20 @@
     <div class="header-right"><span id="audioState" class="status"><i></i> AUDIO OFF</span><button id="install" class="icon-action" type="button" aria-label="Установить приложение" title="Установить"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 17v3h16v-3"/></svg></button></div>
   </header>
   <main class="main">
-    <div class="meta"><span>BEAT CREATOR <b>08</b></span><span>ONE ENGINE / ZERO DECKS</span></div>
+    <div class="meta"><span>BEAT CREATOR <b>09</b></span><span>ONE ENGINE / ZERO DECKS</span></div>
     <section class="transport" aria-label="Управление воспроизведением">
       <div class="transport-left"><div class="transport-kicker">TEMPO <span id="presetLabel">WAREHOUSE</span></div><div class="tempo"><button id="bpmDown" class="bpm-nudge" type="button" aria-label="Уменьшить темп">−</button><div class="bpm"><strong id="bpm">136</strong><span>BPM</span></div><button id="bpmUp" class="bpm-nudge" type="button" aria-label="Увеличить темп">+</button></div><button class="tap" id="tap" type="button">TAP TEMPO <span>↗</span></button></div>
       <div class="transport-right"><button id="play" type="button" class="play" aria-pressed="false"><span class="play-symbol" id="playGlyph">▶</span><span id="playText">PLAY</span></button><button id="stop" type="button" class="stop" aria-label="Остановить">■</button></div>
       <div class="progress"><div class="progress-label"><span id="position">BAR 01 · STEP 01</span><span id="time">00:00</span></div><div class="progress-bars" id="progressBars" aria-hidden="true"></div></div>
     </section>
     <section class="section" id="tab-pads" data-panel="pads">
-      <div class="section-head"><div><div class="eyebrow">01 / LIVE PERFORMANCE</div><h1>DRUM PADS</h1></div><span class="small-label">16 VOICES <i class="live-dot"></i></span></div>
+      <div class="section-head"><div><div class="eyebrow">01 / LIVE PERFORMANCE</div><h1>DRUM PADS</h1></div><span class="small-label">8 VOICES <i class="live-dot"></i></span></div>
       <div class="pads" id="pads"></div>
-      <div class="after-pads"><span>TOUCH TO PLAY</span><span id="lastPad">READY TO CREATE</span></div>
-      <div class="subsection"><div class="subsection-head"><h2>SOUND BANKS</h2><span>REBUILD YOUR GROOVE</span></div><div class="bank-rail" id="presets"></div></div>
+      <div class="after-pads"><span>TOUCH TO PLAY</span><span id="lastPad">READY TO GROOVE</span></div>
+      <div class="subsection"><div class="subsection-head"><h2>GENRE GROOVES</h2><span>NO RANDOM MELODIES</span></div><div class="bank-rail" id="presets"></div></div>
     </section>
     <section class="section hide" id="tab-sequence" data-panel="sequence">
-      <div class="section-head"><div><div class="eyebrow">02 / COMPOSITION</div><h1>SEQUENCER</h1></div><span class="small-label">16 STEPS · 16 TRACKS</span></div>
+      <div class="section-head"><div><div class="eyebrow">02 / COMPOSITION</div><h1>SEQUENCER</h1></div><span class="small-label">16 STEPS · 8 TRACKS</span></div>
       <div class="scene-rail" id="scenes"></div>
       <div class="sequence-scroller" tabindex="0" aria-label="Горизонтально прокручиваемый секвенсор"><div id="sequence" class="sequence"></div></div>
       <div class="sequence-actions"><button type="button" id="undo">↶ UNDO</button><button type="button" id="fill">＋ FILL</button><button type="button" id="clear">× CLEAR</button></div>
@@ -44,7 +44,7 @@
       <div class="section-head"><div><div class="eyebrow">03 / SOUND SELECTION</div><h1>SOUND LAB</h1></div></div>
       <p class="description">Выбери инструмент, импортируй свой WAV / MP3 / M4A или используй готовый драм-кит.</p>
       <div class="sound-list" id="soundList"></div>
-      <div class="sound-bottom"><strong id="selectedSound">909 KICK</strong><button type="button" id="importSample">＋ IMPORT SAMPLE</button><button type="button" id="resetSample">RESET</button></div>
+      <div class="sound-bottom"><strong id="selectedSound">CLUB KICK</strong><button type="button" id="importSample">＋ IMPORT SAMPLE</button><button type="button" id="resetSample">RESET</button></div>
       <input hidden type="file" id="sampleFile" accept="audio/*,.wav,.mp3,.m4a,.aac"/>
       <p class="hint">Сэмплы хранятся в памяти текущей сессии. Экспорт проекта сохраняет паттерны и настройки.</p>
     </section>
@@ -65,6 +65,6 @@
   <div class="toast" id="toast" hidden role="status" aria-live="polite"></div>
   <dialog id="installDialog" class="dialog"><h2>INSTALL ARTSS STUDIO</h2><p>На iPhone открой эту страницу через Safari → Поделиться → <strong>На экран «Домой»</strong> → Добавить.</p><p>После первого посещения интерфейс и встроенные звуки доступны офлайн.</p><button id="closeInstall" type="button">ПОНЯТНО</button></dialog>
 </div>
-<script type="module" src="./studio.js?v=8.1.0"></script>
+<script type="module" src="./studio.js?v=9.0.0"></script>
 </body>
 </html>
