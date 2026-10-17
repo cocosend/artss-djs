@@ -127,7 +127,7 @@ try:
    page.locator('[data-tab="export"]').tap();page.locator('#record').tap()
    page.wait_for_function('window.__qa().recPhase==="idle"',timeout=12000)
    if local_origin:
-    page.locator('#takeList .take-row').first.wait_for(timeout=15000)
+    page.locator('#takeList .take-row').first.wait_for(state='attached',timeout=15000)
     assert page.locator('#takeList .take-row').count()>=1
     page.reload(wait_until='load')
     page.locator('[data-tab="export"]').tap()
