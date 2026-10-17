@@ -1,6 +1,6 @@
 {
   "name": "artss-studio",
-  "version": "12.0.0",
+  "version": "13.0.0",
   "private": true,
   "type": "module",
   "description": "Original Remixlive-inspired iOS PWA: 8 playable pads, 16/32-step live overdub, separate audio takes, per-track mixer",

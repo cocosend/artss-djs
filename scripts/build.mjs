@@ -21,5 +21,5 @@ if(manifest.id!=='/'||manifest.start_url!=='./'||manifest.display!=='standalone'
 await rm(root+'dist',{recursive:true,force:true});await mkdir(root+'dist');
 for(const file of files)await cp(root+file,root+'dist/'+file);
 await cp(root+'icons',root+'dist/icons',{recursive:true});
-await writeFile(root+'dist/release.json',JSON.stringify({name:'ARTSS STUDIO',version:pkg.version,entrypoint:'/',audioEngine:'studio.js',pads:8,tracks:8,stepModes:[16,32],loopRecording:true,audioTakes:true,trackSlicer:{clipSeconds:6,max:32,default:16},offline:true})+'\n');
+await writeFile(root+'dist/release.json',JSON.stringify({name:'ARTSS STUDIO',version:pkg.version,entrypoint:'/',audioEngine:'studio.js',pads:8,tracks:8,stepModes:[16,32],loopRecording:true,audioTakes:true,trackSlicer:{maxClips:16,roles:true,eventAligned:true,autoArrange:true},offline:true})+'\n');
 console.log('PASS canonical ARTSS STUDIO v'+pkg.version+' (one audio runtime)');

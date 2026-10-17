@@ -1,11 +1,11 @@
 import {PAD_COUNT, PAD_NAMES, PAD_SHORT, KEYS, COLORS, PRESETS, SCENES, createGrid, presetPattern, makePCM, noteOffset} from './sound-design.js';
-import {analyzeTrack, MAX_TRACK_BYTES, serializeClips, deserializeClips} from './track-slicer.js';
+import {analyzeTrack, MAX_TRACK_BYTES, serializeClips, deserializeClips, ROLES} from './track-slicer.js';
 // ARTSS LIVE 11 — one Web Audio engine, 8 finger pads, 16/32-step overdub loop recording.
 const $=(sel,root=document)=>root.querySelector(sel);
 const $$=(sel,root=document)=>Array.from(root.querySelectorAll(sel));
 const bound=(n,min,max)=>Math.max(min,Math.min(max,Number.isFinite(+n)?+n:min));
-const key='artss-live-session-v12';
-const previousKeys=['artss-live-session-v11','artss-studio-session-v10','artss-studio-session-v9'];
+const key='artss-live-session-v13';
+const previousKeys=['artss-live-session-v12','artss-live-session-v11','artss-studio-session-v10','artss-studio-session-v9'];
 const MAX_STEPS=32;
 const to32=(row)=>Array.from({length:MAX_STEPS},(_,i)=>bound(row?.[i]??0,0,1));
 function blank(bank=0){const p=PRESETS[bank];return {bank,bpm:p.bpm,scene:'GROOVE',steps:16,auto:false,swing:0,master:.75,filter:1,drive:.05,space:.09,delay:.02,mutes:Array(PAD_COUNT).fill(false),solos:Array(PAD_COUNT).fill(false),trackVolumes:Array(PAD_COUNT).fill(.85),trackPitch:Array(PAD_COUNT).fill(0),sampleMode:false,samplePage:0,patterns:Object.fromEntries(SCENES.map(scene=>[scene,presetPattern(p,scene).map(to32)]))};}
@@ -20,7 +20,7 @@ function restore(data){if(!data||!Number.isInteger(data.bank)||!PRESETS[data.ban
   out.patterns[scene]=Array.from({length:PAD_COUNT},(_,i)=>to32(grid[grid.length===16?legacy[i]:i]));}
  return out;}
 function readSession(){for(const name of [key,...previousKeys]){try{const value=localStorage.getItem(name);if(value){const restored=restore(JSON.parse(value));if(restored)return restored;}}catch{}}return blank();}
-let state=readSession(),engine,activeTab='pads',selectedPad=0,activeStep=-1,clockBase=0,tapTimes=[],undoStack=[],toastTimer=0,saveTimer=0,rendering=false,recordReady=null,stepPage=0,liveRec=false,clearArmed=false,clearTimer=0,sliceCount=16,analyzing=false,trackName='';
+let state=readSession(),engine,activeTab='pads',selectedPad=0,activeStep=-1,clockBase=0,tapTimes=[],undoStack=[],toastTimer=0,saveTimer=0,rendering=false,recordReady=null,stepPage=0,liveRec=false,clearArmed=false,clearTimer=0,analyzing=false,trackName='';
 function store(){clearTimeout(saveTimer);saveTimer=setTimeout(saveNow,140);}
 function saveNow(){clearTimeout(saveTimer);try{localStorage.setItem(key,JSON.stringify(state));}catch{announce('Не удалось сохранить сессию. Освободи место в Safari.',true);}}
 
@@ -143,35 +143,39 @@ function renderTrackMixer(){const root=$('#trackMixer');root.replaceChildren(...
  const row=document.createElement('div');row.className='mix-channel';row.style.setProperty('--track-accent',COLORS[i]);
  row.innerHTML=`<div class="mix-channel-title"><span>${String(i+1).padStart(2,'0')}</span><strong>${PAD_SHORT[i]}</strong></div><button type="button" class="channel-solo${state.solos[i]?' selected':''}" data-solo="${i}" aria-pressed="${state.solos[i]}">S</button><button type="button" class="channel-mute${state.mutes[i]?' selected':''}" data-channel-mute="${i}" aria-pressed="${state.mutes[i]}">M</button><label class="channel-level" for="track-level-${i}"><input id="track-level-${i}" type="range" min="0" max="100" value="${Math.round(state.trackVolumes[i]*100)}" data-track-volume="${i}" aria-label="Громкость ${name}"/><output>${Math.round(state.trackVolumes[i]*100)}%</output></label><label class="channel-pitch" for="track-pitch-${i}"><span>KEY</span><input id="track-pitch-${i}" type="range" min="-12" max="12" step="1" value="${state.trackPitch[i]}" data-track-pitch="${i}" aria-label="Тональность ${name}"/><output>${state.trackPitch[i]>0?'+':''}${state.trackPitch[i]} ST</output></label>`;
  return row;}));}
-function padLabel(i){if(state.sampleMode&&engine.clips.length){const index=state.samplePage*8+i;const c=engine.clips[index];return c?`SLICE ${String(index+1).padStart(2,'0')}`:PAD_SHORT[i]}return PAD_NAMES[i];}
+function padLabel(i){if(state.sampleMode&&engine.clips.length){const index=state.samplePage*8+i;const c=engine.clips[index];return c?.role||PAD_SHORT[i]}return PAD_NAMES[i];}
 function renderSlices(){const count=engine.clips.length;const root=$('#sliceGrid');root.replaceChildren();
- $('#sliceTrackName').textContent=engine.trackName||(count?'TRACK SLICES':'NO TRACK LOADED');
- $('#sampleMode').textContent=state.sampleMode&&count?'TRACK SLICES · ON':'KIT SOUNDS · ON';$('#sampleMode').setAttribute('aria-pressed',String(state.sampleMode&&count));
- $('#sliceBankLabel').textContent=`PAD BANK ${state.samplePage+1} / ${Math.max(2,Math.ceil((count||sliceCount)/8))}`;
- $('#bankPrev').disabled=state.samplePage===0;$('#bankNext').disabled=state.samplePage>=Math.max(2,Math.ceil((count||sliceCount)/8))-1;
- $$('#sliceCounts [data-slice-count]').forEach(b=>{const on=+b.dataset.sliceCount===sliceCount;b.classList.toggle('selected',on);b.setAttribute('aria-pressed',String(on))});
- if(!count){const empty=document.createElement('p');empty.className='hint';empty.textContent='Загрузи полную композицию — получишь 16 или 32 автоматически найденных фрагмента.';root.append(empty);return;}
- for(let i=0;i<count;i++){const c=engine.clips[i],b=document.createElement('button');b.type='button';b.dataset.slice=String(i);b.className='slice-cell'+(Math.floor(i/8)===state.samplePage?' current-bank':'');b.innerHTML=`<span class="slice-index">${String(i+1).padStart(2,'0')}</span><strong>${c.hz?Math.round(c.hz)+' Hz':'TONE '+String(i+1).padStart(2,'0')}</strong><small>${formatSeconds(c.start)} → ${formatSeconds(c.start+6)}</small>`;b.setAttribute('aria-label',`Сэмпл ${i+1}, ${formatSeconds(c.start)} от начала трека, воспроизвести`);root.append(b)}
+ $('#sliceTrackName').textContent=engine.trackName||(count?'TRACK KIT':'NO TRACK LOADED');
+ $('#sampleMode').textContent=state.sampleMode&&count?'TRACK KIT · ON':'FACTORY KIT · ON';$('#sampleMode').setAttribute('aria-pressed',String(state.sampleMode&&count));
+ $('#sliceBankLabel').textContent=`PAD BANK ${state.samplePage+1} / 2`;
+ $('#bankPrev').disabled=state.samplePage===0;$('#bankNext').disabled=state.samplePage===1;
+ if(!count){const empty=document.createElement('p');empty.className='hint';empty.textContent='Загрузи трек: 16 музыкальных ячеек — KICK, BASS, ACID, BUILD, DROP и остальные.';root.append(empty);return;}
+ for(let i=0;i<count;i++){const c=engine.clips[i],b=document.createElement('button');b.type='button';b.dataset.slice=String(i);b.className='slice-cell'+(Math.floor(i/8)===state.samplePage?' current-bank':'');
+ const label=document.createElement('strong');label.textContent=c.role||ROLES[i].id;
+ const index=document.createElement('span');index.className='slice-index';index.textContent=String(i+1).padStart(2,'0');
+ const detail=document.createElement('small');detail.textContent=i<8?'DRUM / SYNTH':'ALT / ARRANGEMENT';
+ b.append(index,label,detail);b.setAttribute('aria-label',`${c.role||ROLES[i].id}, воспроизвести`);root.append(b)}
 }
-function formatSeconds(t){const x=Math.max(0,Math.floor(t));return `${Math.floor(x/60)}:${String(x%60).padStart(2,'0')}`;}
 function renderPads(){const root=$('#pads');root.replaceChildren(...PAD_NAMES.map((name,i)=>{const b=document.createElement('button');b.type='button';b.className='pad'+(state.sampleMode?' imported':'');b.dataset.pad=String(i);b.style.setProperty('--pad-color',COLORS[i]);b.setAttribute('aria-label',padLabel(i));b.innerHTML=`<span class="pad-index">${String(state.sampleMode?state.samplePage*8+i+1:i+1).padStart(2,'0')}</span><strong class="pad-label">${padLabel(i)}</strong><span class="pad-key">${KEYS[i]} / PLAY</span>`;return b}));}
 const SAMPLE_DB='artss-track-slices-v1';
 function sampleStore(mode,callback){return new Promise((resolve,reject)=>{if(!('indexedDB' in window))return reject(Error('IndexedDB unavailable'));const open=indexedDB.open(SAMPLE_DB,1);open.onupgradeneeded=()=>{open.result.createObjectStore('sampleBanks',{keyPath:'id'});};open.onerror=()=>reject(open.error);open.onsuccess=()=>{const db=open.result,tx=db.transaction('sampleBanks',mode),request=callback(tx.objectStore('sampleBanks'));let result;request.onsuccess=()=>result=request.result;tx.oncomplete=()=>{db.close();resolve(result)};tx.onerror=()=>{db.close();reject(tx.error)};tx.onabort=()=>{db.close();reject(tx.error)};};});}
 async function restoreSlices(){try{const saved=await sampleStore('readonly',store=>store.get('active'));if(!saved)return;
- engine.clips=deserializeClips(saved.clips);engine.trackName=saved.name;trackName=saved.name;sliceCount=engine.clips.length;state.samplePage=Math.min(state.samplePage,Math.max(0,Math.ceil(sliceCount/8)-1));
- renderSlices();renderPads();$('#sliceStatus').textContent=`ВОССТАНОВЛЕНО: ${saved.name} · ${sliceCount} CLIPS`;}
+ if(saved.schema!=='musical-roles-v13'){state.sampleMode=false;renderPads();$('#sliceStatus').textContent='Обновлён анализ звуков · загрузи трек повторно для 16 музыкальных ячеек';return;}
+ engine.clips=deserializeClips(saved.clips);engine.trackName=saved.name;trackName=saved.name;state.samplePage=Math.min(state.samplePage,1);
+ renderSlices();renderPads();$('#sliceStatus').textContent=`ВОССТАНОВЛЕНО: ${saved.name} · 16 ROLES`;}
  catch(e){state.sampleMode=false;renderPads();$('#sliceStatus').textContent='Не удалось восстановить нарезку. Повтори импорт.';}}
 async function importFullTrack(file){if(analyzing)return;if(!file) return;if(file.size>MAX_TRACK_BYTES)throw Error('Трек больше 80 МБ: нужен меньший файл');
  analyzing=true;$('#importTrack').disabled=true;$('#sliceProgress').hidden=false;$('#sliceProgress').value=0;$('#sliceStatus').textContent='ЗАГРУЗКА И АНАЛИЗ...';
  try{await engine.unlock();const bytes=await file.arrayBuffer();$('#sliceStatus').textContent='ДЕКОДИРОВАНИЕ ТРЕКА...';const decoded=await engine.ctx.decodeAudioData(bytes);
   if(decoded.duration>2700)throw Error('Трек длиннее 45 минут не поддерживается');
-  const clips=await analyzeTrack(decoded,sliceCount,n=>{$('#sliceProgress').value=n;$('#sliceStatus').textContent=`АНАЛИЗ ${n}% · ПОИСК ФРАГМЕНТОВ`});
-  const bank={id:'active',name:file.name.slice(0,120),created:Date.now(),clips:serializeClips(clips)};
+  const clips=await analyzeTrack(decoded,16,n=>{$('#sliceProgress').value=n;$('#sliceStatus').textContent=`АНАЛИЗ ${n}% · ПОИСК ФРАГМЕНТОВ`});
+  const bank={id:'active',schema:'musical-roles-v13',name:file.name.slice(0,120),created:Date.now(),clips:serializeClips(clips)};
   // Keep the previous bank intact until the next one is fully constructed.
-  engine.stop();engine.clips=clips;engine.clipCache=new WeakMap();engine.trackName=bank.name;trackName=bank.name;state.sampleMode=true;state.samplePage=0;
-  renderPads();renderSlices();renderTransport(false);saveNow();
-  try{await sampleStore('readwrite',store=>store.put(bank));$('#sliceStatus').textContent=`READY · ${clips.length} × 6 SEC · ${file.name}`;}
-  catch{ $('#sliceStatus').textContent=`READY · ${clips.length} CLIPS (не сохранилось, экспортируй или освободи память Safari)`; }
+  engine.stop();engine.clips=clips;engine.clipCache=new WeakMap();engine.trackName=bank.name;trackName=bank.name;state.sampleMode=true;state.samplePage=0;state.bpm=Math.round(bound(clips[0]?.bpm||state.bpm,90,175));
+  autoArrangeImportedKit();
+  renderScenes();renderSequence();renderBpm();renderPads();renderSlices();renderTransport(false);saveNow();
+  try{await sampleStore('readwrite',store=>store.put(bank));$('#sliceStatus').textContent=`READY · 16 MUSICAL ROLES · ${file.name}`;}
+  catch{ $('#sliceStatus').textContent=`READY · 16 ROLES (не удалось сохранить в память Safari)`; }
  }finally{analyzing=false;$('#importTrack').disabled=false;$('#sliceProgress').hidden=true;}
 }
 const controls=[['master','MASTER VOLUME'],['filter','LOW PASS'],['drive','SATURATION'],['space','ROOM REVERB'],['delay','ECHO DELAY'],['swing','SWING']];
@@ -179,6 +183,31 @@ function renderFx(){$('#fxList').replaceChildren(...controls.map(([name,label])=
 function renderBpm(){$('#bpm').textContent=state.bpm}
 function updateState(){engine.set();store();}
 function setBank(i){if(!PRESETS[i])return;const steps=state.steps;engine.stop();state=blank(i);state.steps=steps;engine.cache.clear();undoStack.length=0;updateState();renderBpm();renderPresets();renderScenes();renderSequence();renderTrackMixer();renderFx();renderTransport(false);announce(`${PRESETS[i].name} · ${state.bpm} BPM`);}
+function autoArrangeImportedKit(){
+ // An imported track explicitly creates a new playable arrangement. Keep a local backup of existing work.
+ try{localStorage.setItem('artss-before-track-import-v13',JSON.stringify(state));}catch{}
+ const on=(row,steps,volume=0.7)=>steps.forEach(step=>{row[step]=volume});
+ for(const scene of SCENES){
+  const pattern=Array.from({length:8},()=>Array(32).fill(0));
+  if(scene==='INTRO'){
+   on(pattern[0],[0,8],.88);on(pattern[2],[6,14],.32);on(pattern[5],[0],.42);
+  }else if(scene==='BREAK'){
+   on(pattern[5],[0,8],.58);on(pattern[6],[6],.32);on(pattern[2],[14],.25);
+  }else{
+   on(pattern[0],[0,4,8,12],.93);on(pattern[1],[4,12],.72);
+   on(pattern[2],scene==='BUILD'?[2,4,6,8,10,12,14,15]:[2,6,10,14],.39);
+   on(pattern[3],[6,14],.43);on(pattern[4],scene==='BUILD'?[10,12,14,15]:[3,11],.42);
+   on(pattern[5],scene==='DROP'?[0,6,8,14]:[0,7,10],.53);
+   on(pattern[6],scene==='BUILD'?[7,11,15]:[3,11],.41);
+   if(scene==='DROP')on(pattern[7],[0,12],.65);
+  }
+  if(state.steps===32){for(const row of pattern){for(let i=0;i<16;i++)row[16+i]=row[i]}}
+  state.patterns[scene]=pattern;
+ }
+ state.scene='GROOVE';state.auto=false;
+ try{$('#autoScene').checked=false;}catch{}
+ undoStack.length=0;saveNow();
+}
 function remember(){undoStack.push({scene:state.scene,pattern:state.patterns[state.scene].map(r=>r.slice())});if(undoStack.length>40)undoStack.shift();}
 function updateStep(step,bar=0){activeStep=step;$$('#progressBars i').forEach((b,i)=>b.classList.toggle('now',i===step));
  $$('.seq-cell.current').forEach(c=>c.classList.remove('current'));if(step>=0)$$(`.seq-cell[data-step="${step}"]`).forEach(b=>b.classList.add('current'));
@@ -238,12 +267,11 @@ function setup(){for(let i=0;i<32;i++){$('#progressBars').append(document.create
  else{state.auto=false;$('#autoScene').checked=false;if(!engine.playing)await engine.start();remember();liveRec=true;store();announce('LIVE REC ON · PLAY YOUR PADS');}renderLiveRec();}catch(e){announce(e.message,true)}finally{pending=false;}});
  engine.onStep=(step,bar)=>updateStep(step,bar);engine.onTransport=on=>renderTransport(on);
  engine.onHitRecorded=(slot,step,scene)=>{if(activeTab==='sequence'&&scene===state.scene&&Math.floor(step/16)===stepPage){const b=$(`[data-row="${slot}"][data-step="${step}"]`);if(b){b.classList.add('on');b.setAttribute('aria-pressed','true');}}$('#liveRecStatus').textContent=`${PAD_SHORT[slot]} → STEP ${String(step+1).padStart(2,'0')} · SAVED`;};
- $('#sliceCounts').addEventListener('click',e=>{const b=e.target.closest('[data-slice-count]');if(!b||analyzing)return;sliceCount=Number(b.dataset.sliceCount);renderSlices();});
- $('#importTrack').addEventListener('click',()=>$('#trackFile').click());
+  $('#importTrack').addEventListener('click',()=>$('#trackFile').click());
  $('#trackFile').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;try{await importFullTrack(file);announce(`${engine.clips.length} SLICES READY`);}catch(err){$('#sliceStatus').textContent=err.message;announce(err.message,true)}finally{e.target.value='';}});
  $('#sampleMode').addEventListener('click',()=>{if(!engine.clips.length){announce('Загрузи трек в SLICES',true);return;}state.sampleMode=!state.sampleMode;saveNow();renderPads();renderSlices();});
  $('#bankPrev').addEventListener('click',()=>{state.samplePage=Math.max(0,state.samplePage-1);saveNow();renderPads();renderSlices();});
- $('#bankNext').addEventListener('click',()=>{state.samplePage=Math.min(Math.max(1,Math.ceil((engine.clips.length||sliceCount)/8)-1),state.samplePage+1);saveNow();renderPads();renderSlices();});
+ $('#bankNext').addEventListener('click',()=>{state.samplePage=Math.min(1,state.samplePage+1);saveNow();renderPads();renderSlices();});
  $('#sliceGrid').addEventListener('click',async e=>{const b=e.target.closest('[data-slice]');if(!b)return;const i=Number(b.dataset.slice);state.samplePage=Math.floor(i/8);state.sampleMode=true;saveNow();renderPads();renderSlices();triggerPad(i%8);});
  $('#clearSamples').addEventListener('click',async()=>{if(analyzing)return;engine.clips=[];engine.clipCache=new WeakMap();engine.trackName='';state.sampleMode=false;state.samplePage=0;saveNow();renderPads();renderSlices();$('#sliceStatus').textContent='Сэмплы удалены · KIT SOUNDS';try{await sampleStore('readwrite',store=>store.delete('active'));}catch{} });
  $('#trackMixer').addEventListener('click',e=>{const solo=e.target.closest('[data-solo]'),mute=e.target.closest('[data-channel-mute]');if(!solo&&!mute)return;const i=Number((solo||mute).dataset[solo?'solo':'channelMute']);if(solo)state.solos[i]=!state.solos[i];if(mute)state.mutes[i]=!state.mutes[i];updateState();renderTrackMixer();renderSequence();});
