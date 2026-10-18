@@ -39,16 +39,24 @@ try:
    html=re.sub(r'<script type="module" src="\./studio.js[^>]+></script>', '<script type="module">import "'+module_url('studio.js')+'";</script>',html)
    page.set_content(html,wait_until='load')
    page.wait_for_selector('.pad',timeout=10000)
-  assert page.title()=='ARTSS LIVE 15 — GROOVE STUDIO'
+  assert page.title()=='ARTSS LIVE 16 — PERFORMANCE MIXER'
   assert page.locator('.pad').count()==8 and page.locator('nav button').count()==4
   assert page.locator('#trackFile').count()==0 and page.locator('[data-length="32"]').count()==0
   assert page.locator('.page[data-page="sounds"]').count()==0
   assert page.locator('body').evaluate('(el)=>el.scrollWidth<=window.innerWidth+1'), 'Horizontal overflow'
+  for width in (320,375,390,430):
+   page.set_viewport_size({'width':width,'height':844})
+   assert page.locator('body').evaluate('(el)=>el.scrollWidth<=window.innerWidth+1'), f'Horizontal overflow {width}px'
+  page.set_viewport_size({'width':390,'height':844})
   if injected:
    # Opaque-origin fallback: UI smoke only (AudioContext resume may hang by administrator policy).
    page.screenshot(path=str(ROOT.parent/'screenshot-live.png'),full_page=True)
    page.locator('[data-tab="steps"]').click()
-   assert page.locator('.cell').count()==128
+   assert page.locator('.cell').count()==64
+   assert page.locator('.seq-row').count()==8
+   page.locator('#seqB').click()
+   assert page.locator('.cell').count()==64 and page.locator('.cell').first.get_attribute('data-step')=='8'
+   page.locator('#seqA').click()
    page.locator('.cell').nth(7).click()
    page.locator('[data-tab="mix"]').click()
    assert page.locator('.channel').count()==8
@@ -75,7 +83,12 @@ try:
   page.wait_for_timeout(200)
   page.locator('#liveRec').click();page.get_by_role('button',name='Пуск или пауза').click()
   page.locator('[data-tab="steps"]').click()
-  assert page.locator('.seq-row').count()==8 and page.locator('.cell').count()==128
+  assert page.locator('.seq-row').count()==8 and page.locator('.cell').count()==64
+  page.locator('#seqB').click()
+  assert page.locator('.cell').first.get_attribute('data-step')=='8'
+  page.locator('.cell').first.click()
+  assert page.locator('.cell').first.get_attribute('aria-pressed') in ('true','false')
+  page.locator('#seqA').click()
   # Check manually recorded step survives record-off and stop.
   saved=page.locator('.seq-row').nth(5).locator('.cell.on').count()
   assert saved>0, 'Overdub did not create any step on an empty track'
@@ -107,6 +120,6 @@ try:
   if supports and not injected:
    page.locator('[data-tab="rec"]').click();page.wait_for_function('document.querySelector("#takeCount").textContent.startsWith("1 ")')
   assert not errors,errors
-  print('PASS',ENGINE,'8 pads, 16 steps, overdub persist, fixed topology, mix, WAV',len(data),'MediaRecorder',supports,'injected',injected)
+  print('PASS',ENGINE,'8 pads, 16 steps, 8-step editor pages, multi-viewport, overdub persist, mix, WAV',len(data),'MediaRecorder',supports,'injected',injected)
   browser.close()
 finally:server.shutdown()

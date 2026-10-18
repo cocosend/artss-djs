@@ -36,30 +36,32 @@ function writeWav(buffer){
  return new Blob([output],{type:'audio/wav'});
 }
 export class AudioEngine{
- constructor(getState){this.getState=getState;this.ctx=null;this.bus=null;this.capture=null;this.buffers=new WeakMap();this.voices=new Set();this.playing=false;this.pending=false;this.generation=0;this.timer=null;this.absolute=0;this.nextTime=0;this.lastScheduledTime=0;this.lastScheduledIndex=0;this.onStep=()=>{};this.onChange=()=>{};this.onRecording=()=>{};this.onTake=()=>{};this.recording=null;this.recordPhase='idle';this.elapsed=0;this.startClock=0;this.meterBytes=null;}
+ constructor(getState){this.getState=getState;this.ctx=null;this.bus=null;this.capture=null;this.buffers=new WeakMap();this.voices=new Set();this.playing=false;this.pending=false;this.generation=0;this.timer=null;this.absolute=0;this.nextTime=0;this.lastScheduledTime=0;this.lastScheduledIndex=0;this.onStep=()=>{};this.onScene=()=>{};this.pendingScene=null;this.onChange=()=>{};this.onRecording=()=>{};this.onTake=()=>{};this.recording=null;this.recordPhase='idle';this.elapsed=0;this.startClock=0;this.meterBytes=null;this.prewarmedBank=-1;this.prewarmBusy=false;}
  async unlock(){if(!this.ctx){const C=window.AudioContext||window.webkitAudioContext;if(!C)throw Error('Web Audio недоступен');
   this.ctx=new C({latencyHint:'interactive'});this.capture=this.ctx.createMediaStreamDestination();this.bus=graph(this.ctx,this.ctx.destination,this.getState());this.bus.master.connect(this.capture);}
-  if(this.ctx.state!=='running')await this.ctx.resume();if(this.ctx.state!=='running')throw Error('Нажми пэд для включения звука');return this.ctx;}
+  if(this.ctx.state!=='running')await this.ctx.resume();if(this.ctx.state!=='running')throw Error('Нажми пэд для включения звука');this.schedulePrewarm();return this.ctx;}
  update(){this.bus?.update(this.getState());}
+ schedulePrewarm(){if(!this.ctx||this.prewarmBusy||this.prewarmedBank===this.getState().bank)return;this.prewarmBusy=true;const bank=this.getState().bank;let slot=0;const prepare=()=>{if(!this.ctx||this.getState().bank!==bank){this.prewarmBusy=false;return;}try{for(let n=0;n<2&&slot<PAD_COUNT;n++,slot++){const s=this.getState(),pitch=noteOffset(s.bank,slot,0,0);this.getBuffer(this.ctx,slot,pitch);}}catch{}if(slot<PAD_COUNT)setTimeout(prepare,15);else{this.prewarmedBank=bank;this.prewarmBusy=false;}};setTimeout(prepare,0);}
+ queueScene(scene){const s=this.getState();if(!s.patterns[scene])return false;if(!this.playing){s.scene=scene;this.pendingScene=null;this.onScene(scene);return true;}this.pendingScene=scene;this.onScene(scene);return true;}
  getBuffer(ctx,slot,pitch){let cache=this.buffers.get(ctx);if(!cache){cache=new Map();this.buffers.set(ctx,cache);}const s=this.getState();const key=`${s.bank}:${slot}:${pitch}`;
   if(!cache.has(key)){const pcm=makePCM(slot,ctx.sampleRate,s.bank,pitch),buf=ctx.createBuffer(1,pcm.length,ctx.sampleRate);buf.copyToChannel(pcm,0);cache.set(key,buf);if(cache.size>64)cache.delete(cache.keys().next().value);}return cache.get(key);}
  // Use the same synthesis, pitch and velocity path for realtime and WAV.
  voice(ctx,dest,slot,time,velocity,step,bar=0,track=true){const s=this.getState();const pitch=noteOffset(s.bank,slot,step,bar);const source=ctx.createBufferSource(),gain=ctx.createGain();source.buffer=this.getBuffer(ctx,slot,pitch);source.playbackRate.value=Math.pow(2,(s.trackPitch[slot]||0)/12);
   const when=Math.max(time,ctx.currentTime+.001);gain.gain.value=clamp(velocity,0,1)*.55*(slot===0?1.08:1)*s.trackVolumes[slot];source.connect(gain).connect(dest);source.start(when);
-  if(track){const item={source,gain,when};this.voices.add(item);source.onended=()=>{this.voices.delete(item);source.disconnect();gain.disconnect();}}return source;}
+  if(track){if(this.voices.size>=28){const oldest=this.voices.values().next().value;try{oldest.gain.gain.setTargetAtTime(0,ctx.currentTime,.005);oldest.source.stop(ctx.currentTime+.02);}catch{}}const item={source,gain,when};this.voices.add(item);source.onended=()=>{this.voices.delete(item);source.disconnect();gain.disconnect();}}return source;}
  canPlay(slot){const s=this.getState();return !s.mutes[slot]&&(!s.solos.includes(true)||s.solos[slot]);}
- async hit(slot,velocity=1){await this.unlock();this.voice(this.ctx,this.bus.input,slot,this.ctx.currentTime,velocity,this.currentStep());}
+ async hit(slot,velocity=1){if(!Number.isInteger(slot)||slot<0||slot>=PAD_COUNT)throw Error('Некорректный пэд');await this.unlock();if(!this.canPlay(slot))return false;this.voice(this.ctx,this.bus.input,slot,this.ctx.currentTime,velocity,this.currentStep());return true;}
  currentStep(){if(!this.playing||!this.ctx)return this.absolute%STEPS;const beat=60/this.getState().bpm/4;const delta=Math.round((this.ctx.currentTime-this.lastScheduledTime)/beat);return ((this.lastScheduledIndex+delta)%STEPS+STEPS)%STEPS;}
  tick(){if(!this.playing||this.ctx?.state!=='running')return;const s=this.getState(),beat=60/s.bpm/4,now=this.ctx.currentTime;
   if(this.nextTime<now-.09){const skipped=Math.floor((now-this.nextTime)/beat)+1;this.absolute+=skipped;this.nextTime+=skipped*beat;}
-  let limit=0;while(this.nextTime<now+.085&&limit++<16){const step=this.absolute%STEPS,bar=Math.floor(this.absolute/STEPS),swing=step%2?s.swing*beat*.52:0,pattern=s.patterns[s.scene];
+  let limit=0;while(this.nextTime<now+.085&&limit++<16){const step=this.absolute%STEPS,bar=Math.floor(this.absolute/STEPS);if(step===0&&this.pendingScene){s.scene=this.pendingScene;this.pendingScene=null;this.onScene(s.scene);}const swing=step%2?s.swing*beat*.52:0,pattern=s.patterns[s.scene];
    for(let slot=0;slot<PAD_COUNT;slot++){const v=pattern[slot][step];if(v>.001&&this.canPlay(slot))this.voice(this.ctx,this.bus.input,slot,this.nextTime+swing,v,step,bar);}
    this.lastScheduledIndex=this.absolute;this.lastScheduledTime=this.nextTime;this.onStep(step,bar);this.absolute++;this.nextTime+=beat;
   }
  }
  async play(){if(this.playing||this.pending)return;this.pending=true;const gen=this.generation;try{await this.unlock();if(gen!==this.generation)return;this.playing=true;this.startClock=performance.now();this.nextTime=this.ctx.currentTime+.05;this.tick();this.timer=setInterval(()=>this.tick(),24);this.onChange(true);}finally{this.pending=false;}}
  silence(){const now=this.ctx?.currentTime??0;for(const v of this.voices){try{v.gain.gain.cancelScheduledValues(now);v.gain.gain.setTargetAtTime(0,now,.006);v.source.stop(Math.max(now+.025,v.when+.008));}catch{}}}
- pause(reset=false){this.generation++;if(this.playing)this.elapsed+=performance.now()-this.startClock;this.playing=false;clearInterval(this.timer);this.timer=null;this.silence();if(reset){this.absolute=0;this.elapsed=0;this.onStep(-1,0);}this.onChange(false);}
+ pause(reset=false){this.generation++;if(reset)this.pendingScene=null;if(this.playing)this.elapsed+=performance.now()-this.startClock;this.playing=false;clearInterval(this.timer);this.timer=null;this.silence();if(reset){this.absolute=0;this.elapsed=0;this.onStep(-1,0);}this.onChange(false);}
  async toggleCapture(){if(this.recordPhase==='stopping')return;if(this.recordPhase==='recording'){this.recordPhase='stopping';this.onRecording('stopping');this.recording?.stop();return;}
   await this.unlock();if(typeof MediaRecorder==='undefined')throw Error('Аудиозапись недоступна. Используй WAV экспорт.');
   const type=['audio/mp4;codecs=mp4a.40.2','audio/mp4','audio/webm;codecs=opus','audio/webm'].find(v=>MediaRecorder.isTypeSupported(v));const recorder=new MediaRecorder(this.capture.stream,type?{mimeType:type}:undefined),parts=[];this.recording=recorder;
