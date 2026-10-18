@@ -1,13 +1,45 @@
-<!doctype html><html lang="ru"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/><meta name="theme-color" content="#101116"/><meta name="apple-mobile-web-app-capable" content="yes"/><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/><link rel="manifest" href="/manifest.webmanifest"/><link rel="icon" href="/icon.svg" type="image/svg+xml"/><link rel="apple-touch-icon" href="/icon-180.png"/><title>ARTSS LIVE 18 — One Tap Studio</title><link rel="stylesheet" href="/studio.css"/></head><body>
- <div class="app"><header><div class="brand"><div class="brandmark">A<span>.</span></div><div><strong>ARTSS <b>LIVE</b></strong><small>PERFORMANCE / 18</small></div></div><div id="status" class="status">READY</div></header>
- <section class="hero"><div><span class="eyebrow">ONE TAP STUDIO</span><h1>MAKE IT <em>LOUD.</em></h1></div><span class="version">8 PADS<br/>16 STEPS</span></section>
- <nav class="transport"><button id="play" class="control control-play" aria-label="Воспроизвести">▶  PLAY</button><button id="record" class="control control-record" aria-label="Живая запись">●  LIVE REC</button><button id="stop" class="control control-stop" aria-label="Стоп">■</button></nav>
- <div class="selectors"><label class="selectbox"><span>STYLE</span><select id="bank" aria-label="Стиль"></select></label><label class="selectbox"><span>ARRANGE</span><select id="scene" aria-label="Сцена"></select></label><div class="tempo"><span>BPM</span><div><button id="tempoDown" aria-label="Медленнее">−</button><strong id="bpm">136</strong><button id="tempoUp" aria-label="Быстрее">+</button></div></div></div>
- <main id="mainPanel"><div class="sectionline"><strong>PLAY LIVE</strong><span class="muted-text">TAP TO PLAY • REC TO LOOP</span></div><div id="pads" class="pads"></div>
- <div class="sectionline strip-label"><strong>STEP RECORD <span id="selectedPad">KICK</span></strong><span id="stepLabel">01–08 / 16</span></div><div class="stepsbar"><div id="steps" class="steps"></div><div class="step-pages"><button id="pageA" class="active">1</button><button id="pageB">2</button></div></div>
- <button id="addSound" class="addsample"><span class="plus">+</span><span><b>ADD YOUR SOUND</b><small>Auto-match · level · trim · EQ</small></span><span class="arrow">↗</span></button>
+<!doctype html>
+<html lang="ru">
+<head>
+ <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+ <meta name="theme-color" content="#090d14"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+ <meta name="description" content="ARTSS LIVE — touch-first two-bus performance groovebox with live overdub, eight pads and real-time mix.">
+ <link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="manifest" href="/manifest.webmanifest"><link rel="stylesheet" href="/studio.css">
+ <title>ARTSS LIVE 19 — PERFORMANCE ENGINE</title>
+</head>
+<body>
+<div class="app">
+ <header class="topbar">
+  <div class="identity"><div class="logomark" aria-hidden="true"><span>A</span><i></i></div><div class="logotype"><b>ARTSS <em>LIVE</em></b><small>PERFORMANCE ENGINE <span>19</span></small></div></div>
+  <div class="statusarea"><div class="activity"><span class="status-dot"></span><span id="runState">STOP</span></div><span id="status" class="status" role="status">READY</span></div>
+ </header>
+ <section class="console" aria-label="Live performance mixer">
+  <div class="consoletop"><span class="overline">LIVE MIXER <i> / </i> TWO BUS SYSTEM</span><span class="chip">WEB AUDIO · iOS</span></div>
+  <div class="channels">
+   <div class="channel cha"><div class="channel-head"><span class="channel-no">A</span><div><strong>DRUMS</strong><small>KICK · HATS · PERC</small></div><div class="vu"><i id="vuA"></i></div></div><div class="channel-lines" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
+   <div class="divider-mid"><span>×</span></div>
+   <div class="channel chb"><div class="channel-head"><span class="channel-no">B</span><div><strong>SYNTHS</strong><small>SUB · ACID · FX</small></div><div class="vu"><i id="vuB"></i></div></div><div class="channel-lines" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
+  </div>
+  <div class="faderbar"><label for="crossfade">CROSSFADER</label><span class="side-a">A</span><input id="crossfade" aria-label="Кроссфейдер между барабанами и синтезаторами" type="range" min="0" max="100" value="50"><span class="side-b">B</span></div>
+ </section>
+ <nav class="transport" aria-label="Транспорт"><button id="play" class="play" aria-label="Play или пауза"><span class="play-icon">▶</span><span>PLAY</span></button><button id="record" class="record" aria-label="Записывать нажатия в петлю"><span class="record-led"></span><span>LIVE REC</span></button><button id="stop" class="stop" aria-label="Остановить воспроизведение">■</button></nav>
+ <div class="settings"><label><span>STYLE</span><select id="bank" aria-label="Стиль музыки"></select></label><label><span>SCENE</span><select id="scene" aria-label="Сцена"></select></label><div class="bpm"><small>BPM</small><div><button id="tempoDown" aria-label="BPM минус">−</button><b id="bpm">136</b><button id="tempoUp" aria-label="BPM плюс">+</button></div></div></div>
+ <main id="mainPanel">
+  <div class="section-heading"><div><span class="overline">01 / INSTRUMENTS</span><h2>DRUM PADS</h2></div><span class="hint">SELECT / HOLD TO LOAD</span></div>
+  <div id="pads" class="pads"></div>
+  <div class="section-heading seqheading"><div><span class="overline">02 / PATTERN</span><h2>STEP SEQUENCER <em id="selectedPad">KICK</em></h2></div><span class="hint" id="stepLabel">01–08 / 16</span></div>
+  <div class="sequencer"><div id="steps" class="steps"></div><div class="pages"><button id="pageA" class="active" aria-label="Шаги с 1 по 8">1</button><button id="pageB" aria-label="Шаги с 9 по 16">2</button></div></div>
+  <button id="addSound" class="upload"><span class="up-icon">+</span><span><b>ADD YOUR SAMPLE</b><small>Automatic trim · level · EQ · pad matching</small></span><span class="uplarr">↗</span></button>
  </main>
- <section id="mixPanel" hidden><div class="sectionline"><strong>AUTO MIX</strong><span class="muted-text">8 CHANNELS</span></div><p class="explain">Уровни и фильтры применяются автоматически. Здесь только необходимое.</p><div id="mixRows"></div><button id="replaceSound" class="secondary">+ REPLACE SELECTED PAD</button></section>
- <section id="takesPanel" hidden><div class="sectionline"><strong>RECORDING</strong><span class="muted-text">LIVE OUTPUT</span></div><button id="take" class="takebutton">● RECORD AUDIO</button><button id="export" class="secondary">↓ EXPORT WAV · 4 BARS</button><div id="takesList"></div><button id="reset" class="danger">CLEAR PATTERN</button></section>
- <footer><button data-pane="main" class="active"><span>▦</span> LIVE</button><button data-pane="mix"><span>≋</span> MIX</button><button data-pane="takes"><span>◉</span> REC / EXPORT</button><span class="transport-status" id="runState">STOP</span></footer>
- </div><input type="file" id="sampleInput" accept="audio/*,.wav,.mp3,.m4a,.flac,.aac,.ogg" multiple hidden/><script type="module" src="/app/main.js"></script></body></html>
+ <section id="mixPanel" hidden><div class="section-heading"><div><span class="overline">03 / ENGINE</span><h2>MIX & EFFECTS</h2></div><span class="hint">REAL-TIME DSP</span></div>
+  <div class="fxbox"><label><span>MASTER FILTER</span><strong id="filterValue">OPEN</strong><input id="filter" type="range" min="0" max="100" value="100" aria-label="Фильтр мастер микшера"></label><label><span>ECHO SEND</span><strong id="echoValue">12%</strong><input id="echo" type="range" min="0" max="100" value="12" aria-label="Громкость задержки"></label></div>
+  <div id="mixRows" class="mixrows"></div><button id="replaceSound" class="secondary">+ REPLACE SELECTED PAD</button>
+ </section>
+ <section id="takesPanel" hidden><div class="section-heading"><div><span class="overline">04 / MASTER</span><h2>RECORDER</h2></div><span class="hint">LOCAL PROJECT</span></div>
+  <button id="take" class="takebutton">● RECORD AUDIO TAKE</button><button id="export" class="secondary">↓ EXPORT STEREO WAV · 4 BARS</button><div id="takesList" class="takeslist"></div><button id="reset" class="danger">CLEAR 16-STEP PATTERN</button>
+ </section>
+ <footer class="bottomnav"><button data-pane="main" class="active"><span>▦</span>LIVE</button><button data-pane="mix"><span>≋</span>MIX</button><button data-pane="takes"><span>◉</span>REC / WAV</button><div class="nav-led"><span></span></div></footer>
+</div>
+<input type="file" id="sampleInput" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.flac" multiple hidden>
+<script type="module" src="/app/main.js"></script>
+</body></html>

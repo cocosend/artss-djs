@@ -1,19 +1,19 @@
 import {defaultSession,importSession,PAD_NAMES,STYLES,SCENES,toggle,STEPS,type Session} from './model.js';
 import {Engine} from './engine.js';
 const $=<T extends HTMLElement=HTMLElement>(q:string)=>document.querySelector<T>(q)!;
-const getStorage=():Session=>{for(const key of ['artss-live-session-v18']){try{const v=localStorage.getItem(key);if(v)return importSession(v)}catch{}}return defaultSession()};
+const getStorage=():Session=>{for(const key of ['artss-live-session-v19','artss-live-session-v18']){try{const v=localStorage.getItem(key);if(v)return importSession(v)}catch{}}return defaultSession()};
 const state=getStorage();const engine=new Engine(()=>state);
 let page=0,importSlot:number|undefined,pane:'main'|'mix'|'takes'='main',busy=false;
-const save=()=>{try{localStorage.setItem('artss-live-session-v18',JSON.stringify(state))}catch{setStatus('STORAGE FULL')}};
+const save=()=>{try{localStorage.setItem('artss-live-session-v19',JSON.stringify(state))}catch{setStatus('STORAGE FULL')}};
 const setStatus=(v:string)=>{$('#status').textContent=v;$('#status').classList.toggle('live',v.includes('REC')||v==='PLAY')};
 const h=(name:string,text:string,cls='')=>{const el=document.createElement(name);el.className=cls;el.textContent=text;return el;};
 function paintPads(){const wrap=$('#pads');wrap.replaceChildren();PAD_NAMES.forEach((name,i)=>{
- const p=h('button','','pad') as HTMLButtonElement;p.type='button';p.setAttribute('aria-label',`Играть ${name}`);p.dataset.pad=String(i);
+ const p=h('button','','pad') as HTMLButtonElement;p.type='button';p.style.setProperty('--tone',['#ff936b','#91f0c8','#ffc489','#a4bce8','#ff8c73','#91dcc7','#eb9ea8','#a1b5fc'][i]??'#ff936b');p.setAttribute('aria-label',`Играть ${name}`);p.dataset.pad=String(i);
  const top=h('span',`${String(i+1).padStart(2,'0')}`,'pad-number'),short=h('span',name,'pad-name');
  const dot=h('span',engine.bank.customInfo(i)?'OWN':'','pad-own');
  p.append(top,short,dot);
  if(i===state.selected)p.classList.add('selected');if(state.muted[i])p.classList.add('muted');
- p.addEventListener('pointerdown',async e=>{if(e.pointerType==='mouse'&&e.button!==0)return;e.preventDefault();state.selected=i;save();paintPads();paintSteps();p.classList.add('pressed');
+ p.addEventListener('pointerdown',async e=>{if(e.pointerType==='mouse'&&e.button!==0)return;e.preventDefault();state.selected=i;save();for(const other of wrap.querySelectorAll('.pad'))other.classList.toggle('selected',other===p);$('#selectedPad').textContent=name;paintSteps();p.classList.add('pressed');
   try{await engine.hit(i,Math.min(1,.65+(e.pressure>0?e.pressure*.32:.3)));setStatus(engine.recording?'REC ON':'AUDIO READY')}catch(err){setStatus(err instanceof Error?err.message:'AUDIO ERROR')}
   window.setTimeout(()=>p.classList.remove('pressed'),90);
  },{passive:false});
@@ -46,6 +46,13 @@ function paintTakes(){const el=$('#takesList');el.replaceChildren();for(let i=0;
 }
 async function safe(task:()=>Promise<void>){if(busy)return;busy=true;try{await task()}catch(e){setStatus(e instanceof Error?e.message:'ERROR')}finally{busy=false;}}
 const init=()=>{
+ $('#crossfade').addEventListener('input',()=>{state.crossfader=Number(($<HTMLInputElement>('#crossfade')).value)/100;engine.updateMix();save()});
+ ($('#crossfade') as HTMLInputElement).value=String(Math.round(state.crossfader*100));
+ $('#filter').addEventListener('input',()=>{state.filter=Number(($<HTMLInputElement>('#filter')).value)/100;$('#filterValue').textContent=state.filter>.97?'OPEN':`${Math.round(state.filter*100)}%`;engine.updateMix();save()});
+ ($('#filter') as HTMLInputElement).value=String(Math.round(state.filter*100));$('#filterValue').textContent=state.filter>.97?'OPEN':`${Math.round(state.filter*100)}%`;
+ $('#echo').addEventListener('input',()=>{state.echo=Number(($<HTMLInputElement>('#echo')).value)/100;$('#echoValue').textContent=`${Math.round(state.echo*100)}%`;engine.updateMix();save()});
+ ($('#echo') as HTMLInputElement).value=String(Math.round(state.echo*100));$('#echoValue').textContent=`${Math.round(state.echo*100)}%`;
+ let vuClock=0;const vu=()=>{const now=performance.now();if(now-vuClock>70){vuClock=now;const v=engine.meterLevel;const left=(1-state.crossfader)*v*130,right=state.crossfader*v*130;$('#vuA').style.height=`${Math.round(Math.min(100,left*100))}%`;$('#vuB').style.height=`${Math.round(Math.min(100,right*100))}%`;}requestAnimationFrame(vu)};requestAnimationFrame(vu);
  $('#bank').replaceChildren(...STYLES.map((s,i)=>{const o=h('option',s.name) as HTMLOptionElement;o.value=String(i);return o}));
  ($('#bank') as HTMLSelectElement).value=String(state.style);
  $('#scene').replaceChildren(...SCENES.map((s,i)=>{const o=h('option',s) as HTMLOptionElement;o.value=String(i);return o}));
@@ -63,7 +70,7 @@ const init=()=>{
  $('#sampleInput').addEventListener('change',()=>void safe(async()=>{const input=$<HTMLInputElement>('#sampleInput');if(!input.files?.length)return;setStatus('ANALYZING SOUND');const added=await engine.addSamples(input.files,importSlot);
    setStatus(`AUTO MIX: ${added.map(x=>PAD_NAMES[x.pad]).join(', ')}`);input.value='';importSlot=undefined;paintPads();}));
  $('#take').addEventListener('click',()=>void safe(async()=>{if(($('#take') as HTMLButtonElement).classList.contains('on')){engine.endTake();$('#take').classList.remove('on');$('#take').textContent='● RECORD AUDIO';window.setTimeout(paintTakes,400)}else{await engine.beginTake();$('#take').classList.add('on');$('#take').textContent='■ FINISH TAKE'}}));
- $('#export').addEventListener('click',()=>void safe(async()=>{setStatus('RENDERING WAV');const blob=await engine.exportWav();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='ARTSS-LIVE-18.wav';a.click();window.setTimeout(()=>URL.revokeObjectURL(url),30000);setStatus('WAV EXPORTED')}));
+ $('#export').addEventListener('click',()=>void safe(async()=>{setStatus('RENDERING WAV');const blob=await engine.exportWav();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='ARTSS-LIVE-19.wav';a.click();window.setTimeout(()=>URL.revokeObjectURL(url),30000);setStatus('WAV EXPORTED')}));
  $('#reset').addEventListener('click',()=>{if(!confirm('Очистить записанные шаги?'))return;state.pattern=Array.from({length:8},()=>Array(16).fill(0));save();paintSteps()});
  for(const el of document.querySelectorAll('[data-pane]'))el.addEventListener('click',()=>setPane((el as HTMLElement).dataset.pane as typeof pane));
  engine.events.onStep=(step)=>{requestAnimationFrame(()=>{for(const el of document.querySelectorAll('.step'))el.classList.toggle('playhead',Number((el as HTMLElement).dataset.step)===step)})};

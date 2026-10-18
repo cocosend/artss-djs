@@ -11,12 +11,25 @@ function wavExport(buffer:AudioBuffer):Blob {
  for(let i=0;i<n;i++){const x=clamp(l[i]??0,-.999,.999),y=clamp(r[i]??0,-.999,.999);u16((Math.round(x*(x<0?32768:32767)))&65535);u16((Math.round(y*(y<0?32768:32767)))&65535);}
  return new Blob([ab],{type:'audio/wav'});
 }
-function createBus(ctx:BaseAudioContext, destination:AudioNode){
- const input=ctx.createGain(),eq=ctx.createBiquadFilter(),compressor=ctx.createDynamicsCompressor(),master=ctx.createGain();
- eq.type='highpass';eq.frequency.value=19;compressor.threshold.value=-11;compressor.ratio.value=3;compressor.attack.value=.0025;compressor.release.value=.16;compressor.knee.value=7;
- master.gain.value=.82;input.connect(eq).connect(compressor).connect(master).connect(destination);
- return {input,master};
+function createBus(ctx:BaseAudioContext,destination:AudioNode,settings:Session){
+ const a=ctx.createGain(), b=ctx.createGain(), input=ctx.createGain();
+ const filter=ctx.createBiquadFilter(), dry=ctx.createGain(), echoSend=ctx.createGain(), echo=ctx.createDelay(1), feedback=ctx.createGain(), returnGain=ctx.createGain();
+ const compressor=ctx.createDynamicsCompressor(), master=ctx.createGain(), meter=ctx.createAnalyser();
+ filter.type='lowpass';filter.Q.value=.62;
+ echo.delayTime.value=.23; feedback.gain.value=.24; returnGain.gain.value=.38;
+ compressor.threshold.value=-12;compressor.ratio.value=6;compressor.knee.value=7;compressor.attack.value=.004;compressor.release.value=.13;master.gain.value=.80;
+ a.connect(input);b.connect(input);input.connect(filter);filter.connect(dry).connect(compressor);
+ filter.connect(echoSend).connect(echo);echo.connect(feedback).connect(echo);echo.connect(returnGain).connect(compressor);
+ compressor.connect(master).connect(meter).connect(destination);meter.fftSize=256;
+ function update(st:Session){const t=ctx.currentTime;const x=clamp(st.crossfader,0,1);
+  a.gain.setTargetAtTime(Math.cos(x*Math.PI/2),t,.014);b.gain.setTargetAtTime(Math.sin(x*Math.PI/2),t,.014);
+  const cutoff=160+19840*Math.pow(clamp(st.filter,0,1),2.4);filter.frequency.setTargetAtTime(cutoff,t,.025);
+  echoSend.gain.setTargetAtTime(.40*clamp(st.echo,0,1),t,.025);
+  echo.delayTime.setTargetAtTime(.75*60/clamp(st.tempo,80,175),t,.02);
+ }
+ update(settings);return {input,a,b,master,meter,update};
 }
+
 export class Engine{
  ctx:AudioContext|null=null;bank=new SoundBank();private bus:ReturnType<typeof createBus>|null=null;
  private clock:AudioWorkletNode|null=null;private fallback:number|null=null;
@@ -28,11 +41,14 @@ export class Engine{
  constructor(readonly getSession:()=>Session){if(typeof indexedDB!=='undefined')void this.restoreTakes();}
  get state(){return this.running?'PLAY':this.stopAt?'PAUSE':'STOP';}
  get recording(){return this.recordArmed;}
+ updateMix(){this.bus?.update(this.getSession());}
  get takes(){return this.recorded.slice();}
  get time(){return this.ctx?.currentTime??0;}
+ private meterData=new Uint8Array(256);
+ get meterLevel(){if(!this.bus)return 0;this.bus.meter.getByteTimeDomainData(this.meterData);let energy=0;for(let i=0;i<this.meterData.length;i++){const v=(this.meterData[i]!-128)/128;energy+=v*v;}return Math.min(1,Math.sqrt(energy/this.meterData.length)*2.8);}
  get currentStep(){if(!this.ctx||!this.running)return 0;const d=60/this.getSession().tempo/4;return ((Math.floor((this.time-this.origin)/d+1e-4)%STEPS)+STEPS)%STEPS;}
  async unlock():Promise<void>{
-  if(!this.ctx){const C=window.AudioContext||(window as Window & {webkitAudioContext?:typeof AudioContext}).webkitAudioContext;if(!C)throw Error('Web Audio недоступен');this.ctx=new C({latencyHint:'interactive'});this.capture=this.ctx.createMediaStreamDestination();void this.bank.restore(this.ctx).catch(()=>{});this.bus=createBus(this.ctx,this.ctx.destination);this.bus.master.connect(this.capture);}
+  if(!this.ctx){const C=window.AudioContext||(window as Window & {webkitAudioContext?:typeof AudioContext}).webkitAudioContext;if(!C)throw Error('Web Audio недоступен');this.ctx=new C({latencyHint:'interactive'});this.capture=this.ctx.createMediaStreamDestination();void this.bank.restore(this.ctx).catch(()=>{});this.bus=createBus(this.ctx,this.ctx.destination,this.getSession());this.bus.master.connect(this.capture);}
   if(this.ctx.state!=='running')await this.ctx.resume();
   if(this.ctx.state!=='running')throw Error('Разреши воспроизведение звука в Safari');
   // Keep the audio context gesture-driven. Sample arrays are fetched before first play.
@@ -61,7 +77,7 @@ export class Engine{
  async hit(pad:number,velocity=1){await this.unlock();if(pad<0||pad>7||this.getSession().muted[pad])return;
   if(pad!==1&&pad!==6)await this.bank.warm(this.ctx!);
   const now=this.ctx!.currentTime+.002;
-  this.voice(this.ctx!,this.bus!.input,pad,now,velocity,this.getSession().style,this.getSession().levels[pad]??1);
+  this.voice(this.ctx!,((pad===1||pad>=6)?this.bus!.b:this.bus!.a),pad,now,velocity,this.getSession().style,this.getSession().levels[pad]??1);
   if(this.recordArmed&&this.running){const d=60/this.getSession().tempo/4;
    const quant=this.getSession().quantize?Math.round((now-this.origin)/d):Math.floor((now-this.origin)/d);
    const at=((quant%STEPS)+STEPS)%STEPS;note(this.getSession().pattern,pad,at,Math.min(1,velocity));this.events.onClip?.(pad);}
@@ -74,7 +90,7 @@ export class Engine{
     if(session.scene===1&&p>3)continue; // intro reduced
     if(session.scene===4&&p===0&&step%8!==0)continue; // break
     if(session.scene===2&&p===3&&step%2===1)velocity=.48; // build
-    this.voice(this.ctx,this.bus.input,p,this.nextTime,velocity,session.style,session.levels[p]??1);
+    this.voice(this.ctx,((p===1||p>=6)?this.bus.b:this.bus.a),p,this.nextTime,velocity,session.style,session.levels[p]??1);
    }
    this.events.onStep?.(step);this.nextStep++;this.nextTime+=d;
   }
@@ -93,11 +109,25 @@ export class Engine{
    const end=when+s.buffer.duration;playing.until=end+.06;
    amp.gain.setValueAtTime(loud*s.gain,Math.max(when+.003,end-.014));amp.gain.linearRampToValueAtTime(0,Math.max(when+.005,end));
    source.onended=cleanup;source.start(when);source.stop(end+.01);playing.stop=()=>{try{source.stop()}catch{}cleanup()};
-  }else{const osc=ctx.createOscillator(),osc2=ctx.createOscillator();osc.type=pad===6?'sawtooth':'sine';osc2.type='triangle';
-   const notes=pad===6?[55,65.406,73.416,82.407,98]:[41.203,43.654,49,55];const freq=notes[(style+(Math.floor(when*4)%notes.length))%notes.length]??55;
-   osc.frequency.setValueAtTime(freq,when);osc2.frequency.setValueAtTime(freq*.5,when);osc.connect(low);osc2.connect(low);
-   const length=pad===6?.23:.37;osc.start(when);osc2.start(when);amp.gain.exponentialRampToValueAtTime(.0001,when+length);osc.stop(when+length+.005);osc2.stop(when+length+.005);
-   playing.until=when+length+.02;osc.onended=cleanup;playing.stop=()=>{try{osc.stop();osc2.stop()}catch{}cleanup()};
+  }else{const osc=ctx.createOscillator(),osc2=ctx.createOscillator();
+   const isAcid=pad===6,root=[41.20,43.65,49.0,46.25,43.65,49.0][style%6]??43.65;
+   const progression=isAcid?[0,0,7,3,0,10,7,3]:[0,0,0,-5,0,0,7,-5];
+   const step=Math.abs(Math.round(when/(60/this.getSession().tempo/4)))%8;
+   const freq=root*Math.pow(2,(progression[step]??0)/12)*(isAcid?2:1);
+   osc.type=isAcid?'sawtooth':'sine';osc2.type=isAcid?'triangle':'sine';
+   osc.frequency.setValueAtTime(freq,when);osc2.frequency.setValueAtTime(freq*(isAcid?1.003:.5002),when);
+   const tone=ctx.createBiquadFilter();tone.type='lowpass';tone.Q.value=isAcid?4.0:.8;
+   const length=isAcid?.23:.34;
+   if(isAcid){tone.frequency.setValueAtTime(2900,when);tone.frequency.exponentialRampToValueAtTime(310,when+length*.88)}
+   else tone.frequency.setValueAtTime(250,when);
+   const oscGain=ctx.createGain();oscGain.gain.value=isAcid?.23:.62;
+   osc.connect(oscGain);osc2.connect(oscGain);oscGain.connect(tone).connect(low);
+   osc.start(when);osc2.start(when);
+   amp.gain.setValueAtTime(0,when);amp.gain.linearRampToValueAtTime(loud*(isAcid?.18:.48),when+.004);
+   amp.gain.exponentialRampToValueAtTime(.0001,when+length);
+   osc.stop(when+length+.005);osc2.stop(when+length+.005);
+   playing.until=when+length+.02;osc.onended=()=>{try{tone.disconnect();oscGain.disconnect()}catch{}cleanup()};
+   playing.stop=()=>{try{osc.stop();osc2.stop()}catch{}cleanup()};
   }
   if(live)this.active.add(playing);
  }
@@ -118,11 +148,11 @@ export class Engine{
  private async storeTake(blob:Blob){const db=await this.openTakes();if(!db)return;try{const tx=db.transaction('takes','readwrite');tx.objectStore('takes').add(blob)}catch{}finally{db.close()}}
  private async restoreTakes(){const db=await this.openTakes();if(!db)return;try{const r=db.transaction('takes','readonly').objectStore('takes').getAll();r.onsuccess=()=>{for(const b of (r.result as Blob[]).reverse())if(b.size)this.recorded.push(b)};}catch{}finally{db.close()}}
 
- async exportWav(bars=4):Promise<Blob>{const state=this.getSession();const rate=sampleRate;const d=60/state.tempo/4;const length=Math.ceil((bars*16*d+2)*rate);
-  const offline=new OfflineAudioContext(2,length,rate),bus=createBus(offline,offline.destination);
+ async exportWav(bars=4):Promise<Blob>{await this.unlock();await this.bank.warm(this.ctx!);const state=this.getSession();const rate=sampleRate;const d=60/state.tempo/4;const length=Math.ceil((bars*16*d+2)*rate);
+  const offline=new OfflineAudioContext(2,length,rate),bus=createBus(offline,offline.destination,state);
   for(let step=0;step<bars*16;step++)for(let pad=0;pad<8;pad++){
    const velocity=state.pattern[pad]?.[step%16]??0;if(!velocity||state.muted[pad])continue;
-   this.voice(offline,bus.input,pad,step*d+.02,velocity,state.style,state.levels[pad]??1);
+   this.voice(offline,((pad===1||pad>=6)?bus.b:bus.a),pad,step*d+.02,velocity,state.style,state.levels[pad]??1);
   }
   return wavExport(await offline.startRendering());
  }

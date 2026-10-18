@@ -1,16 +1,9 @@
-# ARTSS LIVE 18 — ONE TAP STUDIO
+# ARTSS LIVE 19 — Performance Engine
 
-One-screen 8-pad 16-step iPhone PWA. New TypeScript Web Audio engine and AudioWorklet clock. **No SoundLab, DJ decks, duplicate pads, full-song slicing, 32-step mode or third-party runtime dependencies.**
+A compact performance groovebox for iPhone PWA. Eight touch pads, exactly sixteen steps, two actual audio buses (drums A and synths B), equal-power crossfade, filter, tempo-synced echo, limiter-style compressor, sampled 44.1kHz CC0 drum assets, synthesized sub and acid, local user sample import/auto processing, live quantized overdub, pause/stop without data loss, offline WAV and master audio takes.
 
-- **LIVE REC:** first touch starts transport + enables writing notes; playing pads triggers sound immediately and overdubs the current 16-step loop; REC OFF leaves loop playing.
-- **PLAY/PAUSE/STOP:** Pause preserves phase, Stop returns to first step and disarms REC. Neither deletes recorded notes.
-- **ADD SOUND:** load up to eight individual WAV/MP3/M4A audio files (<16MB/file, <30s each), locally detect onset, RMS, peak, brightness, and suitable pad type; trim/fade, set gain/HPF/LPF; audio is never uploaded. An optional manual replacement selector exists in MIX.
-- **MIX:** automatically prepared gains/EQ; 8 simple level/mute lanes. No per-pad duplicate volume controls.
-- **EXPORT:** offline WAV of 4 bars; optional master take recorder using native MediaRecorder if supported.
-- **Sound:** 16 real CC0 sampled drums from `octalmusic/octal-samples` already in the upstream `artss-djs/samples/` repository; tonal SUB and ACID remain original synth voices. See previous `THIRD_PARTY_SAMPLES.md`.
+Architecture: TypeScript Web Audio engine with AudioWorklet clock (setInterval fallback), separate model/DSP/sample layers. No cloud AI model: custom-sample classification is local spectral/transient analysis. Sound quality and input latency still require subjective assessment and physical iPhone measurements.
 
-AI caveat: `smart.ts` is automatic local **DSP heuristics**, not a neural model, stem splitter or server inference. Do not claim AI-powered key recognition: rough frequency estimation is diagnostic only.
+UI: one compact live performance screen; MIX panel houses filter/echo and eight levels/mutes; REC panel stores and exports recording. Works offline after first successful full asset caching (service worker).
 
-Runtime prerequisites: static HTTPS and a browser with Web Audio. `AudioWorklet` is used when available; a 25ms timer is used as fallback. TypeScript is a build-time dependency only; no client runtime libraries are installed on the phone. If deploying to Vercel, use `npm run build` and output directory `dist`. Old projects remain untouched under previous localStorage keys; v18 starts a fresh project.
-
-Tests: `npm run check` then Playwright Chromium/WebKit UI smoke test. Hardware latency and subjective sound remain unmeasured until a physical device listening test.
+Release procedure: `npm run typecheck && npm run compile && npm run build && npm test` then Chromium/WebKit touch QA; deploy only after both CI jobs pass. TypeScript compiled `app/*.js` is committed because Vercel project is configured to skip dependency installation during production build. Canonical production URL https://artss-djs.vercel.app/ . Do not overwrite legacy v18 session data.

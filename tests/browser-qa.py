@@ -3,7 +3,8 @@ from pathlib import Path
 from threading import Thread
 from http.server import SimpleHTTPRequestHandler,ThreadingHTTPServer
 from playwright.sync_api import sync_playwright
-import os,sys,time,math,struct,wave,io
+import os,sys,time,math,struct,wave,io,mimetypes
+from urllib.parse import urlparse,unquote
 ROOT=Path(__file__).resolve().parents[1] / 'dist'
 class QuietHandler(SimpleHTTPRequestHandler):
  def __init__(self,*args,**kwargs): super().__init__(*args,directory=str(ROOT),**kwargs)
@@ -17,16 +18,25 @@ with sync_playwright() as playwright:
  browser=bt.launch(headless=True,**({'executable_path':os.getenv('CHROME_BIN')} if browser_type=='chromium' and os.getenv('CHROME_BIN') else {}))
  context=browser.new_context(viewport={'width':390,'height':844},device_scale_factor=3,is_mobile=True,has_touch=True,accept_downloads=True)
  page=context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
- page.goto(URL,wait_until='networkidle');assert 'ARTSS LIVE 18' in page.title(),page.title()
+ def serve_static(route):
+  raw=unquote(urlparse(route.request.url).path).lstrip('/') or 'index.html'
+  f=(ROOT/raw).resolve()
+  if not f.is_relative_to(ROOT.resolve()) or not f.is_file():return route.fulfill(status=404,body='not found')
+  return route.fulfill(status=200,body=f.read_bytes(),content_type=mimetypes.guess_type(str(f))[0] or 'application/octet-stream')
+ if os.getenv('ARTSS_LOCAL_PREVIEW')=='1':
+  context.route('https://artss.test/**',serve_static)
+  URL='https://artss.test/'
+ page.goto(URL,wait_until='networkidle');assert 'ARTSS LIVE 19' in page.title(),page.title()
  assert page.locator('.pad').count()==8
  assert page.locator('.step').count()==8
- assert page.locator('.hero').is_visible()
+ assert page.locator('.console').is_visible()
+ assert page.locator('.channel').count()==2
  assert page.locator('body').evaluate('(el)=>el.scrollWidth <= innerWidth+2')
  # First gesture unlocks AudioContext; transport must not throw, and pad will respond.
  page.locator('#record').tap();page.wait_for_timeout(400)
  assert page.locator('#record').inner_text().find('OFF')>=0,page.locator('#record').inner_text()
  page.locator('[data-pad="5"]').tap();page.wait_for_timeout(240)
- data=page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v18"))')
+ data=page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19"))')
  assert sum(1 for x in data['pattern'][5] if x>0)>=1,data['pattern'][5]
  page.locator('#record').tap();assert 'REC' in page.locator('#record').inner_text()
  page.locator('#play').tap();page.locator('#play').tap();page.wait_for_timeout(100)
@@ -35,11 +45,20 @@ with sync_playwright() as playwright:
  page.locator('.step').first.tap();page.reload(wait_until='networkidle')
  page.locator('#pageB').tap();assert page.locator('.step').first.get_attribute('class').find('on')>=0
  page.locator('[data-pane="mix"]').tap();assert page.locator('.mixrow').count()==8
- page.locator('input[type="range"]').first.fill('67');assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v18")).levels[0]')==.67
+ page.locator('#filter').fill('50');assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).filter')==.5
+ page.locator('#echo').fill('30');assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).echo')==.3
+ page.locator('#crossfade').fill('80');assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).crossfader')==.8
+ page.locator('.mixrow input[type="range"]').first.fill('67');assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).levels[0]')==.67
  page.locator('[data-pane="takes"]').tap()
  with page.expect_download(timeout=60000) as event: page.locator('#export').tap()
  downloaded=event.value
- with open(downloaded.path(),'rb') as f: assert f.read(4)==b'RIFF'
+ with wave.open(str(downloaded.path()),'rb') as w:
+  assert w.getnchannels()==2 and w.getframerate()==44100
+  frames=w.readframes(w.getnframes())
+  samples=struct.unpack('<'+'h'*(len(frames)//2),frames)
+  peak=max(abs(v) for v in samples)
+  assert peak>150,('Exported WAV was silent',peak)
+  assert sum(1 for v in samples if abs(v)>=32760)/len(samples)<.01,'Master output clips excessively'
  # Upload a real short WAV from memory to exercise classifier, decoding, and selected-pad routing
  wav=io.BytesIO()
  with wave.open(wav,'wb') as wf:
