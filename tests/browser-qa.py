@@ -36,7 +36,8 @@ with sync_playwright() as playwright:
  page.locator('#pageB').tap();assert page.locator('.step').first.get_attribute('class').find('on')>=0
  page.locator('[data-pane="mix"]').tap();assert page.locator('.mixrow').count()==8
  page.locator('input[type="range"]').first.fill('67');assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v18")).levels[0]')==.67
- page.locator('[data-pane="takes"]').tap();with page.expect_download(timeout=60000) as event: page.locator('#export').tap()
+ page.locator('[data-pane="takes"]').tap()
+ with page.expect_download(timeout=60000) as event: page.locator('#export').tap()
  downloaded=event.value
  with open(downloaded.path(),'rb') as f: assert f.read(4)==b'RIFF'
  # Upload a real short WAV from memory to exercise classifier, decoding, and selected-pad routing
