@@ -3,8 +3,9 @@
   "devDependencies": {"typescript": "5.8.3"},
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "tsc && node scripts/build.mjs",
+    "compile": "tsc",
+    "build": "node scripts/build.mjs",
     "test": "node --test tests/*.test.mjs",
-    "check": "npm run typecheck && npm run build && npm test"
+    "check": "npm run typecheck && npm run compile && npm run build && npm test"
   }
 }
