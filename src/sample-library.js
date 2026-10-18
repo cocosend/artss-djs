@@ -23,7 +23,7 @@ export const SAMPLE_PATHS=Object.freeze(Object.values(DRUM_SAMPLES).map(p=>'samp
 const BANKS=Object.freeze([
  ['kick-punch',null,'clap','hat-closed','hat-open','perc-tom',null,'hit-blip'],
  ['kick-hard',null,'clap-hard','hat-closed-hard','hat-open-hard','perc-shaker',null,'hit-ride'],
- ['kick-deep',null,'clap','hat-closed','hat-open','hat-open','perc-tick',null,'hit-blip'],
+ ['kick-deep',null,'clap','hat-closed','hat-open','perc-tick',null,'hit-blip'],
  ['kick-punch',null,'snare','hat-closed-hard','hat-open','perc-tom',null,'hit-blip'],
  ['kick-hard',null,'clap-hard','hat-closed-hard','hat-open-hard','perc-tom',null,'hit-ride'],
  ['kick-deep',null,'snare','hat-closed','hat-open','perc-tick',null,'hit-blip'],
