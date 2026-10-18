@@ -1,8 +1,6 @@
-const SAMPLES=["./samples/kicks/punch-01.wav", "./samples/kicks/punch-03.wav", "./samples/kicks/deep-01.wav", "./samples/kicks/tight-02.wav", "./samples/claps/classic-01.wav", "./samples/claps/classic-03.wav", "./samples/snares/snap-01.wav", "./samples/hats/closed-01.wav", "./samples/hats/closed-05.wav", "./samples/hats/open-01.wav", "./samples/hats/open-03.wav", "./samples/percs/tom-01.wav", "./samples/percs/shaker-01.wav", "./samples/percs/tick-02.wav", "./samples/percs/blip-01.wav", "./samples/cymbals/ride-01.wav"];
-const CACHE='artss-live-v17-cc0-drums';
-const ASSETS=['./','./index.html','./studio.css?v=17.0.0','./studio.js?v=17.0.0','./src/sound-design.js','./src/session.js','./src/engine.js','./src/sample-library.js','./src/takes.js','./manifest.webmanifest','./icons/icon.svg','./icons/icon-180.png','./icons/icon-192.png','./icons/icon-512.png', ...SAMPLES];
-self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting()));});
-self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('artss-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
-self.addEventListener('fetch',e=>{if(e.request.method!=='GET'||new URL(e.request.url).origin!==self.location.origin)return;if(e.request.mode==='navigate'){
- e.respondWith(fetch(e.request).then(r=>{if(r.ok)caches.open(CACHE).then(c=>c.put('./index.html',r.clone())).catch(()=>{});return r;}).catch(()=>caches.match('./index.html')));
- }else e.respondWith(caches.match(e.request).then(cached=>cached||fetch(e.request)));});
+const CACHE='artss-live-v18.0.0',SHELL=['/','/studio.css','/app/main.js','/app/model.js','/app/sounds.js','/app/engine.js','/app/smart.js','/app/clock.js','/manifest.webmanifest','/icon.svg'];
+self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting())));
+self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
+self.addEventListener('fetch',event=>{const req=event.request;if(req.method!=='GET'||new URL(req.url).origin!==self.location.origin)return;
+ event.respondWith(caches.match(req).then(found=>found||fetch(req).then(response=>{if(response.ok&&new URL(req.url).pathname.startsWith('/samples/')){const clone=response.clone();caches.open(CACHE).then(cache=>cache.put(req,clone)).catch(()=>{});}return response;})));
+});

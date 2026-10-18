@@ -1,13 +1,10 @@
-import {readFile,mkdir,copyFile,rm} from 'node:fs/promises';
-import {spawnSync} from 'node:child_process';
-import {SAMPLE_PATHS} from '../src/sample-library.js';
-const root=new URL('../',import.meta.url),dist=new URL('../dist/',import.meta.url);
-const assets=[...SAMPLE_PATHS,'src/sample-library.js','index.html','studio.css','studio.js','sw.js','manifest.webmanifest','src/sound-design.js','src/session.js','src/engine.js','src/takes.js','icons/icon.svg','icons/icon-180.png','icons/icon-192.png','icons/icon-512.png'];
-for(const file of assets){const text=await readFile(new URL(file,root));if(file.endsWith('.js')){const proc=spawnSync(process.execPath,['--check',new URL(file,root).pathname],{encoding:'utf-8'});if(proc.status)throw Error(`${file}: ${proc.stderr}`);}if(!text.length)throw Error('Missing asset '+file);}
-const index=(await readFile(new URL('index.html',root))).toString(),sw=(await readFile(new URL('sw.js',root))).toString();
-if(!index.includes('studio.js?v=17.0.0')||!sw.includes('artss-live-v17-cc0-drums'))throw Error('Cache / version mismatch');
-if(index.includes('track-slicer')||index.includes('data-length="32"')||index.includes('id="trackFile"'))throw Error('Legacy sample UI');
-JSON.parse((await readFile(new URL('manifest.webmanifest',root))).toString());
-await rm(dist,{recursive:true,force:true});for(const file of assets){const dest=new URL(file,dist),parts=file.split('/');if(parts.length>1)await mkdir(new URL(parts.slice(0,-1).join('/')+'/',dist),{recursive:true});else await mkdir(dist,{recursive:true});await copyFile(new URL(file,root),dest);}
-await (await import('node:fs/promises')).writeFile(new URL('release.json',dist),JSON.stringify({name:'ARTSS LIVE',version:'17.0.0',pads:8,steps:16,sampleImport:false,audioEngine:'src/engine.js',offline:true}));
-console.log('PASS: ARTSS LIVE 17 static PWA build');
+import {mkdir,copyFile,writeFile,readFile,readdir,stat} from 'node:fs/promises';import {join,dirname} from 'node:path';
+const root=process.cwd(),out=join(root,'dist');async function copy(from,to){await mkdir(dirname(to),{recursive:true});await copyFile(from,to)}
+for(const file of ['index.html','studio.css','manifest.webmanifest','sw.js'])await copy(join(root,file),join(out,file));
+await copy(join(root,'public/icon.svg'),join(out,'icon.svg'));
+for(const f of await readdir(join(root,'app')))if(f.endsWith('.js'))await copy(join(root,'app',f),join(out,'app',f));
+const release={name:'ARTSS LIVE',version:'18.0.0',engine:'Web Audio + AudioWorklet',pads:8,steps:16,record:true,autoMix:true,sampleImport:true,offline:true};await writeFile(join(out,'release.json'),JSON.stringify(release));
+async function copyTree(from,to){let names=[];try{names=await readdir(from,{withFileTypes:true})}catch{return}for(const entry of names){if(entry.isDirectory())await copyTree(join(from,entry.name),join(to,entry.name));else if(entry.name.endsWith('.wav'))await copy(join(from,entry.name),join(to,entry.name))}}
+await copyTree(join(root,'samples'),join(out,'samples'));
+const html=await readFile(join(out,'index.html'),'utf8');if(!html.includes('/app/main.js')||!html.includes('16 STEPS'))throw Error('Invalid app shell');
+console.log('PASS ARTSS LIVE 18 build');
