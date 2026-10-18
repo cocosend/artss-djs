@@ -6,7 +6,7 @@ const $=selector=>document.querySelector(selector);
 const $$=selector=>Array.from(document.querySelectorAll(selector));
 let state=loadSession(),tab='live',seqPage=0,armed=false,undo=[],currentStep=-1,takePlaying=null,takeUrl=null,recFallback=null,rendering=false,saveTimer=null,clearTimer=null;
 const engine=new AudioEngine(()=>state);
-const views={live:'LIVE MIXER',steps:'STEP EDITOR',mix:'CHANNEL MIX',rec:'RECORDING'};
+const views={live:'DRUM STUDIO',steps:'STEP EDITOR',mix:'CHANNEL MIX',rec:'RECORDING'};
 function toast(text,error=false){const t=$('#toast');t.textContent=text;t.style.borderColor=error?'#ff647a':'#2bf0c0';t.hidden=false;clearTimeout(t.timer);t.timer=setTimeout(()=>t.hidden=true,2800);}
 function persist(){clearTimeout(saveTimer);saveTimer=setTimeout(()=>{if(!saveSession(state))toast('Не удалось сохранить проект',true);},140);}
 function persistNow(){clearTimeout(saveTimer);saveSession(state);}
