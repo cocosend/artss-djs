@@ -54,6 +54,7 @@ try:
    assert page.locator('.channel').count()==8
    page.locator('[data-tab="rec"]').click()
    assert page.locator('#trackFile').count()==0
+   page.locator('[data-tab="live"]').click();page.locator('.pad').first.tap();page.wait_for_function('document.querySelector("#audioState").textContent.includes("AUDIO ON")');
    assert not errors,errors
    print('PASS injected UI',ENGINE,'8 pads, 16 steps, no sample import, mixer and responsive layout')
    browser.close()
