@@ -59,6 +59,18 @@ with sync_playwright() as playwright:
   peak=max(abs(v) for v in samples)
   assert peak>150,('Exported WAV was silent',peak)
   assert sum(1 for v in samples if abs(v)>=32760)/len(samples)<.01,'Master output clips excessively'
+ # The A/B crossfader must change the actual rendered waveform, not only the stored UI value.
+ reference=samples[::121]
+ page.locator('#crossfade').fill('0')
+ with page.expect_download(timeout=60000) as alternate_event: page.locator('#export').tap()
+ with wave.open(str(alternate_event.value.path()),'rb') as alt:
+  frames_b=alt.readframes(alt.getnframes())
+  sample_b=struct.unpack('<'+'h'*(len(frames_b)//2),frames_b)[::121]
+ assert len(reference)==len(sample_b)
+ mean_difference=sum(abs(a-b) for a,b in zip(reference,sample_b))/max(1,len(reference))
+ assert mean_difference>80,('A/B crossfade did not audibly change mix',mean_difference)
+ page.locator('#crossfade').fill('80')
+
  # Upload a real short WAV from memory to exercise classifier, decoding, and selected-pad routing
  wav=io.BytesIO()
  with wave.open(wav,'wb') as wf:
