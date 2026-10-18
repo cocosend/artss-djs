@@ -1,4 +1,4 @@
-name: ARTSS LIVE 18 - Audio & iPhone QA
+name: ARTSS LIVE 19 - Two-Bus Audio & iPhone QA
 on:
   push:
     branches: [main]

@@ -1,7 +1,7 @@
 import { defaultSession, importSession, PAD_NAMES, STYLES, SCENES, toggle } from './model.js';
 import { Engine } from './engine.js';
 const $ = (q) => document.querySelector(q);
-const getStorage = () => { for (const key of ['artss-live-session-v18']) {
+const getStorage = () => { for (const key of ['artss-live-session-v19', 'artss-live-session-v18']) {
     try {
         const v = localStorage.getItem(key);
         if (v)
@@ -13,7 +13,7 @@ const state = getStorage();
 const engine = new Engine(() => state);
 let page = 0, importSlot, pane = 'main', busy = false;
 const save = () => { try {
-    localStorage.setItem('artss-live-session-v18', JSON.stringify(state));
+    localStorage.setItem('artss-live-session-v19', JSON.stringify(state));
 }
 catch {
     setStatus('STORAGE FULL');
@@ -26,6 +26,7 @@ function paintPads() {
     PAD_NAMES.forEach((name, i) => {
         const p = h('button', '', 'pad');
         p.type = 'button';
+        p.style.setProperty('--tone', ['#ff936b', '#91f0c8', '#ffc489', '#a4bce8', '#ff8c73', '#91dcc7', '#eb9ea8', '#a1b5fc'][i] ?? '#ff936b');
         p.setAttribute('aria-label', `Играть ${name}`);
         p.dataset.pad = String(i);
         const top = h('span', `${String(i + 1).padStart(2, '0')}`, 'pad-number'), short = h('span', name, 'pad-name');
@@ -41,7 +42,9 @@ function paintPads() {
             e.preventDefault();
             state.selected = i;
             save();
-            paintPads();
+            for (const other of wrap.querySelectorAll('.pad'))
+                other.classList.toggle('selected', other === p);
+            $('#selectedPad').textContent = name;
             paintSteps();
             p.classList.add('pressed');
             try {
@@ -135,6 +138,23 @@ finally {
     busy = false;
 } }
 const init = () => {
+    $('#crossfade').addEventListener('input', () => { state.crossfader = Number(($('#crossfade')).value) / 100; engine.updateMix(); save(); });
+    $('#crossfade').value = String(Math.round(state.crossfader * 100));
+    $('#filter').addEventListener('input', () => { state.filter = Number(($('#filter')).value) / 100; $('#filterValue').textContent = state.filter > .97 ? 'OPEN' : `${Math.round(state.filter * 100)}%`; engine.updateMix(); save(); });
+    $('#filter').value = String(Math.round(state.filter * 100));
+    $('#filterValue').textContent = state.filter > .97 ? 'OPEN' : `${Math.round(state.filter * 100)}%`;
+    $('#echo').addEventListener('input', () => { state.echo = Number(($('#echo')).value) / 100; $('#echoValue').textContent = `${Math.round(state.echo * 100)}%`; engine.updateMix(); save(); });
+    $('#echo').value = String(Math.round(state.echo * 100));
+    $('#echoValue').textContent = `${Math.round(state.echo * 100)}%`;
+    let vuClock = 0;
+    const vu = () => { const now = performance.now(); if (now - vuClock > 70) {
+        vuClock = now;
+        const v = engine.meterLevel;
+        const left = (1 - state.crossfader) * v * 130, right = state.crossfader * v * 130;
+        $('#vuA').style.height = `${Math.round(Math.min(100, left * 100))}%`;
+        $('#vuB').style.height = `${Math.round(Math.min(100, right * 100))}%`;
+    } requestAnimationFrame(vu); };
+    requestAnimationFrame(vu);
     $('#bank').replaceChildren(...STYLES.map((s, i) => { const o = h('option', s.name); o.value = String(i); return o; }));
     $('#bank').value = String(state.style);
     $('#scene').replaceChildren(...SCENES.map((s, i) => { const o = h('option', s); o.value = String(i); return o; }));
@@ -176,7 +196,7 @@ const init = () => {
         $('#take').classList.add('on');
         $('#take').textContent = '■ FINISH TAKE';
     } }));
-    $('#export').addEventListener('click', () => void safe(async () => { setStatus('RENDERING WAV'); const blob = await engine.exportWav(); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'ARTSS-LIVE-18.wav'; a.click(); window.setTimeout(() => URL.revokeObjectURL(url), 30000); setStatus('WAV EXPORTED'); }));
+    $('#export').addEventListener('click', () => void safe(async () => { setStatus('RENDERING WAV'); const blob = await engine.exportWav(); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'ARTSS-LIVE-19.wav'; a.click(); window.setTimeout(() => URL.revokeObjectURL(url), 30000); setStatus('WAV EXPORTED'); }));
     $('#reset').addEventListener('click', () => { if (!confirm('Очистить записанные шаги?'))
         return; state.pattern = Array.from({ length: 8 }, () => Array(16).fill(0)); save(); paintSteps(); });
     for (const el of document.querySelectorAll('[data-pane]'))

@@ -1,5 +1,5 @@
 {
-  "name": "artss-live", "version": "18.0.0", "private": true, "type": "module",
+  "name": "artss-live", "version": "19.0.0", "private": true, "type": "module",
   "devDependencies": {"typescript": "5.8.3"},
   "scripts": {
     "typecheck": "tsc --noEmit",

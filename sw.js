@@ -1,4 +1,9 @@
-const CACHE='artss-live-v18.0.0',SHELL=['/','/studio.css','/app/main.js','/app/model.js','/app/sounds.js','/app/engine.js','/app/smart.js','/app/clock.js','/manifest.webmanifest','/icon.svg'];
+const CACHE='artss-live-v19.0.1',SHELL=['/','/studio.css','/app/main.js','/app/model.js','/app/sounds.js','/app/engine.js','/app/smart.js','/app/clock.js','/manifest.webmanifest','/icon.svg',
+'/samples/kicks/punch-01.wav','/samples/kicks/punch-03.wav','/samples/kicks/deep-01.wav','/samples/kicks/tight-02.wav',
+'/samples/claps/classic-01.wav','/samples/claps/classic-03.wav','/samples/snares/snap-01.wav',
+'/samples/hats/closed-01.wav','/samples/hats/closed-05.wav','/samples/hats/open-01.wav','/samples/hats/open-03.wav',
+'/samples/percs/tom-01.wav','/samples/percs/shaker-01.wav','/samples/percs/tick-02.wav','/samples/percs/blip-01.wav',
+'/samples/cymbals/ride-01.wav'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{const req=event.request;if(req.method!=='GET'||new URL(req.url).origin!==self.location.origin)return;
