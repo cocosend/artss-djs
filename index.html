@@ -1,45 +1,13 @@
-<!doctype html>
-<html lang="ru"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#090a0c"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ARTSS LIVE">
-<meta name="description" content="ARTSS LIVE 16 — performance mixer: 8 responsive pads, 16-step sequencer, quantized scenes, live overdub and WAV export.">
-<link rel="manifest" href="./manifest.webmanifest"><link rel="icon" href="./icons/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="./icons/icon-180.png"><link rel="stylesheet" href="./studio.css?v=17.0.0">
-<title>ARTSS LIVE 17 — DRUM STUDIO</title></head>
-<body><div class="shell" id="app">
-<header class="top"><div class="wordmark"><div class="logo-square" aria-hidden="true"><i></i><i></i><i></i><i></i></div><div><strong>ARTSS<span>LIVE</span></strong><small>DRUM STUDIO / 16</small></div></div><div class="top-meta"><span id="audioState" class="audio-state">AUDIO OFF</span><button id="install" class="install" aria-label="Установить приложение">↗</button></div></header>
-<div class="workspace">
- <div class="headline"><div><span class="eyebrow">PLAY · RECORD · ARRANGE</span><h1 id="viewTitle">DRUM STUDIO<span class="accent">.</span></h1></div><div class="pill"><i></i> 8 PADS / 16 STEPS</div></div>
- <section class="control-surface" aria-label="Транспорт">
-   <div class="tempo-group"><span class="keyname">TEMPO</span><div class="tempo-row"><button id="bpmDown" aria-label="Уменьшить BPM">−</button><strong id="bpm">136</strong><button id="bpmUp" aria-label="Увеличить BPM">+</button></div><span class="mini">BEATS PER MINUTE</span></div>
-   <div class="transport-buttons"><button id="play" class="play" aria-label="Пуск или пауза"><span id="playIcon">▶</span><span id="playLabel">PLAY</span></button><button id="stop" class="stop" aria-label="Стоп и сброс к началу">■</button></div>
-   <div class="record-strip"><button id="liveRec" class="rec-arm" aria-pressed="false"><span class="rec-dot"></span><strong id="liveRecLabel">LOOP REC OFF</strong></button><p id="liveRecStatus">Нажми REC, играй на пэдах — удары попадут в петлю</p></div>
-   <div class="transport-bottom"><span id="position">01 / 16</span><div id="playhead" class="playhead" aria-label="Положение в петле"></div><span id="meterText">−∞ dB</span></div>
- </section>
- <main>
-  <section id="tab-live" class="page" data-page="live"><div class="panel-heading"><div><span class="eyebrow">01 / PERFORMANCE</span><h2>LIVE PADS</h2></div><span class="tiny-label" id="kitLabel">WAREHOUSE</span></div>
-    <div id="pads" class="pads" aria-label="Восемь драм пэдов"></div>
-    <div class="note-line"><span>INSTANT TOUCH · 8 PERFORMANCE PADS</span><span id="lastPad">READY</span></div>
-    <div class="stack-heading"><strong>KITS</strong><span>8 TECHNO STYLES</span></div><div id="presets" class="kit-strip"></div>
-    <div class="stack-heading scene-head"><strong>ARRANGEMENT</strong><span>LAUNCH ON NEXT BAR</span></div><div id="scenes" class="scene-strip"></div>
-  </section>
-  <section id="tab-steps" class="page" data-page="steps" hidden><div class="panel-heading"><div><span class="eyebrow">02 / PATTERN</span><h2>16-STEP SEQUENCER</h2></div><span class="tiny-label">8 TRACKS / 16 STEPS</span></div>
-   <div class="step-toolbar"><p>16 шагов · 2 страницы по 8 крупных клавиш. LOOP REC записывает касания в эту сетку.</p><div class="step-pages" role="group" aria-label="Выбор половины секвенсора"><button id="seqA" class="selected" aria-pressed="true" data-seq-page="0">01–08</button><button id="seqB" aria-pressed="false" data-seq-page="1">09–16</button></div></div>
-   <div id="sequence" class="sequence" aria-label="Секвенсор 8 дорожек на 16 шагов"></div>
-   <div class="seq-actions"><button id="undo">↶ UNDO</button><button id="fill">＋ PERC FILL</button><button id="clear">× CLEAR</button></div>
-  </section>
-  <section id="tab-mix" class="page" data-page="mix" hidden><div class="panel-heading"><div><span class="eyebrow">03 / ROUTING</span><h2>MIXER & FX</h2></div><span class="tiny-label">8 CHANNELS</span></div>
-   <div class="mix-note">Восемь независимых каналов: уровень, тональность, MUTE и SOLO. Глобальные FX ниже.</div><div id="mixer" class="mixer"></div>
-   <div class="stack-heading"><strong>MASTER EFFECTS</strong><span>ONE SIGNAL PATH</span></div><div id="effects" class="effects"></div>
-  </section>
-  <section id="tab-rec" class="page" data-page="rec" hidden><div class="panel-heading"><div><span class="eyebrow">04 / CAPTURE</span><h2>RECORD & FILES</h2></div><span class="tiny-label">LOCAL ONLY</span></div>
-   <div class="capture-card"><div class="capture-caption"><i id="takeDot"></i><div><strong>MASTER AUDIO TAKE</strong><span id="takeStatus">Запись живого звука с пэдов и секвенсора</span></div></div><button id="takeButton" class="take-btn">● START TAKE</button></div>
-   <div class="stack-heading"><strong>SAVED TAKES</strong><span id="takeCount">0 FILES</span></div><div id="takes" class="takes"><span class="muted">Аудиодублей пока нет</span></div>
-   <div class="simple-card"><div><strong>WAV EXPORT</strong><p>Экспорт паттерна без микрофона и без сети.</p></div><div class="export-inline"><select id="bars" aria-label="Длина экспорта"><option value="4">4 BARS</option><option value="8" selected>8 BARS</option><option value="16">16 BARS</option></select><button id="wav">EXPORT WAV ↗</button></div></div>
-   <div class="simple-card"><div><strong>PROJECT FILE</strong><p>Настройки и ритм сохраняются автоматически на устройстве.</p></div><div class="export-inline"><button id="projectSave">SAVE ↓</button><button id="projectOpen">LOAD ↑</button><input type="file" hidden id="projectInput" accept=".json,application/json"></div></div>
-  </section>
+<!doctype html><html lang="ru"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/><meta name="theme-color" content="#101116"/><meta name="apple-mobile-web-app-capable" content="yes"/><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/><link rel="manifest" href="/manifest.webmanifest"/><link rel="icon" href="/icon.svg" type="image/svg+xml"/><link rel="apple-touch-icon" href="/icon-180.png"/><title>ARTSS LIVE 18 — One Tap Studio</title><link rel="stylesheet" href="/studio.css"/></head><body>
+ <div class="app"><header><div class="brand"><div class="brandmark">A<span>.</span></div><div><strong>ARTSS <b>LIVE</b></strong><small>PERFORMANCE / 18</small></div></div><div id="status" class="status">READY</div></header>
+ <section class="hero"><div><span class="eyebrow">ONE TAP STUDIO</span><h1>MAKE IT <em>LOUD.</em></h1></div><span class="version">8 PADS<br/>16 STEPS</span></section>
+ <nav class="transport"><button id="play" class="control control-play" aria-label="Воспроизвести">▶  PLAY</button><button id="record" class="control control-record" aria-label="Живая запись">●  LIVE REC</button><button id="stop" class="control control-stop" aria-label="Стоп">■</button></nav>
+ <div class="selectors"><label class="selectbox"><span>STYLE</span><select id="bank" aria-label="Стиль"></select></label><label class="selectbox"><span>ARRANGE</span><select id="scene" aria-label="Сцена"></select></label><div class="tempo"><span>BPM</span><div><button id="tempoDown" aria-label="Медленнее">−</button><strong id="bpm">136</strong><button id="tempoUp" aria-label="Быстрее">+</button></div></div></div>
+ <main id="mainPanel"><div class="sectionline"><strong>PLAY LIVE</strong><span class="muted-text">TAP TO PLAY • REC TO LOOP</span></div><div id="pads" class="pads"></div>
+ <div class="sectionline strip-label"><strong>STEP RECORD <span id="selectedPad">KICK</span></strong><span id="stepLabel">01–08 / 16</span></div><div class="stepsbar"><div id="steps" class="steps"></div><div class="step-pages"><button id="pageA" class="active">1</button><button id="pageB">2</button></div></div>
+ <button id="addSound" class="addsample"><span class="plus">+</span><span><b>ADD YOUR SOUND</b><small>Auto-match · level · trim · EQ</small></span><span class="arrow">↗</span></button>
  </main>
-</div>
-<nav class="bottom-nav" id="nav" aria-label="Навигация"><button data-tab="live" class="active" aria-pressed="true"><span>▦</span><b>LIVE</b></button><button data-tab="steps" aria-pressed="false"><span>≡</span><b>STEPS</b></button><button data-tab="mix" aria-pressed="false"><span>≋</span><b>MIX</b></button><button data-tab="rec" aria-pressed="false"><span>●</span><b>REC</b></button></nav>
-<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-<dialog id="installHelp"><strong>Установка на iPhone</strong><p>В Safari нажми «Поделиться» → «На экран Домой». Приложение будет работать офлайн после первого открытия.</p><button id="closeInstall">ЗАКРЫТЬ</button></dialog>
-<script type="module" src="./studio.js?v=17.0.0"></script></div></body></html>
+ <section id="mixPanel" hidden><div class="sectionline"><strong>AUTO MIX</strong><span class="muted-text">8 CHANNELS</span></div><p class="explain">Уровни и фильтры применяются автоматически. Здесь только необходимое.</p><div id="mixRows"></div><button id="replaceSound" class="secondary">+ REPLACE SELECTED PAD</button></section>
+ <section id="takesPanel" hidden><div class="sectionline"><strong>RECORDING</strong><span class="muted-text">LIVE OUTPUT</span></div><button id="take" class="takebutton">● RECORD AUDIO</button><button id="export" class="secondary">↓ EXPORT WAV · 4 BARS</button><div id="takesList"></div><button id="reset" class="danger">CLEAR PATTERN</button></section>
+ <footer><button data-pane="main" class="active"><span>▦</span> LIVE</button><button data-pane="mix"><span>≋</span> MIX</button><button data-pane="takes"><span>◉</span> REC / EXPORT</button><span class="transport-status" id="runState">STOP</span></footer>
+ </div><input type="file" id="sampleInput" accept="audio/*,.wav,.mp3,.m4a,.flac,.aac,.ogg" multiple hidden/><script type="module" src="/app/main.js"></script></body></html>

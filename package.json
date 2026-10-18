@@ -1,5 +1,11 @@
 {
- "name":"artss-live","private":true,"type":"module","version":"17.0.0",
- "description":"ARTSS LIVE — performance-focused iOS Web Audio groovebox PWA",
- "scripts":{"build":"node scripts/build.mjs","test":"node --test tests/*.test.mjs","test:browser":"python3 tests/browser-qa.py chromium","test:webkit":"python3 tests/browser-qa.py webkit"}
+  "name": "artss-live", "version": "18.0.0", "private": true, "type": "module",
+  "devDependencies": {"typescript": "5.8.3"},
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "compile": "tsc",
+    "build": "node scripts/build.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "check": "npm run typecheck && npm run compile && npm run build && npm test"
+  }
 }

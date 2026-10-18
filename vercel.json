@@ -1,10 +1,1 @@
-{
-  "framework": null,
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "headers": [
-    {"source":"/sw.js","headers":[{"key":"Cache-Control","value":"no-cache, no-store, must-revalidate"}]},
-    {"source":"/index.html","headers":[{"key":"Cache-Control","value":"no-cache, must-revalidate"}]},
-    {"source":"/release.json","headers":[{"key":"Cache-Control","value":"no-store"}]}
-  ]
-}
+{"buildCommand":"npm run build","outputDirectory":"dist","framework":null,"headers":[{"source":"/(.*)","headers":[{"key":"X-Content-Type-Options","value":"nosniff"}]},{"source":"/sw.js","headers":[{"key":"Cache-Control","value":"no-cache"}]}]}

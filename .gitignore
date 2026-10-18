@@ -1,7 +1,4 @@
-dist/
 node_modules/
-__pycache__/
-*.pyc
+dist/
 *.log
-screenshot-*.png
 .DS_Store
