@@ -1,13 +1,5 @@
 {
-  "name": "artss-studio",
-  "version": "14.0.0",
-  "private": true,
-  "type": "module",
-  "description": "Original Remixlive-inspired iOS PWA: 8 playable pads, 16/32-step live overdub, separate audio takes, per-track mixer",
-  "scripts": {
-    "build": "node scripts/build.mjs",
-    "test": "node --check studio.js && node --check track-slicer.js && node --check sound-design.js && node --check sw.js && node tests/groove-engine.test.cjs && node tests/track-slicer.test.mjs && node tests/audio-fidelity.test.mjs",
-    "test:browser": "python3 tests/production-qa.py chromium",
-    "test:webkit": "python3 tests/production-qa.py webkit"
-  }
+ "name":"artss-live","private":true,"type":"module","version":"15.0.0",
+ "description":"ARTSS LIVE — lean 8-pad 16-step groovebox PWA",
+ "scripts":{"build":"node scripts/build.mjs","test":"node --test tests/*.test.mjs","test:browser":"python3 tests/browser-qa.py chromium","test:webkit":"python3 tests/browser-qa.py webkit"}
 }

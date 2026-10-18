@@ -1,84 +1,45 @@
 <!doctype html>
-<html lang="ru">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<meta name="theme-color" content="#10120f" />
-<meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="ARTSS LIVE" />
-<meta name="description" content="ARTSS LIVE — инструмент для iPhone: 8 drum pads, 16/32-step loops, overdub recording, multitrack grooves, live takes and WAV export." />
-<link rel="manifest" href="./manifest.webmanifest" />
-<link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
-<link rel="apple-touch-icon" href="./icons/icon-180.png" />
-<link rel="stylesheet" href="./studio.css?v=14.0.0" />
-<title>ARTSS LIVE 14 · HIGH-FIDELITY KIT</title>
-</head>
-<body>
-<div class="app" id="app">
-<header class="header">
-  <div class="logo" aria-label="ARTSS Live"><span class="logo-icon"><i></i><i></i><i></i></span><span>ARTSS<span class="brand-accent">.</span><small>LIVE</small></span></div>
-  <div class="header-right"><span id="audioState" class="status"><i></i> AUDIO OFF</span><button id="install" class="icon-action" type="button" aria-label="Установить приложение" title="Установить">↓</button></div>
-</header>
-<main class="main">
-<div class="meta"><span>PERFORMANCE GROOVEBOX <b>12</b></span><span id="presetLabel">WAREHOUSE</span></div>
-<section class="transport" aria-label="Транспорт и live-запись">
-  <div class="transport-layout">
-    <div class="transport-left"><div class="transport-kicker">TEMPO / <span id="loopLengthLabel">16 STEP LOOP</span></div><div class="tempo"><button id="bpmDown" class="bpm-nudge" aria-label="Уменьшить BPM">−</button><div class="bpm"><strong id="bpm">136</strong><span>BPM</span></div><button id="bpmUp" class="bpm-nudge" aria-label="Увеличить BPM">+</button></div></div>
-    <div class="transport-right"><button id="play" type="button" class="play" aria-pressed="false"><span id="playGlyph" class="play-symbol">▶</span><span id="playText">PLAY</span></button><button id="stop" type="button" class="stop" aria-label="Стоп и возврат к началу">■</button></div>
-  </div>
-  <div class="live-record-bar"><button id="liveRec" type="button" class="live-rec" aria-pressed="false"><span id="liveRecDot" class="rec-beacon"></span><b id="liveRecText">LIVE REC OFF</b></button><div class="live-rec-help"><strong id="liveRecStatus">Нажми REC, затем играй на пэдах</strong><span>OVERDUB · записывает каждое касание в петлю</span></div></div>
-  <div class="progress"><div class="progress-label"><span id="position">BAR 01 · STEP 01</span><span id="time">00:00</span></div><div class="progress-bars" id="progressBars"></div></div>
-</section>
-<section class="section" data-panel="pads" id="tab-pads">
-  <div class="section-head"><div><div class="eyebrow">01 / DRUM PERFORMANCE</div><h1>LIVE PADS</h1></div><span class="small-label">8 VOICES <i class="live-dot"></i></span></div>
-  <div class="pads" id="pads"></div>
-  <div class="after-pads"><span>ONE TOUCH · ONE SOUND · NO DUPLICATES</span><span id="lastPad">READY</span></div>
-  <div class="subsection"><div class="subsection-head"><h2>GENRE BANKS</h2><span>8 KITS</span></div><div class="bank-rail" id="presets"></div></div>
-  
-</section>
-<section class="section hide" data-panel="sequence" id="tab-sequence">
-  <div class="section-head"><div><div class="eyebrow">02 / LOOP EDITOR</div><h1>STEP SEQUENCER</h1></div><span class="small-label" id="seqDetail">8 × 16</span></div>
-  <div class="step-toolbar"><div class="segmented" id="stepLengths" role="group" aria-label="Длина петли"><button type="button" data-length="16" aria-pressed="true">16 STEPS</button><button type="button" data-length="32" aria-pressed="false">32 STEPS</button></div><div class="segmented" id="stepPages" role="group" aria-label="Страница шагов"><button type="button" data-page="0" aria-pressed="true">01—16</button><button type="button" data-page="1" aria-pressed="false">17—32</button></div></div>
-  <p class="description">LIVE REC записывает каждый сыгранный пэд в активную сцену. Можно добавлять слои на каждом проходе, не стирая предыдущие.</p>
-  <div class="scene-rail" id="scenes" aria-label="Вариации грува"></div>
-  <div class="sequence-scroller"><div id="sequence" class="sequence"></div></div>
-  <div class="sequence-actions"><button id="undo" type="button">↶ UNDO</button><button id="fill" type="button">＋ FILL</button><button id="clear" type="button">× CLEAR SCENE</button></div>
-  <label class="switch-line"><input type="checkbox" id="autoScene"/><span>AUTO SCENE</span><small>Переключать готовые вариации автоматически</small></label>
-</section>
-<section class="section hide" data-panel="mix" id="tab-mix">
-  <div class="section-head"><div><div class="eyebrow">03 / LEVELS</div><h1>MIX & FX</h1></div></div>
-  <div class="subsection-head mix-title"><h2>8 CHANNELS</h2><span>SOLO · MUTE · LEVEL</span></div><div class="track-mixer" id="trackMixer"></div>
-  <div class="subsection-head mix-title"><h2>MASTER FX</h2><span>LIVE CONTROL</span></div><div class="fx-list" id="fxList"></div>
-  <div class="meter-row"><span>MASTER LEVEL</span><strong id="meterValue">−∞ dB</strong></div><div class="level-track"><div id="levelFill"></div></div>
-</section>
-<section class="section hide" data-panel="sounds" id="tab-sounds">
- <div class="section-head"><div><div class="eyebrow">04 / TRACK ANALYSIS</div><h1>TRACK SLICER</h1></div><span class="small-label">16 MUSICAL ROLES</span></div>
- <div class="import-box">
-  <div class="import-title"><span class="import-glyph">↗</span><div><strong>FULL TRACK → SAMPLES</strong><p>Загрузи композицию: приложение найдёт удары и музыкальные фразы, распределит их на 16 пэдов и подготовит INTRO, GROOVE, BUILD, DROP, BREAK. Анализ выполняется на iPhone.</p></div></div>
-  <div class="slice-toolbar"><span class="small-label">16 PADS · AUTO ARRANGE</span><button id="importTrack" class="import-primary" type="button">＋ LOAD FULL TRACK</button></div>
-  <input hidden type="file" id="trackFile" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac" />
-  <div class="analyze-status"><div id="sliceStatus" role="status" aria-live="polite">Нет загруженного трека. Режим KIT активен.</div><progress id="sliceProgress" max="100" value="0" hidden></progress></div>
- </div>
- <div class="slice-control"><button id="sampleMode" type="button" aria-pressed="false">KIT SOUNDS</button><div class="sample-bank-switch"><button type="button" id="bankPrev" aria-label="Предыдущие 8 сэмплов">‹</button><strong id="sliceBankLabel">PAD BANK 1 / 2</strong><button type="button" id="bankNext" aria-label="Следующие 8 сэмплов">›</button></div></div>
- <div class="slice-info">DRUMS → SYNTHS → ARRANGEMENT <small>Набор ячеек определяется по характеру звука, а не по минутам трека.</small></div>
- <div id="sliceGrid" class="slice-grid" aria-label="Автоматически извлечённые сэмплы"></div>
- <div class="slice-foot"><span id="sliceTrackName">NO TRACK LOADED</span><button type="button" id="clearSamples">REMOVE TRACK</button></div>
- <p class="hint">Из смешанного трека выделяются и фильтруются подходящие события; они могут содержать другие звучащие инструменты. Это не нейросетевое выделение чистых stems. Высота и громкость регулируются в MIX.</p>
-</section>
-<section class="section hide" data-panel="export" id="tab-export">
-  <div class="section-head"><div><div class="eyebrow">05 / SESSIONS</div><h1>TAKES & FILES</h1></div></div>
-  <div class="rec-card"><div class="rec-status"><i id="recordDot"></i><div><b>MASTER AUDIO CAPTURE</b><span id="recordStatus">Запись всего звучания, включая пэды</span></div></div><button id="record" type="button">● START AUDIO TAKE</button></div>
-  <p class="hint">Это запись звукового файла. LIVE REC наверху записывает нажатия в секвенсор. Каждый аудиодубль сохраняется отдельно.</p>
-  <div class="takes-head"><h2>SAVED TAKES</h2><span id="takeCount">0 TAKES</span></div><div id="takeList" class="take-list"><p class="hint">Записей пока нет.</p></div>
-  <div class="export-card"><h2>OFFLINE WAV</h2><p>Экспорт партии из секвенсора без микрофона. Продолжает работать даже без MediaRecorder.</p><div class="export-control"><label for="bars">ДЛИНА</label><select id="bars"><option value="8">8 BARS</option><option value="16" selected>16 BARS</option><option value="32">32 BARS</option></select></div><button id="render" type="button">↗ EXPORT WAV</button></div>
-  <div class="export-card project-card"><h2>PROJECT</h2><p>Автосохранение секвенсора, сцен и настроек. Сохраняй отдельные копии в Files.</p><div class="project-actions"><button id="save" type="button">↓ SAVE PROJECT</button><button id="load" type="button">↑ LOAD PROJECT</button></div><input hidden type="file" id="projectFile" accept="application/json,.json" /></div>
-</section>
-</main>
-<nav class="tabs" id="navigation" aria-label="Разделы"><button class="tab active" data-tab="pads" type="button" aria-pressed="true"><span class="tab-icon">▦</span><span>LIVE</span></button><button class="tab" data-tab="sequence" type="button" aria-pressed="false"><span class="tab-icon">≡</span><span>STEPS</span></button><button class="tab" data-tab="mix" type="button" aria-pressed="false"><span class="tab-icon">≋</span><span>MIX</span></button><button class="tab" data-tab="sounds" type="button" aria-pressed="false"><span class="tab-icon">◈</span><span>SLICES</span></button><button class="tab" data-tab="export" type="button" aria-pressed="false"><span class="tab-icon">↓</span><span>FILES</span></button></nav>
-<div class="toast" id="toast" hidden role="status" aria-live="polite"></div>
-<dialog id="installDialog" class="dialog"><h2>INSTALL ARTSS LIVE</h2><p>iPhone Safari → Поделиться → На экран «Домой». Приложение и звуки работают офлайн после первого запуска.</p><button id="closeInstall" type="button">ПОНЯТНО</button></dialog>
+<html lang="ru"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0c0d0d"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ARTSS LIVE">
+<meta name="description" content="ARTSS LIVE 15: 8 live pads, 16-step sequencer, live loop overdub, mix and WAV recording. Installable iPhone PWA.">
+<link rel="manifest" href="./manifest.webmanifest"><link rel="icon" href="./icons/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="./icons/icon-180.png"><link rel="stylesheet" href="./studio.css?v=15.0.0">
+<title>ARTSS LIVE 15 — GROOVE STUDIO</title></head>
+<body><div class="shell" id="app">
+<header class="top"><div class="wordmark"><div class="logo-square" aria-hidden="true"><i></i><i></i><i></i><i></i></div><div><strong>ARTSS<span>LIVE</span></strong><small>GROOVE STUDIO / 15</small></div></div><div class="top-meta"><span id="audioState" class="audio-state">AUDIO OFF</span><button id="install" class="install" aria-label="Установить приложение">↗</button></div></header>
+<div class="workspace">
+ <div class="headline"><div><span class="eyebrow">PERFORMANCE ENGINE</span><h1 id="viewTitle">LIVE PADS<span class="accent">.</span></h1></div><div class="pill"><i></i> 8 VOICES / 16 STEPS</div></div>
+ <section class="control-surface" aria-label="Транспорт">
+   <div class="tempo-group"><span class="keyname">TEMPO</span><div class="tempo-row"><button id="bpmDown" aria-label="Уменьшить BPM">−</button><strong id="bpm">136</strong><button id="bpmUp" aria-label="Увеличить BPM">+</button></div><span class="mini">BEATS PER MINUTE</span></div>
+   <div class="transport-buttons"><button id="play" class="play" aria-label="Пуск или пауза"><span id="playIcon">▶</span><span id="playLabel">PLAY</span></button><button id="stop" class="stop" aria-label="Стоп и сброс к началу">■</button></div>
+   <div class="record-strip"><button id="liveRec" class="rec-arm" aria-pressed="false"><span class="rec-dot"></span><strong id="liveRecLabel">LOOP REC OFF</strong></button><p id="liveRecStatus">Нажми REC, играй на пэдах — удары попадут в петлю</p></div>
+   <div class="transport-bottom"><span id="position">01 / 16</span><div id="playhead" class="playhead" aria-label="Положение в петле"></div><span id="meterText">−∞ dB</span></div>
+ </section>
+ <main>
+  <section id="tab-live" class="page" data-page="live"><div class="panel-heading"><div><span class="eyebrow">01 / PERFORMANCE</span><h2>DRUM RACK</h2></div><span class="tiny-label" id="kitLabel">WAREHOUSE</span></div>
+    <div id="pads" class="pads" aria-label="Восемь драм пэдов"></div>
+    <div class="note-line"><span>TOUCH TO TRIGGER</span><span id="lastPad">READY</span></div>
+    <div class="stack-heading"><strong>KITS</strong><span>8 TECHNO STYLES</span></div><div id="presets" class="kit-strip"></div>
+    <div class="stack-heading scene-head"><strong>ARRANGEMENT</strong><span>SELECT SCENE</span></div><div id="scenes" class="scene-strip"></div>
+  </section>
+  <section id="tab-steps" class="page" data-page="steps" hidden><div class="panel-heading"><div><span class="eyebrow">02 / PATTERN</span><h2>16-STEP SEQUENCER</h2></div><span class="tiny-label">8 TRACKS</span></div>
+   <div class="step-helper">Нажми клетку, чтобы включить звук. LOOP REC записывает удары с пэдов в этот же паттерн.</div>
+   <div id="sequence" class="sequence" aria-label="Секвенсор 8 дорожек на 16 шагов"></div>
+   <div class="seq-actions"><button id="undo">↶ UNDO</button><button id="fill">＋ PERC FILL</button><button id="clear">× CLEAR</button></div>
+  </section>
+  <section id="tab-mix" class="page" data-page="mix" hidden><div class="panel-heading"><div><span class="eyebrow">03 / ROUTING</span><h2>MIXER & FX</h2></div><span class="tiny-label">8 CHANNELS</span></div>
+   <div class="mix-note">Громкость, MUTE и транспозиция каждой дорожки. Регуляторов под пэдами нет.</div><div id="mixer" class="mixer"></div>
+   <div class="stack-heading"><strong>MASTER EFFECTS</strong><span>ONE SIGNAL PATH</span></div><div id="effects" class="effects"></div>
+  </section>
+  <section id="tab-rec" class="page" data-page="rec" hidden><div class="panel-heading"><div><span class="eyebrow">04 / CAPTURE</span><h2>RECORD & FILES</h2></div><span class="tiny-label">LOCAL ONLY</span></div>
+   <div class="capture-card"><div class="capture-caption"><i id="takeDot"></i><div><strong>MASTER AUDIO TAKE</strong><span id="takeStatus">Запись живого звука с пэдов и секвенсора</span></div></div><button id="takeButton" class="take-btn">● START TAKE</button></div>
+   <div class="stack-heading"><strong>SAVED TAKES</strong><span id="takeCount">0 FILES</span></div><div id="takes" class="takes"><span class="muted">Аудиодублей пока нет</span></div>
+   <div class="simple-card"><div><strong>WAV EXPORT</strong><p>Экспорт паттерна без микрофона и без сети.</p></div><div class="export-inline"><select id="bars" aria-label="Длина экспорта"><option value="4">4 BARS</option><option value="8" selected>8 BARS</option><option value="16">16 BARS</option></select><button id="wav">EXPORT WAV ↗</button></div></div>
+   <div class="simple-card"><div><strong>PROJECT FILE</strong><p>Настройки и ритм сохраняются автоматически на устройстве.</p></div><div class="export-inline"><button id="projectSave">SAVE ↓</button><button id="projectOpen">LOAD ↑</button><input type="file" hidden id="projectInput" accept=".json,application/json"></div></div>
+  </section>
+ </main>
 </div>
-<script type="module" src="./studio.js?v=14.0.0"></script>
-</body>
-</html>
+<nav class="bottom-nav" id="nav" aria-label="Навигация"><button data-tab="live" class="active" aria-pressed="true"><span>▦</span><b>LIVE</b></button><button data-tab="steps" aria-pressed="false"><span>≡</span><b>STEPS</b></button><button data-tab="mix" aria-pressed="false"><span>≋</span><b>MIX</b></button><button data-tab="rec" aria-pressed="false"><span>●</span><b>REC</b></button></nav>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+<dialog id="installHelp"><strong>Установка на iPhone</strong><p>В Safari нажми «Поделиться» → «На экран Домой». Приложение будет работать офлайн после первого открытия.</p><button id="closeInstall">ЗАКРЫТЬ</button></dialog>
+<script type="module" src="./studio.js?v=15.0.0"></script></div></body></html>

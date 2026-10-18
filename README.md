@@ -1,20 +1,24 @@
-# ARTSS LIVE 14 — High-Fidelity Sample Engine
+# ARTSS LIVE 15 — Groove Studio
 
-One existing Web Audio audio engine, 8 touch pads, 16 or 32 sequencer steps, live overdub and audio takes.
+Production source for https://artss-djs.vercel.app — a purpose-built touchscreen groovebox for iPhone and Android PWA.
 
-**TRACK IMPORT:** upload complete audio locally, detect onset candidates across the entire track, rank candidates by low/high-frequency energy, transients and arrangement position, and fill sixteen fixed musical roles (KICK, CLAP, HAT, OPEN HAT, PERC, BASS, ACID, HIT, KICK ALT, SNARE, RIDE, STAB, GROOVE, BUILD, DROP, BREAK). Two banks of eight physical pads.
+## What changed
 
-Clips have role-specific lengths: short one-shots for drums, longer phrases for tonal elements and arrangement stages. Frequency-selective filtering attenuates some unrelated material; because the input is a mastered mix, it **does not** isolate authentic independent stems. We do not claim neural source separation or an AI server. No track is uploaded to a backend.
+- Four focused screens: LIVE / STEPS / MIX / REC. No duplicate panels, full-track slicing, sample-bank selection, upload-to-sample processing or 32-step sequencer.
+- Eight genuinely playable low-latency drum and synth pads, 16-step maximum sequencer and five manually selected scenes (INTRO, GROOVE, BUILD, DROP, BREAK).
+- Existing original, deterministic eight-bank techno/dark/acid/rave/phonk sound design preserved in `src/sound-design.js`.
+- One `AudioEngine` handling realtime playback, look-ahead scheduling, live output, MediaRecorder capture and offline WAV rendering. A single Web Audio graph; no React rerender or duplicate audio contexts.
+- `src/session.js`: versioned strict normalization; safely migrates first 16 steps of existing 32-step projects, retaining existing music while dropping track extraction fields. `src/takes.js`: existing IndexedDB audio-take storage preserved.
+- PWA cache updated to v15; old caches invalidated. Backgrounding pauses playback but does not erase project.
 
-Import creates an immediately playable musical arrangement in INTRO/GROOVE/BUILD/DROP/BREAK with 4-on-the-floor kick, sparse bass and acid, genre-appropriate percussion. Prior session state is backed up in browser localStorage under `artss-before-track-import-v13`. Imported PCM stored in IndexedDB.
+## Play / record
 
-The UI lists musical roles, not timestamps; no arbitrary 6-second excerpts or irrelevant sorting by pitch. Existing LIVE REC, STOP/PAUSE, WAV export, MIX pitch and PWA remain.
+Tap a pad for immediate sound. Select a scene on LIVE, use STEPS to edit. Enable LOOP REC to overdub quantized played pads into the active 16-step scene. Turn LOOP REC OFF to keep playing without recording; PAUSE preserves timeline, STOP resets transport; CLEAR requires confirmation.
 
-Run `npm test && npm run build`; Chromium / WebKit tests use `python3 tests/production-qa.py chromium|webkit` with Playwright.
+REC records the master audio stream to a saved take in IndexedDB (browser support required); WAV export renders loop patterns offline. All data is local, no server, no uploaded tracks.
 
-## Sample sound quality (v14)
-- 44.1 kHz capture of extracted one-shots, with four-tap interpolation rather than 22.05 kHz linear decimation. Existing v13 banks at 22.05 kHz remain playable and can be reimported to obtain the new processing.
-- Stereo preservation for four arrangement phrases, avoiding collapsed spatial FX; the individual drum/synth one-shots remain mono for tightness and lower memory use.
-- DC correction, bounded peak/RMS leveling, click-free sine fade-in/out and reduced 2 ms sample playback attack.
-- 16 role samples remain estimates from a mixed track; this is not instrument-isolating stem separation or an audio mastering replacement.
-- All processing stays local on device. Real-world output depends on the source recording and connected audio hardware.
+## Testing
+
+`npm test && npm run build`; `python3 tests/browser-qa.py chromium`. CI additionally runs the same touch/audio/export tests on WebKit. Physical iPhone listening is still necessary to validate subjective speaker/headphone output.
+
+**Scope:** This is not Ableton Live, neural stem separation, or a compiled native iOS app. It is an installable Web Audio PWA with no third-party runtime packages.
