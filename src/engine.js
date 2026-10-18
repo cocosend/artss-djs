@@ -1,5 +1,6 @@
 import {makePCM,noteOffset,PAD_COUNT} from './sound-design.js';
 import {clamp,STEPS} from './session.js';
+import {warmDrums,getDrumSample} from './sample-library.js';
 
 const XSR=44100;
 function impulse(ctx){const len=Math.round(ctx.sampleRate*.28),buffer=ctx.createBuffer(2,len,ctx.sampleRate);for(let c=0;c<2;c++){const d=buffer.getChannelData(c);let seed=(9931+c*1611)|0;for(let i=0;i<len;i++){seed^=seed<<13;seed^=seed>>>17;seed^=seed<<5;d[i]=(seed/2147483648)*Math.exp(-7*i/len)*.17;}}const node=ctx.createConvolver();node.buffer=buffer;return node;}
@@ -36,18 +37,29 @@ function writeWav(buffer){
  return new Blob([output],{type:'audio/wav'});
 }
 export class AudioEngine{
- constructor(getState){this.getState=getState;this.ctx=null;this.bus=null;this.capture=null;this.buffers=new WeakMap();this.voices=new Set();this.playing=false;this.pending=false;this.generation=0;this.timer=null;this.absolute=0;this.nextTime=0;this.lastScheduledTime=0;this.lastScheduledIndex=0;this.onStep=()=>{};this.onScene=()=>{};this.pendingScene=null;this.onChange=()=>{};this.onRecording=()=>{};this.onTake=()=>{};this.recording=null;this.recordPhase='idle';this.elapsed=0;this.startClock=0;this.meterBytes=null;this.prewarmedBank=-1;this.prewarmBusy=false;}
- async unlock(){if(!this.ctx){const C=window.AudioContext||window.webkitAudioContext;if(!C)throw Error('Web Audio недоступен');
-  this.ctx=new C({latencyHint:'interactive'});this.capture=this.ctx.createMediaStreamDestination();this.bus=graph(this.ctx,this.ctx.destination,this.getState());this.bus.master.connect(this.capture);}
-  if(this.ctx.state!=='running')await this.ctx.resume();if(this.ctx.state!=='running')throw Error('Нажми пэд для включения звука');this.schedulePrewarm();return this.ctx;}
+ constructor(getState){this.getState=getState;this.ctx=null;this.bus=null;this.capture=null;this.buffers=new WeakMap();this.voices=new Set();this.playing=false;this.pending=false;this.generation=0;this.timer=null;this.absolute=0;this.nextTime=0;this.lastScheduledTime=0;this.lastScheduledIndex=0;this.onStep=()=>{};this.onScene=()=>{};this.pendingScene=null;this.onChange=()=>{};this.onRecording=()=>{};this.onTake=()=>{};this.recording=null;this.recordPhase='idle';this.elapsed=0;this.startClock=0;this.meterBytes=null;this.prewarmedBank=-1;this.prewarmBusy=false;this.drumsReady=-1;}
+ prime(){
+  if(!this.ctx){const C=window.AudioContext||window.webkitAudioContext;if(!C)return;
+   this.ctx=new C({latencyHint:'interactive'});this.capture=this.ctx.createMediaStreamDestination();this.bus=graph(this.ctx,this.ctx.destination,this.getState());this.bus.master.connect(this.capture);
+  }
+  const bank=this.getState().bank;
+  if(this.drumsReady!==bank){this.drumsReady=bank;warmDrums(this.ctx,bank).catch(()=>{if(this.drumsReady===bank)this.drumsReady=-1;});}
+ }
+ async unlock(){this.prime();if(!this.ctx)throw Error('Web Audio недоступен');
+  if(this.ctx.state!=='running')await this.ctx.resume();
+  if(this.ctx.state!=='running')throw Error('Нажми пэд для включения звука');
+  this.schedulePrewarm();return this.ctx;
+ }
  update(){this.bus?.update(this.getState());}
- schedulePrewarm(){if(!this.ctx||this.prewarmBusy||this.prewarmedBank===this.getState().bank)return;this.prewarmBusy=true;const bank=this.getState().bank;let slot=0;const prepare=()=>{if(!this.ctx||this.getState().bank!==bank){this.prewarmBusy=false;return;}try{for(let n=0;n<2&&slot<PAD_COUNT;n++,slot++){const s=this.getState(),pitch=noteOffset(s.bank,slot,0,0);this.getBuffer(this.ctx,slot,pitch);}}catch{}if(slot<PAD_COUNT)setTimeout(prepare,15);else{this.prewarmedBank=bank;this.prewarmBusy=false;}};setTimeout(prepare,0);}
+ schedulePrewarm(){if(!this.ctx||this.prewarmBusy||this.prewarmedBank===this.getState().bank)return;this.prewarmBusy=true;const bank=this.getState().bank;let slot=0;const prepare=()=>{if(!this.ctx||this.getState().bank!==bank){this.prewarmBusy=false;return;}try{for(let n=0;n<2&&slot<PAD_COUNT;n++,slot++){const s=this.getState(),pitch=noteOffset(s.bank,slot,0,0);this.getBuffer(this.ctx,slot,pitch);}}catch{}if(slot<PAD_COUNT)setTimeout(prepare,15);else{this.prewarmedBank=bank;this.prewarmBusy=false;this.drumsReady=-1;}};setTimeout(prepare,0);}
  queueScene(scene){const s=this.getState();if(!s.patterns[scene])return false;if(!this.playing){s.scene=scene;this.pendingScene=null;this.onScene(scene);return true;}this.pendingScene=scene;this.onScene(scene);return true;}
  getBuffer(ctx,slot,pitch){let cache=this.buffers.get(ctx);if(!cache){cache=new Map();this.buffers.set(ctx,cache);}const s=this.getState();const key=`${s.bank}:${slot}:${pitch}`;
+  // Predecoded CC0 drum buffers, no per-hit network access or DSP synthesis.
+  const recorded=getDrumSample(s.bank,slot);if(recorded)return recorded;
   if(!cache.has(key)){const pcm=makePCM(slot,ctx.sampleRate,s.bank,pitch),buf=ctx.createBuffer(1,pcm.length,ctx.sampleRate);buf.copyToChannel(pcm,0);cache.set(key,buf);if(cache.size>64)cache.delete(cache.keys().next().value);}return cache.get(key);}
  // Use the same synthesis, pitch and velocity path for realtime and WAV.
  voice(ctx,dest,slot,time,velocity,step,bar=0,track=true){const s=this.getState();const pitch=noteOffset(s.bank,slot,step,bar);const source=ctx.createBufferSource(),gain=ctx.createGain();source.buffer=this.getBuffer(ctx,slot,pitch);source.playbackRate.value=Math.pow(2,(s.trackPitch[slot]||0)/12);
-  const when=Math.max(time,ctx.currentTime+.001);gain.gain.value=clamp(velocity,0,1)*.55*(slot===0?1.08:1)*s.trackVolumes[slot];source.connect(gain).connect(dest);source.start(when);
+  const when=Math.max(time,ctx.currentTime+.001);gain.gain.value=clamp(velocity,0,1)*.60*(slot===0?1.02:1)*s.trackVolumes[slot];source.connect(gain).connect(dest);source.start(when);
   if(track){if(this.voices.size>=28){const oldest=this.voices.values().next().value;try{oldest.gain.gain.setTargetAtTime(0,ctx.currentTime,.005);oldest.source.stop(ctx.currentTime+.02);}catch{}}const item={source,gain,when};this.voices.add(item);source.onended=()=>{this.voices.delete(item);source.disconnect();gain.disconnect();}}return source;}
  canPlay(slot){const s=this.getState();return !s.mutes[slot]&&(!s.solos.includes(true)||s.solos[slot]);}
  async hit(slot,velocity=1){if(!Number.isInteger(slot)||slot<0||slot>=PAD_COUNT)throw Error('Некорректный пэд');await this.unlock();if(!this.canPlay(slot))return false;this.voice(this.ctx,this.bus.input,slot,this.ctx.currentTime,velocity,this.currentStep());return true;}
@@ -68,7 +80,7 @@ export class AudioEngine{
   recorder.ondataavailable=e=>{if(e.data?.size)parts.push(e.data);};recorder.onerror=()=>{this.recordPhase='idle';this.onRecording('error');};
   recorder.onstop=()=>{this.recordPhase='idle';this.recording=null;const mime=recorder.mimeType||type||'audio/webm';const blob=new Blob(parts,{type:mime});this.onRecording(blob.size?'ready':'empty');if(blob.size)this.onTake(blob,mime.includes('mp4')?'m4a':'webm');};
   recorder.start(250);this.recordPhase='recording';this.onRecording('recording');}
- async exportWav(bars=8){if(this.playing)throw Error('Сначала останови воспроизведение');const O=window.OfflineAudioContext||window.webkitOfflineAudioContext;if(!O)throw Error('WAV экспорт недоступен');const s=this.getState(),count=clamp(bars,1,16),len=Math.ceil((count*4*60/s.bpm+1)*XSR),ctx=new O(2,len,XSR),nodes=graph(ctx,ctx.destination,s);
+ async exportWav(bars=8){if(this.playing)throw Error('Сначала останови воспроизведение');await this.unlock();await warmDrums(this.ctx,this.getState().bank).catch(()=>{});const O=window.OfflineAudioContext||window.webkitOfflineAudioContext;if(!O)throw Error('WAV экспорт недоступен');const s=this.getState(),count=clamp(bars,1,16),len=Math.ceil((count*4*60/s.bpm+1)*XSR),ctx=new O(2,len,XSR),nodes=graph(ctx,ctx.destination,s);
   for(let bar=0;bar<count;bar++)for(let step=0;step<STEPS;step++){const t=.04+bar*4*60/s.bpm+step*60/s.bpm/4+(step%2?s.swing*60/s.bpm/4*.52:0);
    for(let slot=0;slot<PAD_COUNT;slot++){const v=s.patterns[s.scene][slot][step];if(v>.001&&this.canPlay(slot))this.voice(ctx,nodes.input,slot,t,v,step,bar,false);}}
   return writeWav(await ctx.startRendering());}

@@ -6,7 +6,7 @@ const $=selector=>document.querySelector(selector);
 const $$=selector=>Array.from(document.querySelectorAll(selector));
 let state=loadSession(),tab='live',seqPage=0,armed=false,undo=[],currentStep=-1,takePlaying=null,takeUrl=null,recFallback=null,rendering=false,saveTimer=null,clearTimer=null;
 const engine=new AudioEngine(()=>state);
-const views={live:'LIVE MIXER',steps:'STEP EDITOR',mix:'CHANNEL MIX',rec:'RECORDING'};
+const views={live:'DRUM STUDIO',steps:'STEP EDITOR',mix:'CHANNEL MIX',rec:'RECORDING'};
 function toast(text,error=false){const t=$('#toast');t.textContent=text;t.style.borderColor=error?'#ff647a':'#2bf0c0';t.hidden=false;clearTimeout(t.timer);t.timer=setTimeout(()=>t.hidden=true,2800);}
 function persist(){clearTimeout(saveTimer);saveTimer=setTimeout(()=>{if(!saveSession(state))toast('Не удалось сохранить проект',true);},140);}
 function persistNow(){clearTimeout(saveTimer);saveSession(state);}
@@ -64,7 +64,7 @@ function init(){drawPads();drawKits();drawScenes();drawSequence();drawMix();draw
  $('#projectOpen').addEventListener('click',()=>$('#projectInput').click());$('#projectInput').addEventListener('change',async e=>{const file=e.target.files[0];if(!file)return;try{if(file.size>400000)throw Error('Файл проекта слишком большой');const s=normalizeSession(JSON.parse(await file.text()));if(!s)throw Error('Не удалось прочитать проект');engine.pause(true);armed=false;state=s;undo=[];drawRec();drawKits();drawScenes();drawTempo();drawSequence();drawMix();persistNow();toast('PROJECT LOADED');}catch(err){toast(err.message,true);}finally{e.target.value='';}});
  document.addEventListener('keydown',e=>{if(e.repeat||e.metaKey||e.ctrlKey||e.altKey||['INPUT','TEXTAREA','SELECT'].includes(e.target?.tagName))return;const i=KEYS.indexOf(e.key.toUpperCase());if(i>=0){e.preventDefault();trigger(i);}else if(e.code==='Space'){e.preventDefault();$('#play').click();}});
  document.addEventListener('visibilitychange',()=>{if(document.hidden){persistNow();if(engine.playing){engine.pause();drawPlay();}if(engine.recordPhase==='recording')engine.toggleCapture().catch(()=>{});}});window.addEventListener('pagehide',persistNow);
- install();let last=0;function meterFrame(t){if(t-last>90){last=t;const rms=engine.meter();$('#meterText').textContent=rms>.001?`${Math.round(20*Math.log10(rms))} dB`:'−∞ dB';document.documentElement.style.setProperty('--meter-level',Math.min(100,Math.round(rms*125))+'%');}requestAnimationFrame(meterFrame);}requestAnimationFrame(meterFrame);
+ install();setTimeout(()=>{try{engine.prime();}catch{}},180);let last=0;function meterFrame(t){if(t-last>90){last=t;const rms=engine.meter();$('#meterText').textContent=rms>.001?`${Math.round(20*Math.log10(rms))} dB`:'−∞ dB';document.documentElement.style.setProperty('--meter-level',Math.min(100,Math.round(rms*125))+'%');}requestAnimationFrame(meterFrame);}requestAnimationFrame(meterFrame);
  if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 }
 init();

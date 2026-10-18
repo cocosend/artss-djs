@@ -39,8 +39,9 @@ try:
    html=re.sub(r'<script type="module" src="\./studio.js[^>]+></script>', '<script type="module">import "'+module_url('studio.js')+'";</script>',html)
    page.set_content(html,wait_until='load')
    page.wait_for_selector('.pad',timeout=10000)
-  assert page.title()=='ARTSS LIVE 16 — PERFORMANCE MIXER'
+  assert page.title()=='ARTSS LIVE 17 — DRUM STUDIO'
   assert page.locator('.pad').count()==8 and page.locator('nav button').count()==4
+  assert page.locator('.pads').evaluate('(el)=>getComputedStyle(el).gridTemplateColumns.split(" " ).length')==4
   assert page.locator('#trackFile').count()==0 and page.locator('[data-length="32"]').count()==0
   assert page.locator('.page[data-page="sounds"]').count()==0
   assert page.locator('body').evaluate('(el)=>el.scrollWidth<=window.innerWidth+1'), 'Horizontal overflow'
@@ -76,6 +77,7 @@ try:
   # iOS-compatible touch gesture unlocks AudioContext and triggers a drum pad.
   page.locator('.pad').first.tap()
   page.wait_for_function('document.querySelector("#audioState").textContent.includes("AUDIO ON")')
+  page.wait_for_function('import("/src/sample-library.js").then(m=>Boolean(m.getDrumSample(0,0)))',timeout=15000)
   page.get_by_role('button',name='Пуск или пауза').click()
   page.wait_for_function('document.querySelector("#playLabel").textContent==="PAUSE"')
   page.locator('#liveRec').click();page.wait_for_function('document.querySelector("#liveRecLabel").textContent.includes("ON")')

@@ -1,4 +1,4 @@
-name: ARTSS LIVE 16 Performance Quality Gate
+name: ARTSS LIVE 17 Performance Quality Gate
 on:
   pull_request:
     branches: [main]
@@ -8,7 +8,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: artss-live16-${{ github.ref }}
+  group: artss-live17-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   unit-and-chromium:
