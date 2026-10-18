@@ -4,7 +4,7 @@ Production-targeted rebuild of the eight-pad, sixteen-step mobile iOS PWA. This 
 
 ## Audio change
 
-Sixteen authentic CC0 one-shot WAV assets from Octal `house-core` replace the simplistic sine/noise kick, clap, snare, hats, percussion and hit sounds. The bank chooses actual distinct recordings. Sub bass and 303 acid remain a controlled mono synthesizer, without random notes. All 16 drum files are shipped in the same-origin PWA and included in offline cache. WAV buffers are decoded before the first gesture when the browser allows it, then reused without per-hit network access. The approved 16-step musical arrangements remain.
+Sixteen authentic CC0 one-shot WAV assets from Octal `house-core` replace the simplistic sine/noise kick, clap, snare, hats, percussion and hit sounds. The bank chooses actual distinct recordings. Sub bass and 303 acid remain a controlled mono synthesizer, without random notes. All 16 drum files are shipped in the same-origin PWA and included in offline cache. WAV buffers are decoded only after the first user gesture (required by iOS/WebKit) and then reused without per-hit network access. The first tap uses the existing synthesized transient fallback if decoding has not finished. The approved 16-step musical arrangements remain.
 
 Audio path: decoded sample/synth -> per-track gain and pitch -> fixed master filter/drive/delay/reverb -> dynamics compressor -> main output and MediaRecorder stream. Offline WAV uses exactly the same sample buffers and master graph when available. Pitch change is available only in MIX. No microphone or source-track slicing.
 
