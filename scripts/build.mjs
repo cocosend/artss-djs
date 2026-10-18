@@ -1,25 +1,12 @@
-import {readFile,writeFile,mkdir,cp,rm,stat} from 'node:fs/promises';
+import {readFile,mkdir,copyFile,rm} from 'node:fs/promises';
 import {spawnSync} from 'node:child_process';
-import {fileURLToPath} from 'node:url';
-const root=fileURLToPath(new URL('../',import.meta.url));
-const pkg=JSON.parse(await readFile(root+'package.json','utf8'));
-const files=['index.html','studio.css','studio.js','sound-design.js','track-slicer.js','sw.js','manifest.webmanifest'];
-const html=await readFile(root+'index.html','utf8');
-const sw=await readFile(root+'sw.js','utf8');
-if(!html.includes('studio.js?v='+pkg.version)||!html.includes('studio.css?v='+pkg.version)) throw Error('HTML entrypoint version mismatch');
-if(!sw.includes('artss-studio-v'+pkg.version))throw Error('PWA cache version mismatch');
-if(!sw.includes('studio.js?v='+pkg.version)||!sw.includes('studio.css?v='+pkg.version))throw Error('Offline PWA assets version mismatch');
-for(const file of files){
- await stat(root+file);
- if(file.endsWith('.js')){
-  const result=spawnSync(process.execPath,['--check',root+file],{encoding:'utf8'});
-  if(result.status!==0)throw Error('Invalid JS in '+file+': '+result.stderr);
- }
-}
-const manifest=JSON.parse(await readFile(root+'manifest.webmanifest','utf8'));
-if(manifest.id!=='/'||manifest.start_url!=='./'||manifest.display!=='standalone')throw Error('PWA manifest not root installable');
-await rm(root+'dist',{recursive:true,force:true});await mkdir(root+'dist');
-for(const file of files)await cp(root+file,root+'dist/'+file);
-await cp(root+'icons',root+'dist/icons',{recursive:true});
-await writeFile(root+'dist/release.json',JSON.stringify({name:'ARTSS STUDIO',version:pkg.version,entrypoint:'/',audioEngine:'studio.js',pads:8,tracks:8,stepModes:[16,32],loopRecording:true,audioTakes:true,trackSlicer:{maxClips:16,roles:true,eventAligned:true,autoArrange:true,sampleRate:44100,stereoPhrases:true},offline:true})+'\n');
-console.log('PASS canonical ARTSS STUDIO v'+pkg.version+' (one audio runtime)');
+const root=new URL('../',import.meta.url),dist=new URL('../dist/',import.meta.url);
+const assets=['index.html','studio.css','studio.js','sw.js','manifest.webmanifest','src/sound-design.js','src/session.js','src/engine.js','src/takes.js','icons/icon.svg','icons/icon-180.png','icons/icon-192.png','icons/icon-512.png'];
+for(const file of assets){const text=await readFile(new URL(file,root));if(file.endsWith('.js')){const proc=spawnSync(process.execPath,['--check',new URL(file,root).pathname],{encoding:'utf-8'});if(proc.status)throw Error(`${file}: ${proc.stderr}`);}if(!text.length)throw Error('Missing asset '+file);}
+const index=(await readFile(new URL('index.html',root))).toString(),sw=(await readFile(new URL('sw.js',root))).toString();
+if(!index.includes('studio.js?v=15.0.0')||!sw.includes('artss-live-v15-clean'))throw Error('Cache / version mismatch');
+if(index.includes('track-slicer')||index.includes('data-length="32"')||index.includes('id="trackFile"'))throw Error('Legacy sample UI');
+JSON.parse((await readFile(new URL('manifest.webmanifest',root))).toString());
+await rm(dist,{recursive:true,force:true});for(const file of assets){const dest=new URL(file,dist),parts=file.split('/');if(parts.length>1)await mkdir(new URL(parts.slice(0,-1).join('/')+'/',dist),{recursive:true});else await mkdir(dist,{recursive:true});await copyFile(new URL(file,root),dest);}
+await (await import('node:fs/promises')).writeFile(new URL('release.json',dist),JSON.stringify({name:'ARTSS LIVE',version:'15.0.0',pads:8,steps:16,sampleImport:false,audioEngine:'src/engine.js',offline:true}));
+console.log('PASS: ARTSS LIVE 15 static PWA build');
