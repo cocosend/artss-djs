@@ -1,14 +1,14 @@
 import {PRESETS,SCENES,PAD_COUNT,presetPattern} from './sound-design.js';
 
 export const STEPS=16;
-export const STORAGE_KEY='artss-live-session-v15';
-const LEGACY_KEYS=['artss-live-session-v14','artss-live-session-v13','artss-live-session-v12','artss-live-session-v11','artss-studio-session-v10'];
+export const STORAGE_KEY='artss-live-session-v16';
+const LEGACY_KEYS=['artss-live-session-v15','artss-live-session-v14','artss-live-session-v13','artss-live-session-v12','artss-live-session-v11','artss-studio-session-v10'];
 export const clamp=(n,min,max)=>Math.max(min,Math.min(max,Number.isFinite(Number(n))?Number(n):min));
 const rowFrom=value=>Array.from({length:STEPS},(_,i)=>clamp(value?.[i]??0,0,1));
 
 export function newSession(bank=0){
  const p=PRESETS[bank]??PRESETS[0];
- return {version:15,bank:PRESETS.indexOf(p),scene:'GROOVE',bpm:p.bpm,swing:0,master:.8,filter:1,drive:.12,space:.08,delay:.06,
+ return {version:16,bank:PRESETS.indexOf(p),scene:'GROOVE',bpm:p.bpm,swing:0,master:.8,filter:1,drive:.12,space:.08,delay:.06,
   mutes:Array(PAD_COUNT).fill(false),solos:Array(PAD_COUNT).fill(false),trackVolumes:Array(PAD_COUNT).fill(.8),trackPitch:Array(PAD_COUNT).fill(0),
   patterns:Object.fromEntries(SCENES.map(scene=>[scene,presetPattern(p,scene).map(rowFrom)]))};
 }
