@@ -1,4 +1,4 @@
-const CACHE='artss-dj-creator-v21.0.0';
+const CACHE='artss-dj-creator-v21.1.0';
 const KIT=['/samples/kicks/punch-01.wav','/samples/kicks/punch-03.wav','/samples/kicks/deep-01.wav','/samples/kicks/tight-02.wav','/samples/claps/classic-01.wav','/samples/claps/classic-03.wav','/samples/snares/snap-01.wav','/samples/hats/closed-01.wav','/samples/hats/closed-05.wav','/samples/hats/open-01.wav','/samples/hats/open-03.wav','/samples/percs/tom-01.wav','/samples/percs/shaker-01.wav','/samples/percs/tick-02.wav','/samples/percs/blip-01.wav','/samples/cymbals/ride-01.wav'];
 const SHELL=['/','/index.html','/studio.css','/app/main.js','/app/model.js','/app/sounds.js','/app/engine.js','/app/sample-recorder.js','/app/smart.js','/app/clock.js','/app/arranger.js','/manifest.webmanifest','/icon.svg'];
 self.addEventListener('install',event=>event.waitUntil((async()=>{const cache=await caches.open(CACHE);await cache.addAll(SHELL);await Promise.allSettled(KIT.map(url=>cache.add(url)));await self.skipWaiting()})()));
