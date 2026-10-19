@@ -2,7 +2,7 @@ export const PAD_NAMES = ['KICK', 'SUB', 'CLAP', 'HAT', 'OPEN HAT', 'PERC', 'ACI
 export const PAD_COUNT=8, STEPS=16;
 export type PadIndex = 0|1|2|3|4|5|6|7;
 export type Pattern = number[][];
-export type Session = {version:18; tempo:number; style:number; scene:number; pattern:Pattern; levels:number[]; muted:boolean[]; selected:number; quantize:boolean; crossfader:number; filter:number; echo:number};
+export type Session = {version:18; tempo:number; style:number; scene:number; pattern:Pattern; levels:number[]; muted:boolean[]; selected:number; quantize:boolean; crossfader:number; filter:number; echo:number; eqLow:number; eqMid:number; eqHigh:number};
 export const STYLES = [
  {name:'WAREHOUSE',bpm:136,kick:[0,4,8,12],hat:[2,6,10,14],snare:[4,12],bass:[0,7,8],acid:[3,11]},
  {name:'HARD TECHNO',bpm:150,kick:[0,4,8,12],hat:[2,6,10,14],snare:[4,12],bass:[0,8],acid:[7,15]},
@@ -31,7 +31,7 @@ export function createPattern(style=0):Pattern {
  p[7]![15]=.72;
  return p;
 }
-export function defaultSession():Session{return {version:18,tempo:136,style:0,scene:0,pattern:createPattern(),levels:[1,.82,.8,.65,.6,.65,.65,.7],muted:Array(PAD_COUNT).fill(false),selected:0,quantize:true,crossfader:.50,filter:1,echo:.12};}
+export function defaultSession():Session{return {version:18,tempo:136,style:0,scene:0,pattern:createPattern(),levels:[1,.82,.8,.65,.6,.65,.65,.7],muted:Array(PAD_COUNT).fill(false),selected:0,quantize:true,crossfader:.50,filter:1,echo:.12,eqLow:0,eqMid:0,eqHigh:0};}
 const clamp=(v:number,min:number,max:number)=>Math.min(max,Math.max(min,v));
 export function sanitizeSession(input:unknown):Session{
  const o=(typeof input==='object'&&input!==null?input:{}) as Record<string,unknown>;const fallback=defaultSession();
@@ -43,7 +43,7 @@ export function sanitizeSession(input:unknown):Session{
  const tempo=getInt(o.tempo??o.bpm,80,175,136),style=getInt(o.style??o.bank,0,STYLES.length-1,0);
  const srcLevels=Array.isArray(o.levels)?o.levels:[];
  const srcMute=Array.isArray(o.muted)?o.muted:[];
- return {version:18,tempo,style,scene:getInt(o.scene,0,SCENES.length-1,0),pattern:Array.isArray(rawPattern)&&rawPattern.length?p:createPattern(style),levels:Array.from({length:PAD_COUNT},(_,i)=>{const v=srcLevels[i];return typeof v==='number'&&Number.isFinite(v)?clamp(v,0,1.2):fallback.levels[i]!;}),muted:Array.from({length:PAD_COUNT},(_,i)=>srcMute[i]===true),selected:getInt(o.selected,0,7,0),quantize:o.quantize!==false,crossfader:typeof o.crossfader==='number'&&Number.isFinite(o.crossfader)?clamp(o.crossfader,0,1):.5,filter:typeof o.filter==='number'&&Number.isFinite(o.filter)?clamp(o.filter,0,1):1,echo:typeof o.echo==='number'&&Number.isFinite(o.echo)?clamp(o.echo,0,1):.12};
+ return {version:18,tempo,style,scene:getInt(o.scene,0,SCENES.length-1,0),pattern:Array.isArray(rawPattern)&&rawPattern.length?p:createPattern(style),levels:Array.from({length:PAD_COUNT},(_,i)=>{const v=srcLevels[i];return typeof v==='number'&&Number.isFinite(v)?clamp(v,0,1.2):fallback.levels[i]!;}),muted:Array.from({length:PAD_COUNT},(_,i)=>srcMute[i]===true),selected:getInt(o.selected,0,7,0),quantize:o.quantize!==false,crossfader:typeof o.crossfader==='number'&&Number.isFinite(o.crossfader)?clamp(o.crossfader,0,1):.5,filter:typeof o.filter==='number'&&Number.isFinite(o.filter)?clamp(o.filter,0,1):1,echo:typeof o.echo==='number'&&Number.isFinite(o.echo)?clamp(o.echo,0,1):.12,eqLow:typeof o.eqLow==='number'&&Number.isFinite(o.eqLow)?clamp(o.eqLow,-12,12):0,eqMid:typeof o.eqMid==='number'&&Number.isFinite(o.eqMid)?clamp(o.eqMid,-12,12):0,eqHigh:typeof o.eqHigh==='number'&&Number.isFinite(o.eqHigh)?clamp(o.eqHigh,-12,12):0};
 }
 export function note(pattern:Pattern,pad:number,step:number,velocity=1):boolean{
  if(!Number.isInteger(pad)||pad<0||pad>=PAD_COUNT||!Number.isInteger(step)||step<0||step>=STEPS)return false;
