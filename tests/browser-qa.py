@@ -51,7 +51,7 @@ with sync_playwright() as playwright:
  # First gesture unlocks AudioContext; transport must not throw, and pad will respond.
  page.locator('#record').tap();page.wait_for_timeout(400)
  assert page.locator('#record').inner_text().find('OFF')>=0,page.locator('#record').inner_text()
- page.locator('[data-pad="5"]').tap();page.wait_for_timeout(240)
+ page.locator('.pad[data-pad="5"]').tap();page.wait_for_timeout(240)
  data=page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19"))')
  assert sum(1 for x in data['pattern'][5] if x>0)>=1,data['pattern'][5]
  page.locator('#record').tap();assert 'REC' in page.locator('#record').inner_text()
@@ -102,16 +102,16 @@ with sync_playwright() as playwright:
  page.locator('.sample-rec-head').tap()
  assert page.locator('#sampleSource').is_visible()
  page.locator('#sampleSource').select_option('live')
- page.locator('[data-pad="1"]').tap()
+ page.locator('.pad[data-pad="1"]').tap()
  page.locator('#sampleStart').tap()
  page.wait_for_timeout(2500)
  assert not page.locator('#sampleStop').is_disabled(), page.evaluate('''({status:document.querySelector('#status').textContent,mediaRecorder:typeof MediaRecorder,mp4:typeof MediaRecorder==='undefined'?null:MediaRecorder.isTypeSupported('audio/mp4'),webm:typeof MediaRecorder==='undefined'?null:MediaRecorder.isTypeSupported('audio/webm'),startDisabled:document.querySelector('#sampleStart').disabled,stopDisabled:document.querySelector('#sampleStop').disabled})''')
- page.locator('[data-pad="1"]').tap()
+ page.locator('.pad[data-pad="1"]').tap()
  page.wait_for_timeout(650)
  page.locator('#sampleStop').tap()
  page.wait_for_function("document.querySelector('#sampleStart').disabled === false",timeout=15000)
  assert 'SAMPLE SAVED' in page.locator('#status').inner_text(),page.locator('#status').inner_text()
- assert page.locator('[data-pad="1"] .pad-own').inner_text()=='OWN'
+ assert page.locator('.pad[data-pad="1"] .pad-own').inner_text()=='OWN'
  stored=page.evaluate("""() => new Promise((resolve,reject)=>{
   const open=indexedDB.open('artss-live-user-samples',1);
   open.onerror=()=>reject('Could not open user samples');
@@ -121,12 +121,12 @@ with sync_playwright() as playwright:
  })""")
  assert stored['bytes']>2048,stored
  page.reload(wait_until='networkidle')
- page.locator('[data-pad="1"]').tap()
- page.wait_for_function("document.querySelector('[data-pad=\"1\"] .pad-own').textContent === 'OWN'",timeout=10000)
+ page.locator('.pad[data-pad="1"]').tap()
+ page.wait_for_function("document.querySelector('.pad[data-pad=\"1\"] .pad-own').textContent === 'OWN'",timeout=10000)
  page.locator('#bank').select_option('2')
- assert page.locator('[data-pad="1"] .pad-own').inner_text()!='OWN', 'Style 2 unexpectedly shares custom sample'
+ assert page.locator('.pad[data-pad="1"] .pad-own').inner_text()!='OWN', 'Style 2 unexpectedly shares custom sample'
  page.locator('#bank').select_option('0')
- assert page.locator('[data-pad="1"] .pad-own').inner_text()=='OWN', 'Preset sample missing when returning to style 0'
+ assert page.locator('.pad[data-pad="1"] .pad-own').inner_text()=='OWN', 'Preset sample missing when returning to style 0'
  # Additional responsive widths
  for width in [320,375,390,430]:
   page.set_viewport_size({'width':width,'height':844})
