@@ -3,9 +3,9 @@
 <head>
  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
  <meta name="theme-color" content="#090d14"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
- <meta name="description" content="ARTSS LIVE — touch-first two-bus performance groovebox with live overdub, eight pads and real-time mix.">
+ <meta name="description" content="ARTSS DJ Creator — techno automix, live layering, custom pad sample recording.">
  <link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="manifest" href="/manifest.webmanifest"><link rel="stylesheet" href="/studio.css">
- <title>ARTSS DJ CREATOR 20 — LIVE SAMPLE STUDIO</title>
+ <title>ARTSS DJ CREATOR 20.1 — TECHNO AUTOMIX</title>
 </head>
 <body>
 <div class="app">
@@ -13,17 +13,10 @@
   <div class="identity"><div class="logomark" aria-hidden="true"><span>A</span><i></i></div><div class="logotype"><b>ARTSS <em>LIVE</em></b><small>DJ CREATOR <span>20</span></small></div></div>
   <div class="statusarea"><div class="activity"><span class="status-dot"></span><span id="runState">STOP</span></div><span id="status" class="status" role="status">READY</span></div>
  </header>
- <section class="console" aria-label="Live performance mixer">
-  <div class="consoletop"><span class="overline">LIVE MIXER <i> / </i> TWO BUS SYSTEM</span><span class="chip">WEB AUDIO · iOS</span></div>
-  <div class="channels">
-   <div class="channel cha"><div class="channel-head"><span class="channel-no">A</span><div><strong>DRUMS</strong><small>KICK · HATS · PERC</small></div><div class="vu"><i id="vuA"></i></div></div><div class="channel-lines" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
-   <div class="divider-mid"><span>×</span></div>
-   <div class="channel chb"><div class="channel-head"><span class="channel-no">B</span><div><strong>SYNTHS</strong><small>SUB · ACID · FX</small></div><div class="vu"><i id="vuB"></i></div></div><div class="channel-lines" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
-  </div>
-  <div class="faderbar"><label for="crossfade">CROSSFADER</label><span class="side-a">A</span><input id="crossfade" aria-label="Кроссфейдер между барабанами и синтезаторами" type="range" min="0" max="100" value="50"><span class="side-b">B</span></div>
- </section>
+ <section class="console" aria-label="Единая музыкальная студия"><div class="consoletop"><span class="overline">TECHNO CREATOR <i> / </i> LIVE GROOVE</span><span class="chip">ONE ENGINE · ONE MIX</span></div><div class="creative"><span class="signal" id="pulseDot"></span><div class="creative-title"><strong>TECHNO <em>AUTOMIX</em></strong><small>CREATE · PLAY · RECORD · LAYER</small></div><div class="meter"><i id="outputMeter"></i></div></div></section>
  <nav class="transport" aria-label="Транспорт"><button id="play" class="play" aria-label="Play или пауза"><span class="play-icon">▶</span><span>PLAY</span></button><button id="record" class="record" aria-label="Записывать нажатия в петлю"><span class="record-led"></span><span>LIVE REC</span></button><button id="stop" class="stop" aria-label="Остановить воспроизведение">■</button></nav>
  <div class="settings"><label><span>STYLE</span><select id="bank" aria-label="Стиль музыки"></select></label><label><span>SCENE</span><select id="scene" aria-label="Сцена"></select></label><div class="bpm"><small>BPM</small><div><button id="tempoDown" aria-label="BPM минус">−</button><b id="bpm">136</b><button id="tempoUp" aria-label="BPM плюс">+</button></div></div></div>
+ <section class="generator"><button id="autoGroove" class="auto">✦ AUTO CREATE GROOVE</button><label for="density">ENERGY <input id="density" type="range" min="25" max="100" value="70" aria-label="Плотность ритма"></label><button id="undoGroove" class="undo" hidden>↶ UNDO</button></section>
  <main id="mainPanel">
   <div class="section-heading"><div><span class="overline">01 / INSTRUMENTS</span><h2>DRUM PADS</h2></div><span class="hint">SELECT / HOLD TO LOAD</span></div>
   <div id="pads" class="pads"></div>

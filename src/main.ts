@@ -1,5 +1,6 @@
 import {defaultSession,importSession,PAD_NAMES,STYLES,SCENES,toggle,STEPS,type Session} from './model.js';
 import {Engine} from './engine.js';
+import { composeGroove } from './arranger.js';
 const $=<T extends HTMLElement=HTMLElement>(q:string)=>document.querySelector<T>(q)!;
 const getStorage=():Session=>{for(const key of ['artss-live-session-v19','artss-live-session-v18']){try{const v=localStorage.getItem(key);if(v)return importSession(v)}catch{}}return defaultSession()};
 const state=getStorage();const engine=new Engine(()=>state);
@@ -47,18 +48,20 @@ function paintTakes(){const el=$('#takesList');el.replaceChildren();for(let i=0;
 }
 async function safe(task:()=>Promise<void>){if(busy)return;busy=true;try{await task()}catch(e){setStatus(e instanceof Error?e.message:'ERROR')}finally{busy=false;}}
 const init=()=>{
- $('#crossfade').addEventListener('input',()=>{state.crossfader=Number(($<HTMLInputElement>('#crossfade')).value)/100;engine.updateMix();save()});
- ($('#crossfade') as HTMLInputElement).value=String(Math.round(state.crossfader*100));
+state.crossfader=.5;engine.updateMix();
  $('#filter').addEventListener('input',()=>{state.filter=Number(($<HTMLInputElement>('#filter')).value)/100;$('#filterValue').textContent=state.filter>.97?'OPEN':`${Math.round(state.filter*100)}%`;engine.updateMix();save()});
  ($('#filter') as HTMLInputElement).value=String(Math.round(state.filter*100));$('#filterValue').textContent=state.filter>.97?'OPEN':`${Math.round(state.filter*100)}%`;
  $('#echo').addEventListener('input',()=>{state.echo=Number(($<HTMLInputElement>('#echo')).value)/100;$('#echoValue').textContent=`${Math.round(state.echo*100)}%`;engine.updateMix();save()});
  ($('#echo') as HTMLInputElement).value=String(Math.round(state.echo*100));$('#echoValue').textContent=`${Math.round(state.echo*100)}%`;
- let vuClock=0;const vu=()=>{const now=performance.now();if(now-vuClock>70){vuClock=now;const v=engine.meterLevel;const left=(1-state.crossfader)*v*130,right=state.crossfader*v*130;$('#vuA').style.height=`${Math.round(Math.min(100,left*100))}%`;$('#vuB').style.height=`${Math.round(Math.min(100,right*100))}%`;}requestAnimationFrame(vu)};requestAnimationFrame(vu);
+ let vuClock=0;const vu=()=>{const now=performance.now();if(document.visibilityState==='visible'&&now-vuClock>90){vuClock=now;const v=engine.meterLevel;$('#outputMeter').style.width=`${Math.round(Math.min(100,v*100))}%`;$('#pulseDot').classList.toggle('on',engine.state==='PLAY');}requestAnimationFrame(vu);};requestAnimationFrame(vu);
  $('#bank').replaceChildren(...STYLES.map((s,i)=>{const o=h('option',s.name) as HTMLOptionElement;o.value=String(i);return o}));
  ($('#bank') as HTMLSelectElement).value=String(state.style);
  $('#scene').replaceChildren(...SCENES.map((s,i)=>{const o=h('option',s) as HTMLOptionElement;o.value=String(i);return o}));
  ($('#scene') as HTMLSelectElement).value=String(state.scene);$('#bpm').textContent=String(state.tempo);
  $('#bank').addEventListener('change',()=>{state.style=Number(($('#bank') as HTMLSelectElement).value);state.tempo=STYLES[state.style]?.bpm??136;$('#bpm').textContent=String(state.tempo);save();paintPads();updateSampleTarget();});
+ let generation=0,previousPattern:number[][]|null=null;
+ $('#autoGroove').addEventListener('click',()=>{previousPattern=state.pattern.map(row=>row.slice());generation++;const energy=Number(($<HTMLInputElement>('#density')).value)/100;state.pattern=composeGroove(state.style,energy,generation);save();paintSteps();$('#undoGroove').hidden=false;setStatus('AUTO GROOVE READY');});
+ $('#undoGroove').addEventListener('click',()=>{if(!previousPattern)return;state.pattern=previousPattern;previousPattern=null;save();paintSteps();$('#undoGroove').hidden=true;setStatus('GROOVE RESTORED')});
  $('#scene').addEventListener('change',()=>{state.scene=Number(($('#scene') as HTMLSelectElement).value);save();});
  $('#tempoDown').addEventListener('click',()=>{state.tempo=Math.max(80,state.tempo-1);$('#bpm').textContent=String(state.tempo);save()});
  $('#tempoUp').addEventListener('click',()=>{state.tempo=Math.min(175,state.tempo+1);$('#bpm').textContent=String(state.tempo);save()});
@@ -77,12 +80,12 @@ const init=()=>{
   await engine.beginSampleCapture(source,state.selected);renderCapture();setStatus(`SAMPLE REC · PAD ${state.selected+1}`);
  }));
  $('#sampleStop').addEventListener('click',()=>void safe(async()=>{
-  try{const result=await engine.endSampleCapture();setStatus(`SAMPLE SAVED · PAD ${result.pad+1}`);paintPads();}
+  try{const result=await engine.endSampleCapture();save();paintSteps();setStatus(`SAMPLE SAVED · PAD ${result.pad+1}`);paintPads();}
   finally{renderCapture();}
  }));
  $('#addSound').addEventListener('click',()=>{importSlot=undefined;$('#sampleInput').click()});
  $('#replaceSound').addEventListener('click',()=>{importSlot=state.selected;$('#sampleInput').click()});
- $('#sampleInput').addEventListener('change',()=>void safe(async()=>{const input=$<HTMLInputElement>('#sampleInput');if(!input.files?.length)return;setStatus('ANALYZING SOUND');const added=await engine.addSamples(input.files,importSlot);
+ $('#sampleInput').addEventListener('change',()=>void safe(async()=>{const input=$<HTMLInputElement>('#sampleInput');if(!input.files?.length)return;setStatus('ANALYZING SOUND');const added=await engine.addSamples(input.files,importSlot);save();paintSteps();
    setStatus(`AUTO MIX: ${added.map(x=>PAD_NAMES[x.pad]).join(', ')}`);input.value='';importSlot=undefined;paintPads();}));
  $('#take').addEventListener('click',()=>void safe(async()=>{if(($('#take') as HTMLButtonElement).classList.contains('on')){engine.endTake();$('#take').classList.remove('on');$('#take').textContent='● RECORD AUDIO';window.setTimeout(paintTakes,400)}else{await engine.beginTake();$('#take').classList.add('on');$('#take').textContent='■ FINISH TAKE'}}));
  $('#export').addEventListener('click',()=>void safe(async()=>{setStatus('RENDERING WAV');const blob=await engine.exportWav();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='ARTSS-LIVE-19.wav';a.click();window.setTimeout(()=>URL.revokeObjectURL(url),30000);setStatus('WAV EXPORTED')}));

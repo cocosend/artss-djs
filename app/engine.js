@@ -1,5 +1,6 @@
 import { SampleRecorder } from './sample-recorder.js';
 import { STEPS, note } from './model.js';
+import { placeSample } from './arranger.js';
 import { SoundBank } from './sounds.js';
 const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 const sampleRate = 44100;
@@ -186,7 +187,7 @@ export class Engine {
         await this.unlock();
         if (pad < 0 || pad > 7 || this.getSession().muted[pad])
             return;
-        if (pad !== 1 && pad !== 6)
+        if (pad !== 1 && pad !== 6 && !this.bank.resolve(pad, this.getSession().style))
             await this.bank.warm(this.ctx);
         const now = this.ctx.currentTime + .002;
         this.voice(this.ctx, ((pad === 1 || pad >= 6) ? this.bus.b : this.bus.a), pad, now, velocity, this.getSession().style, this.getSession().levels[pad] ?? 1);
@@ -326,6 +327,7 @@ export class Engine {
         const result = [];
         for (const file of Array.from(files).slice(0, 8)) {
             const a = await this.bank.importFile(file, this.ctx, slot, this.getSession().style);
+            placeSample(this.getSession().pattern, a.pad, this.getSession().style);
             result.push({ pad: a.pad, name: file.name });
             slot = undefined;
         }
@@ -359,6 +361,7 @@ export class Engine {
         const extension = blob.type.includes('mp4') ? 'm4a' : 'webm';
         const file = new File([blob], `REC-PAD-${target.pad + 1}.${extension}`, { type: blob.type });
         const result = await this.bank.importFile(file, this.ctx, target.pad, target.style);
+        placeSample(this.getSession().pattern, target.pad, target.style);
         this.events.onState?.(`SAMPLE SAVED · PAD ${target.pad + 1}`);
         return { pad: result.pad, style: target.style, name: file.name };
     }
