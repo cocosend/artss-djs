@@ -93,7 +93,9 @@ export class Engine{
  pause(){if(!this.running)return;this.running=false;this.stopAt=this.time;this.generation++;this.silence();this.events.onState?.('PAUSE');}
  stop(){this.running=false;this.stopAt=0;this.recordArmed=false;this.nextStep=0;this.nextTime=0;this.generation++;this.silence();this.events.onState?.('STOP');}
  async toggleRecord(){await this.unlock();if(!this.running)await this.start();if(!this.running)return this.recordArmed;this.recordArmed=!this.recordArmed;this.events.onState?.(this.recordArmed?'REC ON':'REC OFF');return this.recordArmed;}
- async hit(pad:number,velocity=1){await this.unlock();if(pad<0||pad>7||this.getSession().muted[pad])return;
+ async hit(pad:number,velocity=1){if(!Number.isInteger(pad)||pad<0||pad>7||this.getSession().muted[pad])return;
+  // Do not await resume or worklet setup once AudioContext is already running. Trigger voice on pointerdown.
+  if(!this.ctx||this.ctx.state!=='running'||!this.bus)await this.unlock();
   if(pad!==1&&pad!==6&&!this.bank.resolve(pad,this.getSession().style))await this.bank.warm(this.ctx!);
   const now=this.ctx!.currentTime+.002;
   this.voice(this.ctx!,((pad===1||pad>=6)?this.bus!.b:this.bus!.a),pad,now,velocity,this.getSession().style,this.getSession().levels[pad]??1);
