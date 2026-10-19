@@ -1,7 +1,7 @@
 import {SampleRecorder,type CaptureSource} from './sample-recorder.js';
 import {STEPS,STYLES,type Session,note} from './model.js';
 import {SoundBank,type Sound} from './sounds.js';
-export type EngineEvents={onStep?:(step:number)=>void;onState?:(state:string)=>void;onMeter?:(value:number)=>void;onClip?:(pad:number)=>void};
+export type EngineEvents={onStep?:(step:number)=>void;onState?:(state:string)=>void;onMeter?:(value:number)=>void;onClip?:(pad:number)=>void;onSamples?:()=>void};
 const clamp=(x:number,lo:number,hi:number)=>Math.min(hi,Math.max(lo,x));
 const sampleRate=44100;
 function wavExport(buffer:AudioBuffer):Blob {
@@ -50,7 +50,7 @@ export class Engine{
  get meterLevel(){if(!this.bus)return 0;this.bus.meter.getByteTimeDomainData(this.meterData);let energy=0;for(let i=0;i<this.meterData.length;i++){const v=(this.meterData[i]!-128)/128;energy+=v*v;}return Math.min(1,Math.sqrt(energy/this.meterData.length)*2.8);}
  get currentStep(){if(!this.ctx||!this.running)return 0;const d=60/this.getSession().tempo/4;return ((Math.floor((this.time-this.origin)/d+1e-4)%STEPS)+STEPS)%STEPS;}
  async unlock():Promise<void>{
-  if(!this.ctx){const C=window.AudioContext||(window as Window & {webkitAudioContext?:typeof AudioContext}).webkitAudioContext;if(!C)throw Error('Web Audio недоступен');this.ctx=new C({latencyHint:'interactive'});this.capture=this.ctx.createMediaStreamDestination();void this.bank.restore(this.ctx).catch(()=>{});this.bus=createBus(this.ctx,this.ctx.destination,this.getSession());this.bus.master.connect(this.capture);}
+  if(!this.ctx){const C=window.AudioContext||(window as Window & {webkitAudioContext?:typeof AudioContext}).webkitAudioContext;if(!C)throw Error('Web Audio недоступен');this.ctx=new C({latencyHint:'interactive'});this.capture=this.ctx.createMediaStreamDestination();void this.bank.restore(this.ctx).then(()=>this.events.onSamples?.()).catch(()=>{});this.bus=createBus(this.ctx,this.ctx.destination,this.getSession());this.bus.master.connect(this.capture);}
   if(this.ctx.state!=='running')await this.ctx.resume();
   if(this.ctx.state!=='running')throw Error('Разреши воспроизведение звука в Safari');
   // Keep the audio context gesture-driven. Sample arrays are fetched before first play.

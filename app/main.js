@@ -232,6 +232,7 @@ const init = () => {
     engine.events.onStep = (step) => { requestAnimationFrame(() => { for (const el of document.querySelectorAll('.step'))
         el.classList.toggle('playhead', Number(el.dataset.step) === step); }); };
     engine.events.onClip = () => { save(); paintSteps(); };
+    engine.events.onSamples = paintPads;
     engine.events.onState = v => { setStatus(v); if (v.startsWith('SAMPLE SAVED') || v.startsWith('SAMPLE ERROR')) {
         renderCapture();
         paintPads();

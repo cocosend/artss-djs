@@ -118,7 +118,7 @@ export class Engine {
                 throw Error('Web Audio недоступен');
             this.ctx = new C({ latencyHint: 'interactive' });
             this.capture = this.ctx.createMediaStreamDestination();
-            void this.bank.restore(this.ctx).catch(() => { });
+            void this.bank.restore(this.ctx).then(() => this.events.onSamples?.()).catch(() => { });
             this.bus = createBus(this.ctx, this.ctx.destination, this.getSession());
             this.bus.master.connect(this.capture);
         }
