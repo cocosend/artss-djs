@@ -173,3 +173,6 @@ html,body{background:#000!important}
 .timeline-numbers{display:grid;grid-template-columns:repeat(16,minmax(0,1fr));gap:2px;text-align:center}
 .timeline-numbers span{font-size:6px;color:#b3b5bd;font-variant-numeric:tabular-nums}
 @media(max-width:370px){.timeline-row{grid-template-columns:40px minmax(0,1fr);gap:3px}.timeline-numbers{gap:1px}.timeline-numbers span{font-size:5px}}
+
+.nexus-app .pad-glyph svg{display:block;width:27px;height:27px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
+@media(max-width:370px){.nexus-app .pad-glyph svg{width:22px;height:22px}}
