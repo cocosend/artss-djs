@@ -49,7 +49,7 @@ export class SoundBank {
   try{const entries=await new Promise<Array<{key:IDBValidKey;value:unknown}>>(resolve=>{const result:Array<{key:IDBValidKey;value:unknown}>=[];const req=db.transaction('pads','readonly').objectStore('pads').openCursor();req.onsuccess=()=>{const c=req.result;if(c){result.push({key:c.key,value:c.value});c.continue()}else resolve(result)};req.onerror=()=>resolve(result)});
    for(const item of entries){
     const key=typeof item.key==='number'?`legacy:${item.key}`:String(item.key);
-    const scoped=/^[0-5]:[0-7]$/.test(key),legacy=/^legacy:[0-7]$/.test(key);
+    const scoped=/^(?:[0-9]|1[01]):[0-7]$/.test(key),legacy=/^legacy:[0-7]$/.test(key);
     if(!(scoped||legacy)||this.custom.has(key)||!item.value)continue;
     const entry=item.value as {data?:unknown;name?:string;type?:string;size?:number;arrayBuffer?:()=>Promise<ArrayBuffer>};
     let data:ArrayBuffer|null=null;

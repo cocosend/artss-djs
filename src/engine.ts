@@ -76,7 +76,7 @@ export class Engine{
  }
  pause(){if(!this.running)return;this.running=false;this.stopAt=this.time;this.generation++;this.silence();this.events.onState?.('PAUSE');}
  stop(){this.running=false;this.stopAt=0;this.recordArmed=false;this.nextStep=0;this.nextTime=0;this.generation++;this.silence();this.events.onState?.('STOP');}
- async toggleRecord(){await this.unlock();if(!this.running)await this.start();this.recordArmed=!this.recordArmed;this.events.onState?.(this.recordArmed?'REC ON':'REC OFF');return this.recordArmed;}
+ async toggleRecord(){await this.unlock();if(!this.running)await this.start();if(!this.running)return this.recordArmed;this.recordArmed=!this.recordArmed;this.events.onState?.(this.recordArmed?'REC ON':'REC OFF');return this.recordArmed;}
  async hit(pad:number,velocity=1){await this.unlock();if(pad<0||pad>7||this.getSession().muted[pad])return;
   if(pad!==1&&pad!==6&&!this.bank.resolve(pad,this.getSession().style))await this.bank.warm(this.ctx!);
   const now=this.ctx!.currentTime+.002;
