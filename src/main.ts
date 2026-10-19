@@ -79,23 +79,29 @@ state.crossfader=.5;engine.updateMix();
  const drawSignal=()=>{
   if(!pen)return;
   pen.fillStyle='#010103';pen.fillRect(0,0,width,height);
-  pen.strokeStyle='#27292e';pen.lineWidth=1;
-  for(let x=0;x<width;x+=48){pen.beginPath();pen.moveTo(x,0);pen.lineTo(x,height);pen.stroke();}
-  pen.strokeStyle='#5c5f66';pen.beginPath();pen.moveTo(0,height/2);pen.lineTo(width,height/2);pen.stroke();
+  pen.strokeStyle='#28292e';pen.lineWidth=1;pen.beginPath();
+  for(let x=0;x<width;x+=48){pen.moveTo(x,0);pen.lineTo(x,height);}
+  pen.stroke();pen.strokeStyle='#454750';pen.beginPath();pen.moveTo(0,height/2);pen.lineTo(width,height/2);pen.stroke();
   const hasAudio=engine.readWaveform(signalData);
-  pen.lineWidth=2;pen.shadowBlur=6;
-  for(let i=0;i<signalData.length;i++){
-   const x=i*(width/(signalData.length-1));
-   const y=hasAudio?((signalData[i]??128)-128)/128:0;
-   const amp=hasAudio?Math.max(1.5,Math.abs(y)*(height*.38)):1.5;
-   pen.strokeStyle=i<signalData.length*.4?'#ffe400':'#f8faff';
-   pen.shadowColor=i<signalData.length*.4?'#ffd900':'#ffffff';
-   pen.beginPath();pen.moveTo(x,height/2-amp);pen.lineTo(x,height/2+amp);pen.stroke();
+  // Batch strokes; avoid per-bar shadowBlur, which stalls WebKit during audio capture.
+  pen.lineWidth=3;pen.strokeStyle='#ffe400';pen.beginPath();
+  for(let i=0;i<104;i+=4){
+   const x=i*width/256;const y=hasAudio?((signalData[i]??128)-128)/128:0;
+   const amp=hasAudio?Math.max(2,Math.abs(y)*(height*.37)):2;
+   pen.moveTo(x,height/2-amp);pen.lineTo(x,height/2+amp);
   }
-  pen.shadowBlur=0;pen.strokeStyle='#ff2736';pen.lineWidth=2.5;
-  pen.beginPath();pen.moveTo(width*.52,2);pen.lineTo(width*.52,height-2);pen.stroke();
+  pen.stroke();pen.strokeStyle='#f8faff';pen.beginPath();
+  for(let i=104;i<256;i+=4){
+   const x=i*width/256;const y=hasAudio?((signalData[i]??128)-128)/128:0;
+   const amp=hasAudio?Math.max(2,Math.abs(y)*(height*.37)):2;
+   pen.moveTo(x,height/2-amp);pen.lineTo(x,height/2+amp);
+  }
+  pen.stroke();pen.strokeStyle='#ff2736';pen.lineWidth=2.5;pen.beginPath();pen.moveTo(width*.52,2);pen.lineTo(width*.52,height-2);pen.stroke();
  };
- let vuClock=0;const vu=()=>{const now=performance.now();if(document.visibilityState==='visible'&&now-vuClock>75){vuClock=now;const v=engine.meterLevel;$('#outputMeter').style.width=`${Math.round(Math.min(100,v*100))}%`;$('#pulseDot').classList.toggle('on',engine.state==='PLAY');drawSignal();}requestAnimationFrame(vu);};drawSignal();requestAnimationFrame(vu);
+ let vuClock=0,signalClock=0;const vu=()=>{const now=performance.now();if(document.visibilityState==='visible'){
+   if(now-vuClock>100){vuClock=now;const v=engine.meterLevel;$('#outputMeter').style.width=`${Math.round(Math.min(100,v*100))}%`;$('#pulseDot').classList.toggle('on',engine.state==='PLAY');}
+   if(now-signalClock>180){signalClock=now;drawSignal();}
+  }requestAnimationFrame(vu);};drawSignal();requestAnimationFrame(vu);
  $('#bank').replaceChildren(...STYLES.map((s,i)=>{const o=h('option',s.name) as HTMLOptionElement;o.value=String(i);return o}));
  ($('#bank') as HTMLSelectElement).value=String(state.style);
  $('#scene').replaceChildren(...SCENES.map((s,i)=>{const o=h('option',s) as HTMLOptionElement;o.value=String(i);return o}));
