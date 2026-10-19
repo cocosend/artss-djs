@@ -2,6 +2,7 @@ import {SampleRecorder,type CaptureSource} from './sample-recorder.js';
 import {STEPS,STYLES,type Session,note} from './model.js';
 import {placeSample} from './arranger.js';
 import {SoundBank,type Sound} from './sounds.js';
+import {AUDIO_HEADROOM,crossfadeGains,voiceGain,lowpassHz} from './audio-quality.js';
 export type EngineEvents={onStep?:(step:number)=>void;onState?:(state:string)=>void;onMeter?:(value:number)=>void;onClip?:(pad:number)=>void;onSamples?:()=>void};
 const clamp=(x:number,lo:number,hi:number)=>Math.min(hi,Math.max(lo,x));
 const sampleRate=44100;
@@ -14,22 +15,36 @@ function wavExport(buffer:AudioBuffer):Blob {
  return new Blob([ab],{type:'audio/wav'});
 }
 function createBus(ctx:BaseAudioContext,destination:AudioNode,settings:Session){
- const a=ctx.createGain(), b=ctx.createGain(), input=ctx.createGain();
- const filter=ctx.createBiquadFilter(), eqLow=ctx.createBiquadFilter(),eqMid=ctx.createBiquadFilter(),eqHigh=ctx.createBiquadFilter(),dry=ctx.createGain(), echoSend=ctx.createGain(), echo=ctx.createDelay(1), feedback=ctx.createGain(), returnGain=ctx.createGain();
- const compressor=ctx.createDynamicsCompressor(), master=ctx.createGain(), meter=ctx.createAnalyser();
- filter.type='lowpass';filter.Q.value=.62;eqLow.type='lowshelf';eqLow.frequency.value=180;eqMid.type='peaking';eqMid.frequency.value=1000;eqMid.Q.value=.7;eqHigh.type='highshelf';eqHigh.frequency.value=4500;
- echo.delayTime.value=.23; feedback.gain.value=.24; returnGain.gain.value=.38;
- compressor.threshold.value=-12;compressor.ratio.value=6;compressor.knee.value=7;compressor.attack.value=.004;compressor.release.value=.13;master.gain.value=.80;
- a.connect(input);b.connect(input);input.connect(filter);filter.connect(eqLow).connect(eqMid).connect(eqHigh);eqHigh.connect(dry).connect(compressor);
+ const a=ctx.createGain(),b=ctx.createGain(),input=ctx.createGain();
+ // DC/subsonic energy eats headroom and is inaudible on mobile speakers.
+ const dc=ctx.createBiquadFilter();dc.type='highpass';dc.frequency.value=23;dc.Q.value=.707;
+ const filter=ctx.createBiquadFilter();filter.type='lowpass';filter.Q.value=.58;
+ const eqLow=ctx.createBiquadFilter();eqLow.type='lowshelf';eqLow.frequency.value=110;
+ const eqMid=ctx.createBiquadFilter();eqMid.type='peaking';eqMid.frequency.value=1100;eqMid.Q.value=.82;
+ const eqHigh=ctx.createBiquadFilter();eqHigh.type='highshelf';eqHigh.frequency.value=6800;
+ const dry=ctx.createGain();dry.gain.value=1;
+ const echoSend=ctx.createGain(),echo=ctx.createDelay(1),feedback=ctx.createGain(),returnGain=ctx.createGain();
+ echo.delayTime.value=.23;feedback.gain.value=AUDIO_HEADROOM.feedback;returnGain.gain.value=AUDIO_HEADROOM.wet;
+ const compressor=ctx.createDynamicsCompressor();compressor.threshold.value=-10;compressor.ratio.value=3;compressor.knee.value=10;compressor.attack.value=.006;compressor.release.value=.14;
+ const limiter=ctx.createDynamicsCompressor();limiter.threshold.value=-2.8;limiter.ratio.value=18;limiter.knee.value=1.2;limiter.attack.value=.002;limiter.release.value=.085;
+ const master=ctx.createGain();master.gain.value=AUDIO_HEADROOM.master;
+ const meter=ctx.createAnalyser();meter.fftSize=256;meter.smoothingTimeConstant=.2;
+ a.connect(input);b.connect(input);input.connect(dc).connect(filter).connect(eqLow).connect(eqMid).connect(eqHigh);
+ eqHigh.connect(dry).connect(compressor);
  eqHigh.connect(echoSend).connect(echo);echo.connect(feedback).connect(echo);echo.connect(returnGain).connect(compressor);
- compressor.connect(master).connect(meter).connect(destination);meter.fftSize=256;
- function update(st:Session){const t=ctx.currentTime;const x=clamp(st.crossfader,0,1);
-  a.gain.setTargetAtTime(Math.cos(x*Math.PI/2),t,.014);b.gain.setTargetAtTime(Math.sin(x*Math.PI/2),t,.014);
-  const cutoff=160+19840*Math.pow(clamp(st.filter,0,1),2.4);filter.frequency.setTargetAtTime(cutoff,t,.025);
-  echoSend.gain.setTargetAtTime(.40*clamp(st.echo,0,1),t,.025);eqLow.gain.setTargetAtTime(clamp(st.eqLow,-12,12),t,.018);eqMid.gain.setTargetAtTime(clamp(st.eqMid,-12,12),t,.018);eqHigh.gain.setTargetAtTime(clamp(st.eqHigh,-12,12),t,.018);
-  echo.delayTime.setTargetAtTime(.75*60/clamp(st.tempo,80,175),t,.02);
+ compressor.connect(limiter).connect(master).connect(meter).connect(destination);
+ function update(st:Session){
+  const t=ctx.currentTime,[gainA,gainB]=crossfadeGains(st.crossfader);
+  a.gain.setTargetAtTime(gainA,t,.012);b.gain.setTargetAtTime(gainB,t,.012);
+  filter.frequency.setTargetAtTime(lowpassHz(st.filter,ctx.sampleRate),t,.024);
+  echoSend.gain.setTargetAtTime(AUDIO_HEADROOM.echoSend*clamp(st.echo,0,1),t,.028);
+  eqLow.gain.setTargetAtTime(clamp(st.eqLow,-12,12),t,.017);
+  eqMid.gain.setTargetAtTime(clamp(st.eqMid,-12,12),t,.017);
+  eqHigh.gain.setTargetAtTime(clamp(st.eqHigh,-12,12),t,.017);
+  echo.delayTime.setTargetAtTime(.75*60/clamp(st.tempo,80,175),t,.024);
  }
- update(settings);return {input,a,b,master,meter,update};
+ update(settings);
+ return {input,a,b,master,meter,update};
 }
 
 export class Engine{
@@ -104,39 +119,52 @@ export class Engine{
  }
  private voice(ctx:BaseAudioContext,bus:AudioNode,pad:number,when:number,velocity:number,style:number,level:number){
   const live=ctx===this.ctx;
-  if(live&&this.active.size>=28){const first=this.active.values().next().value;if(first){first.stop();this.active.delete(first);}}
-  const s=this.bank.resolve(pad,style);const amp=ctx.createGain();const loud=clamp(velocity*level*this.gain,0,1.3);
-  amp.gain.setValueAtTime(0,when);amp.gain.linearRampToValueAtTime(Math.max(.0001,loud*(s?.gain??(pad===1?.65:pad===6?.35:.7))),when+.002);
-  const low=ctx.createBiquadFilter(),high=ctx.createBiquadFilter();low.type='highpass';high.type='lowpass';low.frequency.value=s?.lowCut??(pad===1?25:pad===6?60:90);high.frequency.value=s?.highCut??(pad===1?400:pad===6?12000:16000);
+  if(live&&this.active.size>=28){const oldest=this.active.values().next().value;if(oldest){oldest.stop();this.active.delete(oldest);}}
+  const sample=this.bank.resolve(pad,style),amp=ctx.createGain();
+  const low=ctx.createBiquadFilter(),high=ctx.createBiquadFilter();
+  low.type='highpass';high.type='lowpass';
+  low.frequency.value=sample?.lowCut??(pad===1?24:pad===6?55:pad===0?22:85);
+  high.frequency.value=Math.min(ctx.sampleRate*.46,sample?.highCut??(pad===1?640:pad===6?15500:17000));
+  low.Q.value=.707;high.Q.value=.707;
+  const baseline=voiceGain(velocity,level,sample?.gain??(pad===1?.64:pad===6?.33:.78));
+  const attack=.003,release=.012;
   low.connect(high).connect(amp).connect(bus);
   const playing:{stop:()=>void;until:number}={stop:()=>{},until:when+1};
   const cleanup=()=>{try{low.disconnect();high.disconnect();amp.disconnect()}catch{}this.active.delete(playing)};
-  if(s){const source=ctx.createBufferSource();source.buffer=s.buffer;source.connect(low);
-   const end=when+s.buffer.duration;playing.until=end+.06;
-   amp.gain.setValueAtTime(loud*s.gain,Math.max(when+.003,end-.014));amp.gain.linearRampToValueAtTime(0,Math.max(when+.005,end));
-   source.onended=cleanup;source.start(when);source.stop(end+.01);playing.stop=()=>{try{source.stop()}catch{}cleanup()};
-  }else{const osc=ctx.createOscillator(),osc2=ctx.createOscillator();
-   const isAcid=pad===6,root=[41.20,43.65,49.0,46.25,43.65,49.0][style%6]??43.65;
+  amp.gain.setValueAtTime(0,when);amp.gain.linearRampToValueAtTime(Math.max(.00001,baseline),when+attack);
+  if(sample){
+   const source=ctx.createBufferSource();source.buffer=sample.buffer;source.connect(low);
+   const end=when+sample.buffer.duration;const fade=Math.min(release,Math.max(.003,sample.buffer.duration*.25));
+   amp.gain.setValueAtTime(Math.max(.00001,baseline),Math.max(when+attack,end-fade));
+   amp.gain.linearRampToValueAtTime(0,end);
+   source.onended=cleanup;source.start(when);source.stop(end+.004);
+   playing.until=end+.025;
+   playing.stop=()=>{try{const now=Math.max(ctx.currentTime,when);amp.gain.cancelScheduledValues(now);amp.gain.setTargetAtTime(0,now,.003);source.stop(now+.018)}catch{cleanup()}};
+  }else{
+   const osc=ctx.createOscillator(),osc2=ctx.createOscillator(),tone=ctx.createBiquadFilter();
+   const isAcid=pad===6,root=[41.2,43.65,49,46.25,43.65,49][style%6]??43.65;
    const progression=isAcid?[0,0,7,3,0,10,7,3]:[0,0,0,-5,0,0,7,-5];
    const step=Math.abs(Math.round(when/(60/this.getSession().tempo/4)))%8;
    const freq=root*Math.pow(2,(progression[step]??0)/12)*(isAcid?2:1);
    osc.type=isAcid?'sawtooth':'sine';osc2.type=isAcid?'triangle':'sine';
    osc.frequency.setValueAtTime(freq,when);osc2.frequency.setValueAtTime(freq*(isAcid?1.003:.5002),when);
-   const tone=ctx.createBiquadFilter();tone.type='lowpass';tone.Q.value=isAcid?4.0:.8;
-   const length=isAcid?.23:.34;
-   if(isAcid){tone.frequency.setValueAtTime(2900,when);tone.frequency.exponentialRampToValueAtTime(310,when+length*.88)}
-   else tone.frequency.setValueAtTime(250,when);
-   const oscGain=ctx.createGain();oscGain.gain.value=isAcid?.23:.62;
+   tone.type='lowpass';tone.Q.value=isAcid?3.1:.7;
+   const length=isAcid?.24:.35;
+   if(isAcid){tone.frequency.setValueAtTime(2600,when);tone.frequency.exponentialRampToValueAtTime(350,when+length*.88)}
+   else tone.frequency.setValueAtTime(320,when);
+   const oscGain=ctx.createGain();oscGain.gain.value=isAcid?.24:.58;
    osc.connect(oscGain);osc2.connect(oscGain);oscGain.connect(tone).connect(low);
    osc.start(when);osc2.start(when);
-   amp.gain.setValueAtTime(0,when);amp.gain.linearRampToValueAtTime(loud*(isAcid?.18:.48),when+.004);
+   amp.gain.setValueAtTime(Math.max(.0001,baseline),when+attack);
    amp.gain.exponentialRampToValueAtTime(.0001,when+length);
-   osc.stop(when+length+.005);osc2.stop(when+length+.005);
-   playing.until=when+length+.02;osc.onended=()=>{try{tone.disconnect();oscGain.disconnect()}catch{}cleanup()};
-   playing.stop=()=>{try{osc.stop();osc2.stop()}catch{}cleanup()};
+   osc.stop(when+length+.006);osc2.stop(when+length+.006);
+   playing.until=when+length+.025;
+   osc.onended=()=>{try{tone.disconnect();oscGain.disconnect()}catch{}cleanup()};
+   playing.stop=()=>{try{const now=Math.max(ctx.currentTime,when);amp.gain.cancelScheduledValues(now);amp.gain.setTargetAtTime(0,now,.003);osc.stop(now+.018);osc2.stop(now+.018)}catch{cleanup()}};
   }
   if(live)this.active.add(playing);
  }
+
  async addSamples(files:FileList|File[],slot?:number):Promise<Array<{pad:number;name:string}>>{
   await this.unlock();const result=[];for(const file of Array.from(files).slice(0,8)){
    const a=await this.bank.importFile(file,this.ctx!,slot,this.getSession().style);placeSample(this.getSession().pattern,a.pad,this.getSession().style);result.push({pad:a.pad,name:file.name});slot=undefined;

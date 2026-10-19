@@ -17,7 +17,7 @@ export class SoundBank {
  const imported=this.custom.get(`${style}:${pad}`) ?? this.custom.get(`legacy:${pad}`);if(imported)return imported;
  const options=paths[pad];if(!options?.length)return null;
  const url=options[style%options.length];const buffer=url?this.defaultBuffers.get(url):null;if(!buffer)return null;
- return {buffer,gain:.85,lowCut:pad===3||pad===4?3800:pad===0?22:80,highCut:pad===0?500:19000,name:url!.split('/').at(-1)??'',user:false};
+ return {buffer,gain:.85,lowCut:pad===3||pad===4?3800:pad===0?22:80,highCut:pad===0?15000:19000,name:url!.split('/').at(-1)??'',user:false};
  }
  async importFile(file:File,ctx:AudioContext,overridePad?:number,style=0):Promise<{pad:number;analysis:AudioAnalysis;name:string}> {
   if(file.size>16*1024*1024)throw Error('Один сэмпл — максимум 16 МБ');

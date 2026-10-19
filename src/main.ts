@@ -189,6 +189,7 @@ engine.updateMix();refreshKitButtons();
  $('#quickSettings').addEventListener('click',()=>setPane('profile'));
  $('#drawerImport').addEventListener('click',()=>{closeDrawer();$('#sampleInput').click()});
  $('#drawerRecord').addEventListener('click',()=>{closeDrawer();setPane('takes')});
+ $('#drawerSample').addEventListener('click',()=>{closeDrawer();setPane('main');const panel=$<HTMLDetailsElement>('.sample-recorder');panel.open=true;panel.scrollIntoView({block:'nearest',behavior:'smooth'});});
  $('#drawerSettings').addEventListener('click',()=>{closeDrawer();setPane('profile')});
  $('#libraryImport').addEventListener('click',()=>{$('#sampleInput').click()});
  $('#goToRecording').addEventListener('click',()=>setPane('takes'));

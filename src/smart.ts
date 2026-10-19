@@ -28,8 +28,8 @@ export function analyzeAudio(channels:Float32Array[], sampleRate:number):AudioAn
  // RMS target tuned for mixed pads, never amplify a near-silent sample excessively.
  const target=role==='kick'?.18:role==='sub'?.13:role==='hat'?.085:.115;
  const gain=peak<.004?1:minmax(target/Math.max(rms,.02),.25,2.2)*minmax(.90/Math.max(peak,1e-6),0,1);
- const highCut=role==='kick'?460:role==='sub'?280:role==='hat'||role==='open'?18500:role==='acid'?11500:16000;
- const lowCut=role==='kick'?20:role==='sub'?25:role==='hat'||role==='open'?3500:role==='clap'?180:role==='acid'?65:55;
+ const highCut=role==='kick'?13500:role==='sub'?720:role==='hat'||role==='open'?19000:role==='acid'?11500:16000;
+ const lowCut=role==='kick'?20:role==='sub'?25:role==='hat'||role==='open'?1900:role==='clap'?180:role==='acid'?65:55;
  // Very inexpensive zero-crossing based pitch estimate, only display as tentative.
  let zeroes=0; const end=Math.min(src.length,Math.floor(sampleRate*.25));for(let i=1;i<end;i+=4){const a=src[i-1]??0,b=src[i]??0;if(a<=0&&b>0)zeroes++}
  const estimate=zeroes*4/(Math.max(1,end)/sampleRate);const estimatedHz=estimate>=35&&estimate<=1600?Math.round(estimate):null;
