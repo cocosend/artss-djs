@@ -1,3 +1,4 @@
+import { SampleRecorder } from './sample-recorder.js';
 import { STEPS, note } from './model.js';
 import { SoundBank } from './sounds.js';
 const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
@@ -88,6 +89,8 @@ export class Engine {
     recorded = [];
     currentChunks = [];
     gain = 1;
+    sampleRecorder = new SampleRecorder();
+    sampleTarget = null;
     events = {};
     constructor(getSession) {
         this.getSession = getSession;
@@ -96,6 +99,7 @@ export class Engine {
     }
     get state() { return this.running ? 'PLAY' : this.stopAt ? 'PAUSE' : 'STOP'; }
     get recording() { return this.recordArmed; }
+    get sampling() { return this.sampleRecorder.active; }
     updateMix() { this.bus?.update(this.getSession()); }
     get takes() { return this.recorded.slice(); }
     get time() { return this.ctx?.currentTime ?? 0; }
@@ -321,11 +325,42 @@ export class Engine {
         await this.unlock();
         const result = [];
         for (const file of Array.from(files).slice(0, 8)) {
-            const a = await this.bank.importFile(file, this.ctx, slot);
+            const a = await this.bank.importFile(file, this.ctx, slot, this.getSession().style);
             result.push({ pad: a.pad, name: file.name });
             slot = undefined;
         }
         return result;
+    }
+    async beginSampleCapture(source, pad) {
+        if (!Number.isInteger(pad) || pad < 0 || pad >= 8)
+            throw Error('Выбери пэд');
+        if (this.sampling)
+            throw Error('Запись уже идёт');
+        await this.unlock();
+        if (source === 'live' && !this.running)
+            await this.start();
+        if (!this.capture)
+            throw Error('Аудиозахват недоступен');
+        const target = { pad, style: this.getSession().style };
+        await this.sampleRecorder.start(source, this.capture.stream, () => { void this.endSampleCapture().catch(e => this.events.onState?.(e instanceof Error ? e.message : 'SAMPLE ERROR')); });
+        this.sampleTarget = target;
+        this.events.onState?.(`SAMPLE REC · ${target.pad + 1}`);
+    }
+    async endSampleCapture() {
+        const target = this.sampleTarget;
+        if (!target)
+            throw Error('Запись сэмпла не запущена');
+        this.sampleTarget = null;
+        const blob = await this.sampleRecorder.stop();
+        if (blob.size < 2048)
+            throw Error('Запись слишком короткая');
+        if (!this.ctx)
+            throw Error('Нет аудиоконтекста');
+        const extension = blob.type.includes('mp4') ? 'm4a' : 'webm';
+        const file = new File([blob], `REC-PAD-${target.pad + 1}.${extension}`, { type: blob.type });
+        const result = await this.bank.importFile(file, this.ctx, target.pad, target.style);
+        this.events.onState?.(`SAMPLE SAVED · PAD ${target.pad + 1}`);
+        return { pad: result.pad, style: target.style, name: file.name };
     }
     async beginTake() {
         await this.unlock();

@@ -30,7 +30,7 @@ function paintPads() {
         p.setAttribute('aria-label', `Играть ${name}`);
         p.dataset.pad = String(i);
         const top = h('span', `${String(i + 1).padStart(2, '0')}`, 'pad-number'), short = h('span', name, 'pad-name');
-        const dot = h('span', engine.bank.customInfo(i) ? 'OWN' : '', 'pad-own');
+        const dot = h('span', engine.bank.customInfo(i, state.style) ? 'OWN' : '', 'pad-own');
         p.append(top, short, dot);
         if (i === state.selected)
             p.classList.add('selected');
@@ -45,6 +45,7 @@ function paintPads() {
             for (const other of wrap.querySelectorAll('.pad'))
                 other.classList.toggle('selected', other === p);
             $('#selectedPad').textContent = name;
+            updateSampleTarget();
             paintSteps();
             p.classList.add('pressed');
             try {
@@ -60,7 +61,9 @@ function paintPads() {
         wrap.append(p);
     });
     $('#selectedPad').textContent = PAD_NAMES[state.selected] ?? 'KICK';
+    updateSampleTarget();
 }
+function updateSampleTarget() { const target = $('#sampleRecordHint'); target.textContent = `PAD ${String(state.selected + 1).padStart(2, '0')} · ${STYLES[state.style]?.name ?? 'PRESET'}`; }
 function paintSteps() {
     const wrap = $('#steps');
     wrap.replaceChildren();
@@ -160,7 +163,7 @@ const init = () => {
     $('#scene').replaceChildren(...SCENES.map((s, i) => { const o = h('option', s); o.value = String(i); return o; }));
     $('#scene').value = String(state.scene);
     $('#bpm').textContent = String(state.tempo);
-    $('#bank').addEventListener('change', () => { state.style = Number($('#bank').value); state.tempo = STYLES[state.style]?.bpm ?? 136; $('#bpm').textContent = String(state.tempo); save(); });
+    $('#bank').addEventListener('change', () => { state.style = Number($('#bank').value); state.tempo = STYLES[state.style]?.bpm ?? 136; $('#bpm').textContent = String(state.tempo); save(); paintPads(); updateSampleTarget(); });
     $('#scene').addEventListener('change', () => { state.scene = Number($('#scene').value); save(); });
     $('#tempoDown').addEventListener('click', () => { state.tempo = Math.max(80, state.tempo - 1); $('#bpm').textContent = String(state.tempo); save(); });
     $('#tempoUp').addEventListener('click', () => { state.tempo = Math.min(175, state.tempo + 1); $('#bpm').textContent = String(state.tempo); save(); });
@@ -172,6 +175,31 @@ const init = () => {
     $('#stop').addEventListener('click', () => { engine.stop(); updateTransport(); });
     $('#pageA').addEventListener('click', () => { page = 0; paintSteps(); });
     $('#pageB').addEventListener('click', () => { page = 1; paintSteps(); });
+    const renderCapture = () => {
+        const active = engine.sampling;
+        const start = $('#sampleStart'), stop = $('#sampleStop');
+        start.disabled = active;
+        stop.disabled = !active;
+        start.classList.toggle('on', active);
+        $('#sampleSource').disabled = active;
+        start.textContent = active ? '● RECORDING' : '● START';
+    };
+    $('#sampleStart').addEventListener('click', () => void safe(async () => {
+        const source = $('#sampleSource').value === 'mic' ? 'mic' : 'live';
+        await engine.beginSampleCapture(source, state.selected);
+        renderCapture();
+        setStatus(`SAMPLE REC · PAD ${state.selected + 1}`);
+    }));
+    $('#sampleStop').addEventListener('click', () => void safe(async () => {
+        try {
+            const result = await engine.endSampleCapture();
+            setStatus(`SAMPLE SAVED · PAD ${result.pad + 1}`);
+            paintPads();
+        }
+        finally {
+            renderCapture();
+        }
+    }));
     $('#addSound').addEventListener('click', () => { importSlot = undefined; $('#sampleInput').click(); });
     $('#replaceSound').addEventListener('click', () => { importSlot = state.selected; $('#sampleInput').click(); });
     $('#sampleInput').addEventListener('change', () => void safe(async () => {
@@ -204,11 +232,15 @@ const init = () => {
     engine.events.onStep = (step) => { requestAnimationFrame(() => { for (const el of document.querySelectorAll('.step'))
         el.classList.toggle('playhead', Number(el.dataset.step) === step); }); };
     engine.events.onClip = () => { save(); paintSteps(); };
-    engine.events.onState = setStatus;
+    engine.events.onState = v => { setStatus(v); if (v.startsWith('SAMPLE SAVED') || v.startsWith('SAMPLE ERROR')) {
+        renderCapture();
+        paintPads();
+    } };
     paintPads();
     paintSteps();
     setPane('main');
     updateTransport();
+    renderCapture();
     if ('serviceWorker' in navigator)
         window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => { }));
 };

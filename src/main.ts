@@ -10,18 +10,19 @@ const h=(name:string,text:string,cls='')=>{const el=document.createElement(name)
 function paintPads(){const wrap=$('#pads');wrap.replaceChildren();PAD_NAMES.forEach((name,i)=>{
  const p=h('button','','pad') as HTMLButtonElement;p.type='button';p.style.setProperty('--tone',['#ff936b','#91f0c8','#ffc489','#a4bce8','#ff8c73','#91dcc7','#eb9ea8','#a1b5fc'][i]??'#ff936b');p.setAttribute('aria-label',`Играть ${name}`);p.dataset.pad=String(i);
  const top=h('span',`${String(i+1).padStart(2,'0')}`,'pad-number'),short=h('span',name,'pad-name');
- const dot=h('span',engine.bank.customInfo(i)?'OWN':'','pad-own');
+ const dot=h('span',engine.bank.customInfo(i,state.style)?'OWN':'','pad-own');
  p.append(top,short,dot);
  if(i===state.selected)p.classList.add('selected');if(state.muted[i])p.classList.add('muted');
- p.addEventListener('pointerdown',async e=>{if(e.pointerType==='mouse'&&e.button!==0)return;e.preventDefault();state.selected=i;save();for(const other of wrap.querySelectorAll('.pad'))other.classList.toggle('selected',other===p);$('#selectedPad').textContent=name;paintSteps();p.classList.add('pressed');
+ p.addEventListener('pointerdown',async e=>{if(e.pointerType==='mouse'&&e.button!==0)return;e.preventDefault();state.selected=i;save();for(const other of wrap.querySelectorAll('.pad'))other.classList.toggle('selected',other===p);$('#selectedPad').textContent=name;updateSampleTarget();paintSteps();p.classList.add('pressed');
   try{await engine.hit(i,Math.min(1,.65+(e.pressure>0?e.pressure*.32:.3)));setStatus(engine.recording?'REC ON':'AUDIO READY')}catch(err){setStatus(err instanceof Error?err.message:'AUDIO ERROR')}
   window.setTimeout(()=>p.classList.remove('pressed'),90);
  },{passive:false});
  p.addEventListener('contextmenu',e=>{e.preventDefault();importSlot=i;$('#sampleInput').click();});
  wrap.append(p);
  });
- $('#selectedPad').textContent=PAD_NAMES[state.selected]??'KICK';
+ $('#selectedPad').textContent=PAD_NAMES[state.selected]??'KICK';updateSampleTarget();
 }
+function updateSampleTarget(){const target=$('#sampleRecordHint');target.textContent=`PAD ${String(state.selected+1).padStart(2,'0')} · ${STYLES[state.style]?.name??'PRESET'}`;}
 function paintSteps(){const wrap=$('#steps');wrap.replaceChildren();for(let col=0;col<8;col++){
  const step=col+page*8,velocity=state.pattern[state.selected]?.[step]??0;
  const btn=h('button',String(step+1).padStart(2,'0'),'step') as HTMLButtonElement;btn.type='button';btn.dataset.step=String(step);
@@ -57,7 +58,7 @@ const init=()=>{
  ($('#bank') as HTMLSelectElement).value=String(state.style);
  $('#scene').replaceChildren(...SCENES.map((s,i)=>{const o=h('option',s) as HTMLOptionElement;o.value=String(i);return o}));
  ($('#scene') as HTMLSelectElement).value=String(state.scene);$('#bpm').textContent=String(state.tempo);
- $('#bank').addEventListener('change',()=>{state.style=Number(($('#bank') as HTMLSelectElement).value);state.tempo=STYLES[state.style]?.bpm??136;$('#bpm').textContent=String(state.tempo);save();});
+ $('#bank').addEventListener('change',()=>{state.style=Number(($('#bank') as HTMLSelectElement).value);state.tempo=STYLES[state.style]?.bpm??136;$('#bpm').textContent=String(state.tempo);save();paintPads();updateSampleTarget();});
  $('#scene').addEventListener('change',()=>{state.scene=Number(($('#scene') as HTMLSelectElement).value);save();});
  $('#tempoDown').addEventListener('click',()=>{state.tempo=Math.max(80,state.tempo-1);$('#bpm').textContent=String(state.tempo);save()});
  $('#tempoUp').addEventListener('click',()=>{state.tempo=Math.min(175,state.tempo+1);$('#bpm').textContent=String(state.tempo);save()});
@@ -65,6 +66,20 @@ const init=()=>{
  $('#record').addEventListener('click',()=>void safe(async()=>{await engine.toggleRecord();updateTransport()}));
  $('#stop').addEventListener('click',()=>{engine.stop();updateTransport()});
  $('#pageA').addEventListener('click',()=>{page=0;paintSteps()});$('#pageB').addEventListener('click',()=>{page=1;paintSteps()});
+ const renderCapture=()=>{const active=engine.sampling;
+  const start=$<HTMLButtonElement>('#sampleStart'),stop=$<HTMLButtonElement>('#sampleStop');
+  start.disabled=active;stop.disabled=!active;start.classList.toggle('on',active);
+  ($('#sampleSource') as HTMLSelectElement).disabled=active;
+  start.textContent=active?'● RECORDING':'● START';
+ };
+ $('#sampleStart').addEventListener('click',()=>void safe(async()=>{
+  const source=$<HTMLSelectElement>('#sampleSource').value==='mic'?'mic':'live';
+  await engine.beginSampleCapture(source,state.selected);renderCapture();setStatus(`SAMPLE REC · PAD ${state.selected+1}`);
+ }));
+ $('#sampleStop').addEventListener('click',()=>void safe(async()=>{
+  try{const result=await engine.endSampleCapture();setStatus(`SAMPLE SAVED · PAD ${result.pad+1}`);paintPads();}
+  finally{renderCapture();}
+ }));
  $('#addSound').addEventListener('click',()=>{importSlot=undefined;$('#sampleInput').click()});
  $('#replaceSound').addEventListener('click',()=>{importSlot=state.selected;$('#sampleInput').click()});
  $('#sampleInput').addEventListener('change',()=>void safe(async()=>{const input=$<HTMLInputElement>('#sampleInput');if(!input.files?.length)return;setStatus('ANALYZING SOUND');const added=await engine.addSamples(input.files,importSlot);
@@ -74,8 +89,8 @@ const init=()=>{
  $('#reset').addEventListener('click',()=>{if(!confirm('Очистить записанные шаги?'))return;state.pattern=Array.from({length:8},()=>Array(16).fill(0));save();paintSteps()});
  for(const el of document.querySelectorAll('[data-pane]'))el.addEventListener('click',()=>setPane((el as HTMLElement).dataset.pane as typeof pane));
  engine.events.onStep=(step)=>{requestAnimationFrame(()=>{for(const el of document.querySelectorAll('.step'))el.classList.toggle('playhead',Number((el as HTMLElement).dataset.step)===step)})};
- engine.events.onClip=()=>{save();paintSteps()};engine.events.onState=setStatus;
- paintPads();paintSteps();setPane('main');updateTransport();
+ engine.events.onClip=()=>{save();paintSteps()};engine.events.onState=v=>{setStatus(v);if(v.startsWith('SAMPLE SAVED')||v.startsWith('SAMPLE ERROR')){renderCapture();paintPads();}};
+ paintPads();paintSteps();setPane('main');updateTransport();renderCapture();
  if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
 };
 function updateTransport(){const play=$('#play');play.textContent=engine.state==='PLAY'?'Ⅱ  PAUSE':'▶  PLAY';play.classList.toggle('on',engine.state==='PLAY');$('#record').classList.toggle('on',engine.recording);$('#record').textContent=engine.recording?'■  REC OFF':'●  LIVE REC';$('#runState').textContent=engine.state;}
