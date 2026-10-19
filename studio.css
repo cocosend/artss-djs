@@ -14,3 +14,20 @@ main,#mixPanel,#takesPanel{flex:1;min-height:0}main[hidden],section[hidden]{disp
 @media(max-width:360px){.app{padding-left:9px;padding-right:9px;gap:8px}.pad{min-height:64px;padding:7px}.console{padding:8px}.channel{padding:7px 5px}.channel-head{gap:4px}.section-heading h2{font-size:12px}.section-heading .hint{font-size:8px}.chip{font-size:6px}}
 @media(max-height:730px){.app{gap:7px}.pad{aspect-ratio:1.35;min-height:63px}.console{padding-block:7px}.channel-lines{height:8px;margin-top:4px}.section-heading{margin-bottom:5px}.upload{height:51px}.transport button{height:44px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
+
+.sample-recorder{margin-top:10px;border:1px solid #394b58;background:#121d26;border-radius:12px;padding:10px;display:grid;gap:9px}
+.sample-rec-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.sample-rec-head strong{font-size:10px;letter-spacing:.13em;color:#edf6fe}
+.sample-rec-head span{font-size:8px;font-weight:750;color:#8b9dae;text-align:right}
+.sample-rec-controls{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr) minmax(0,1fr);gap:7px}
+.sample-rec-controls>button,.sample-input-source{min-height:41px;border-radius:8px;border:1px solid #415365;font-size:10px;font-weight:900}
+.sample-rec-controls>button{background:#2b3946;color:#f0f8ff}
+#sampleStart{border-color:#794b49;background:#4a2728;color:#ffab98}
+#sampleStart.on{background:#bd493c;color:white}
+#sampleStop{background:#21312e;color:#9cf1c9;border-color:#3b6e5d}
+#sampleStop:disabled,#sampleStart:disabled{opacity:.35}
+.sample-input-source{display:flex;flex-direction:column;justify-content:center;padding:4px 7px;background:#1a2730;gap:3px}
+.sample-input-source>span{font-size:7px;letter-spacing:.12em;color:#8e9faf}
+.sample-input-source select{border:0;color:#f1f7fb;background:transparent;font-size:10px;font-weight:850;outline:none;width:100%;min-width:0}
+.sample-input-source option{background:#17222b}
+@media(max-height:730px){.sample-recorder{margin-top:7px;padding:8px}.sample-rec-controls>button,.sample-input-source{min-height:36px}}

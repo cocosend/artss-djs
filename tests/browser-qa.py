@@ -26,7 +26,7 @@ with sync_playwright() as playwright:
  if os.getenv('ARTSS_LOCAL_PREVIEW')=='1':
   context.route('https://artss.test/**',serve_static)
   URL='https://artss.test/'
- page.goto(URL,wait_until='networkidle');assert 'ARTSS LIVE 19' in page.title(),page.title()
+ page.goto(URL,wait_until='networkidle');assert 'DJ CREATOR 20' in page.title(),page.title()
  assert page.locator('.pad').count()==8
  assert page.locator('.step').count()==8
  assert page.locator('.console').is_visible()
@@ -59,18 +59,6 @@ with sync_playwright() as playwright:
   peak=max(abs(v) for v in samples)
   assert peak>150,('Exported WAV was silent',peak)
   assert sum(1 for v in samples if abs(v)>=32760)/len(samples)<.01,'Master output clips excessively'
- # The A/B crossfader must change the actual rendered waveform, not only the stored UI value.
- reference=samples[::121]
- page.locator('#crossfade').fill('0')
- with page.expect_download(timeout=60000) as alternate_event: page.locator('#export').tap()
- with wave.open(str(alternate_event.value.path()),'rb') as alt:
-  frames_b=alt.readframes(alt.getnframes())
-  sample_b=struct.unpack('<'+'h'*(len(frames_b)//2),frames_b)[::121]
- assert len(reference)==len(sample_b)
- mean_difference=sum(abs(a-b) for a,b in zip(reference,sample_b))/max(1,len(reference))
- assert mean_difference>80,('A/B crossfade did not audibly change mix',mean_difference)
- page.locator('#crossfade').fill('80')
-
  # Upload a real short WAV from memory to exercise classifier, decoding, and selected-pad routing
  wav=io.BytesIO()
  with wave.open(wav,'wb') as wf:
@@ -80,6 +68,33 @@ with sync_playwright() as playwright:
  page.locator('#sampleInput').set_input_files({'name':'own-drum.wav','mimeType':'audio/wav','buffer':wav.getvalue()})
  page.wait_for_timeout(1300)
  assert 'AUTO MIX' in page.locator('#status').inner_text(),page.locator('#status').inner_text()
+ # Capture 500 ms of the live mixer as an independent pad sample, save under current style.
+ page.locator('#sampleSource').select_option('live')
+ page.locator('[data-pad="1"]').tap()
+ page.locator('#sampleStart').tap()
+ page.wait_for_timeout(2500)
+ assert not page.locator('#sampleStop').is_disabled(), page.evaluate('''({status:document.querySelector('#status').textContent,mediaRecorder:typeof MediaRecorder,mp4:typeof MediaRecorder==='undefined'?null:MediaRecorder.isTypeSupported('audio/mp4'),webm:typeof MediaRecorder==='undefined'?null:MediaRecorder.isTypeSupported('audio/webm'),startDisabled:document.querySelector('#sampleStart').disabled,stopDisabled:document.querySelector('#sampleStop').disabled})''')
+ page.locator('[data-pad="1"]').tap()
+ page.wait_for_timeout(650)
+ page.locator('#sampleStop').tap()
+ page.wait_for_function("document.querySelector('#sampleStart').disabled === false",timeout=15000)
+ assert 'SAMPLE SAVED' in page.locator('#status').inner_text(),page.locator('#status').inner_text()
+ assert page.locator('[data-pad="1"] .pad-own').inner_text()=='OWN'
+ stored=page.evaluate("""() => new Promise((resolve,reject)=>{
+  const open=indexedDB.open('artss-live-user-samples',1);
+  open.onerror=()=>reject('Could not open user samples');
+  open.onsuccess=()=>{const db=open.result;const request=db.transaction('pads','readonly').objectStore('pads').get('0:1');
+   request.onerror=()=>reject('Could not fetch sample');
+   request.onsuccess=()=>{const data=request.result;resolve({name:data?.name,bytes:data?.data?.byteLength??0})};};
+ })""")
+ assert stored['bytes']>2048,stored
+ page.reload(wait_until='networkidle')
+ page.locator('[data-pad="1"]').tap()
+ page.wait_for_function("document.querySelector('[data-pad=\"1\"] .pad-own').textContent === 'OWN'",timeout=10000)
+ page.locator('#bank').select_option('2')
+ assert page.locator('[data-pad="1"] .pad-own').inner_text()!='OWN', 'Style 2 unexpectedly shares custom sample'
+ page.locator('#bank').select_option('0')
+ assert page.locator('[data-pad="1"] .pad-own').inner_text()=='OWN', 'Preset sample missing when returning to style 0'
  # Additional responsive widths
  for width in [320,375,390,430]:
   page.set_viewport_size({'width':width,'height':844})

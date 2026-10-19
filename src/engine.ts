@@ -1,6 +1,7 @@
+import {SampleRecorder,type CaptureSource} from './sample-recorder.js';
 import {STEPS,STYLES,type Session,note} from './model.js';
 import {SoundBank,type Sound} from './sounds.js';
-export type EngineEvents={onStep?:(step:number)=>void;onState?:(state:string)=>void;onMeter?:(value:number)=>void;onClip?:(pad:number)=>void};
+export type EngineEvents={onStep?:(step:number)=>void;onState?:(state:string)=>void;onMeter?:(value:number)=>void;onClip?:(pad:number)=>void;onSamples?:()=>void};
 const clamp=(x:number,lo:number,hi:number)=>Math.min(hi,Math.max(lo,x));
 const sampleRate=44100;
 function wavExport(buffer:AudioBuffer):Blob {
@@ -37,10 +38,11 @@ export class Engine{
  private active=new Set<{stop:()=>void;until:number}>();
  private generation=0;private recorder:MediaRecorder|null=null;private capture:MediaStreamAudioDestinationNode|null=null;
  private recorded:Blob[]=[];private currentChunks:Blob[]=[];
- private gain=1;events:EngineEvents={};
+ private gain=1;private sampleRecorder=new SampleRecorder();private sampleTarget:{pad:number;style:number}|null=null;events:EngineEvents={};
  constructor(readonly getSession:()=>Session){if(typeof indexedDB!=='undefined')void this.restoreTakes();}
  get state(){return this.running?'PLAY':this.stopAt?'PAUSE':'STOP';}
  get recording(){return this.recordArmed;}
+ get sampling(){return this.sampleRecorder.active;}
  updateMix(){this.bus?.update(this.getSession());}
  get takes(){return this.recorded.slice();}
  get time(){return this.ctx?.currentTime??0;}
@@ -48,7 +50,7 @@ export class Engine{
  get meterLevel(){if(!this.bus)return 0;this.bus.meter.getByteTimeDomainData(this.meterData);let energy=0;for(let i=0;i<this.meterData.length;i++){const v=(this.meterData[i]!-128)/128;energy+=v*v;}return Math.min(1,Math.sqrt(energy/this.meterData.length)*2.8);}
  get currentStep(){if(!this.ctx||!this.running)return 0;const d=60/this.getSession().tempo/4;return ((Math.floor((this.time-this.origin)/d+1e-4)%STEPS)+STEPS)%STEPS;}
  async unlock():Promise<void>{
-  if(!this.ctx){const C=window.AudioContext||(window as Window & {webkitAudioContext?:typeof AudioContext}).webkitAudioContext;if(!C)throw Error('Web Audio недоступен');this.ctx=new C({latencyHint:'interactive'});this.capture=this.ctx.createMediaStreamDestination();void this.bank.restore(this.ctx).catch(()=>{});this.bus=createBus(this.ctx,this.ctx.destination,this.getSession());this.bus.master.connect(this.capture);}
+  if(!this.ctx){const C=window.AudioContext||(window as Window & {webkitAudioContext?:typeof AudioContext}).webkitAudioContext;if(!C)throw Error('Web Audio недоступен');this.ctx=new C({latencyHint:'interactive'});this.capture=this.ctx.createMediaStreamDestination();void this.bank.restore(this.ctx).then(()=>this.events.onSamples?.()).catch(()=>{});this.bus=createBus(this.ctx,this.ctx.destination,this.getSession());this.bus.master.connect(this.capture);}
   if(this.ctx.state!=='running')await this.ctx.resume();
   if(this.ctx.state!=='running')throw Error('Разреши воспроизведение звука в Safari');
   // Keep the audio context gesture-driven. Sample arrays are fetched before first play.
@@ -133,8 +135,32 @@ export class Engine{
  }
  async addSamples(files:FileList|File[],slot?:number):Promise<Array<{pad:number;name:string}>>{
   await this.unlock();const result=[];for(const file of Array.from(files).slice(0,8)){
-   const a=await this.bank.importFile(file,this.ctx!,slot);result.push({pad:a.pad,name:file.name});slot=undefined;
+   const a=await this.bank.importFile(file,this.ctx!,slot,this.getSession().style);result.push({pad:a.pad,name:file.name});slot=undefined;
   }return result;
+ }
+ async beginSampleCapture(source:CaptureSource, pad:number):Promise<void>{
+  if(!Number.isInteger(pad)||pad<0||pad>=8)throw Error('Выбери пэд');
+  if(this.sampling)throw Error('Запись уже идёт');
+  await this.unlock();
+  if(source==='live'&&!this.running)await this.start();
+  if(!this.capture)throw Error('Аудиозахват недоступен');
+  const target={pad,style:this.getSession().style};
+  await this.sampleRecorder.start(source,this.capture.stream,this.ctx!,()=>{void this.endSampleCapture().catch(e=>this.events.onState?.(e instanceof Error?e.message:'SAMPLE ERROR'));});
+  this.sampleTarget=target;
+  this.events.onState?.(`SAMPLE REC · ${target.pad+1}`);
+ }
+ async endSampleCapture():Promise<{pad:number;style:number;name:string}>{
+  const target=this.sampleTarget;
+  if(!target)throw Error('Запись сэмпла не запущена');
+  this.sampleTarget=null;
+  const blob=await this.sampleRecorder.stop();
+  if(blob.size<2048)throw Error('Запись слишком короткая');
+  if(!this.ctx)throw Error('Нет аудиоконтекста');
+  const extension=blob.type.includes('mp4')?'m4a':'webm';
+  const file=new File([blob],`REC-PAD-${target.pad+1}.${extension}`,{type:blob.type});
+  const result=await this.bank.importFile(file,this.ctx,target.pad,target.style);
+  this.events.onState?.(`SAMPLE SAVED · PAD ${target.pad+1}`);
+  return {pad:result.pad,style:target.style,name:file.name};
  }
  async beginTake():Promise<void>{await this.unlock();if(!this.capture)throw Error('Запись недоступна');if(this.recorder?.state==='recording')return;
   const types=['audio/mp4','audio/webm;codecs=opus','audio/webm'];const type=types.find(t=>MediaRecorder.isTypeSupported(t));

@@ -5,12 +5,12 @@
  <meta name="theme-color" content="#090d14"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
  <meta name="description" content="ARTSS LIVE — touch-first two-bus performance groovebox with live overdub, eight pads and real-time mix.">
  <link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="manifest" href="/manifest.webmanifest"><link rel="stylesheet" href="/studio.css">
- <title>ARTSS LIVE 19 — PERFORMANCE ENGINE</title>
+ <title>ARTSS DJ CREATOR 20 — LIVE SAMPLE STUDIO</title>
 </head>
 <body>
 <div class="app">
  <header class="topbar">
-  <div class="identity"><div class="logomark" aria-hidden="true"><span>A</span><i></i></div><div class="logotype"><b>ARTSS <em>LIVE</em></b><small>PERFORMANCE ENGINE <span>19</span></small></div></div>
+  <div class="identity"><div class="logomark" aria-hidden="true"><span>A</span><i></i></div><div class="logotype"><b>ARTSS <em>LIVE</em></b><small>DJ CREATOR <span>20</span></small></div></div>
   <div class="statusarea"><div class="activity"><span class="status-dot"></span><span id="runState">STOP</span></div><span id="status" class="status" role="status">READY</span></div>
  </header>
  <section class="console" aria-label="Live performance mixer">
@@ -29,6 +29,14 @@
   <div id="pads" class="pads"></div>
   <div class="section-heading seqheading"><div><span class="overline">02 / PATTERN</span><h2>STEP SEQUENCER <em id="selectedPad">KICK</em></h2></div><span class="hint" id="stepLabel">01–08 / 16</span></div>
   <div class="sequencer"><div id="steps" class="steps"></div><div class="pages"><button id="pageA" class="active" aria-label="Шаги с 1 по 8">1</button><button id="pageB" aria-label="Шаги с 9 по 16">2</button></div></div>
+  <section class="sample-recorder" aria-label="Запись собственного сэмпла">
+   <div class="sample-rec-head"><strong>RECORD SAMPLE</strong><span id="sampleRecordHint">TARGET · PAD 01 · CURRENT STYLE</span></div>
+   <div class="sample-rec-controls">
+    <label class="sample-input-source"><span>SOURCE</span><select id="sampleSource" aria-label="Источник записи сэмпла"><option value="live">LIVE MIX</option><option value="mic">MIC</option></select></label>
+    <button type="button" id="sampleStart" aria-label="Начать запись сэмпла">● START</button>
+    <button type="button" id="sampleStop" aria-label="Остановить запись сэмпла" disabled>■ STOP</button>
+   </div>
+  </section>
   <button id="addSound" class="upload"><span class="up-icon">+</span><span><b>ADD YOUR SAMPLE</b><small>Automatic trim · level · EQ · pad matching</small></span><span class="uplarr">↗</span></button>
  </main>
  <section id="mixPanel" hidden><div class="section-heading"><div><span class="overline">03 / ENGINE</span><h2>MIX & EFFECTS</h2></div><span class="hint">REAL-TIME DSP</span></div>
