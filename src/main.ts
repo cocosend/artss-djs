@@ -44,6 +44,9 @@ function updateSampleTarget(){const target=$('#sampleRecordHint');target.textCon
 const overviewPads=[0,2,3,5] as const;
 function paintPatternOverview(){
  const host=$('#patternOverview');const fragment=document.createDocumentFragment();
+ const timeline=h('div','','timeline-row');timeline.append(h('span','', 'timeline-spacer'));
+ const numbers=h('div','','timeline-numbers');for(let i=1;i<=STEPS;i++)numbers.append(h('span',String(i)));
+ timeline.append(numbers);fragment.append(timeline);
  for(const pad of overviewPads){
   const lane=h('div','','pattern-lane');
   const name=h('button',PAD_NAMES[pad],'pattern-lane-name') as HTMLButtonElement;
@@ -144,7 +147,7 @@ engine.updateMix();refreshKitButtons();
  $('#bank').addEventListener('change',()=>{state.style=Number(($<HTMLSelectElement>('#bank')).value);state.tempo=STYLES[state.style]?.bpm??136;showTrack();engine.updateMix();save();paintPads();paintSteps();updateSampleTarget()});
  showTrack();
  let generation=0,previousPattern:number[][]|null=null;
- const generateGroove=(random=false)=>{previousPattern=clonePattern(state.pattern);generation++;const energy=Number(($<HTMLInputElement>('#density')).value)/100;const variation=random?Math.floor(Math.random()*10000)+1:generation;state.pattern=composeGroove(state.style,random?.35+Math.random()*.65:energy,variation);save();paintSteps();$('#undoGroove').hidden=false;setStatus(random?'RANDOM IDEA READY':'AUTO GROOVE READY')};
+ const generateGroove=(random=false)=>{previousPattern=clonePattern(state.pattern);generation++;const energy=Number(($<HTMLInputElement>('#density')).value)/100;const variation=random?Math.floor(Math.random()*10000)+1:generation;state.pattern=composeGroove(state.style,random ? 0.35+Math.random()*.65 : energy,variation);save();paintSteps();$('#undoGroove').hidden=false;setStatus(random?'RANDOM IDEA READY':'AUTO GROOVE READY')};
  $('#autoGroove').addEventListener('click',()=>generateGroove());
  $('#randomGroove').addEventListener('click',()=>generateGroove(true));
  $('#editGroove').addEventListener('click',()=>{setPane('main');$('#advancedEditor').setAttribute('open','');$('#advancedEditor').scrollIntoView({block:'center',behavior:'smooth'})});

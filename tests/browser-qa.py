@@ -26,15 +26,19 @@ with sync_playwright() as playwright:
  if os.getenv('ARTSS_LOCAL_PREVIEW')=='1':
   context.route('https://artss.test/**',serve_static)
   URL='https://artss.test/'
- page.goto(URL,wait_until='networkidle');assert 'DJ CREATOR 22' in page.title(),page.title()
+ page.goto(URL,wait_until='networkidle');assert 'NEXUS 23' in page.title(),page.title()
  assert page.locator('.pad').count()==8
  assert page.locator('.step').count()==8
- assert page.locator('.console').is_visible()
+ assert page.locator('.hero-deck').is_visible()
+ assert page.locator('.control-deck').is_visible()
+ assert page.locator('.creator-actions').is_visible()
+ assert page.locator('.main-mixer').is_visible()
+ assert page.locator('.bottomnav button').count()==5
  assert page.locator('#waveform').count()==1
  assert page.locator('.pattern-lane').count()==4
  assert page.locator('.pattern-cell').count()==64
  assert page.locator('.channel').count()==0
- assert not page.locator('#crossfade').count()
+ assert page.locator('#crossfade').count()==1
  page.locator('#tapTempo').tap()
  page.wait_for_timeout(450)
  page.locator('#tapTempo').tap()
@@ -53,13 +57,27 @@ with sync_playwright() as playwright:
  page.locator('#record').tap();assert 'REC' in page.locator('#record').inner_text()
  page.locator('#play').tap();page.locator('#play').tap();page.wait_for_timeout(100)
  page.locator('#stop').tap()
+ page.locator('#advancedEditor summary').tap()
  page.locator('#pageB').tap();assert '09–16' in page.locator('#stepLabel').inner_text()
  page.locator('.step').first.tap();page.reload(wait_until='networkidle')
+ page.locator('#advancedEditor summary').tap()
  page.locator('#pageB').tap();assert page.locator('.step').first.get_attribute('class').find('on')>=0
+ page.locator('[data-kit="1"]').tap()
+ assert page.locator('[data-kit="1"]').get_attribute('class').find('active')>=0
+ page.locator('[data-kit="0"]').tap()
+ page.locator('.pattern-cell[data-pad="0"][data-step="0"]').tap()
+ page.locator('.pattern-cell[data-pad="0"][data-step="0"]').tap()
+ page.locator('#eqLow').fill('4')
+ assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).eqLow')==4
+ page.locator('#crossfade').fill('66')
+ assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).crossfader')==.66
+ page.locator('[data-pane="library"]').tap()
+ assert page.locator('.library-style').count()==12
+ page.locator('[data-pane="main"]').tap()
  page.locator('[data-pane="mix"]').tap();assert page.locator('.mixrow').count()==8
  page.locator('#filter').fill('50');assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).filter')==.5
  page.locator('#echo').fill('30');assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).echo')==.3
- assert not page.locator('#crossfade').count()
+ assert page.locator('#crossfade').count()==1
  page.locator('.mixrow input[type="range"]').first.fill('67');assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).levels[0]')==.67
  page.locator('[data-pane="takes"]').tap()
  with page.expect_download(timeout=60000) as event: page.locator('#export').tap()
