@@ -12,3 +12,5 @@ test('audio loading clamps to supported source metadata',()=>{const s=sanitizeSe
 
 test('dual-bus controls persist and clamp invalid input',()=>{const s=sanitizeSession({crossfader:3,filter:-2,echo:Infinity});assert.equal(s.crossfader,1);assert.equal(s.filter,0);assert.equal(s.echo,.12);const d=defaultSession();assert.equal(d.crossfader,.5);assert.equal(d.filter,1);assert.equal(d.echo,.12)});
 test('twelve scoped genres produce distinct, bounded live grooves',()=>{const seen=new Set();for(let i=0;i<STYLES.length;i++){const g=composeGroove(i,.8,i+1);assert.equal(g.length,8);assert.ok(g.every(row=>row.length===16&&row.every(v=>v>=0&&v<=1)));seen.add(JSON.stringify(g));}assert.ok(seen.size>=10)});
+
+test('EQ fields are safe and backwards compatible',()=>{const a=sanitizeSession({eqLow:100,eqMid:-90,eqHigh:NaN,crossfader:.67});assert.equal(a.eqLow,12);assert.equal(a.eqMid,-12);assert.equal(a.eqHigh,0);assert.equal(a.crossfader,.67);const b=defaultSession();assert.equal(b.eqLow,0);assert.equal(b.eqMid,0);assert.equal(b.eqHigh,0)});

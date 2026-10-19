@@ -26,15 +26,19 @@ with sync_playwright() as playwright:
  if os.getenv('ARTSS_LOCAL_PREVIEW')=='1':
   context.route('https://artss.test/**',serve_static)
   URL='https://artss.test/'
- page.goto(URL,wait_until='networkidle');assert 'DJ CREATOR 22' in page.title(),page.title()
+ page.goto(URL,wait_until='networkidle');assert 'NEXUS 23' in page.title(),page.title()
  assert page.locator('.pad').count()==8
  assert page.locator('.step').count()==8
- assert page.locator('.console').is_visible()
+ assert page.locator('.hero-deck').is_visible()
+ assert page.locator('.control-deck').is_visible()
+ assert page.locator('.creator-actions').is_visible()
+ assert page.locator('.main-mixer').is_visible()
+ assert page.locator('.bottomnav button').count()==5
  assert page.locator('#waveform').count()==1
  assert page.locator('.pattern-lane').count()==4
  assert page.locator('.pattern-cell').count()==64
  assert page.locator('.channel').count()==0
- assert not page.locator('#crossfade').count()
+ assert page.locator('#crossfade').count()==1
  page.locator('#tapTempo').tap()
  page.wait_for_timeout(450)
  page.locator('#tapTempo').tap()
@@ -47,19 +51,33 @@ with sync_playwright() as playwright:
  # First gesture unlocks AudioContext; transport must not throw, and pad will respond.
  page.locator('#record').tap();page.wait_for_timeout(400)
  assert page.locator('#record').inner_text().find('OFF')>=0,page.locator('#record').inner_text()
- page.locator('[data-pad="5"]').tap();page.wait_for_timeout(240)
+ page.locator('.pad[data-pad="5"]').tap();page.wait_for_timeout(240)
  data=page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19"))')
  assert sum(1 for x in data['pattern'][5] if x>0)>=1,data['pattern'][5]
  page.locator('#record').tap();assert 'REC' in page.locator('#record').inner_text()
  page.locator('#play').tap();page.locator('#play').tap();page.wait_for_timeout(100)
  page.locator('#stop').tap()
+ page.locator('#advancedEditor summary').tap()
  page.locator('#pageB').tap();assert '09–16' in page.locator('#stepLabel').inner_text()
  page.locator('.step').first.tap();page.reload(wait_until='networkidle')
+ page.locator('#advancedEditor summary').tap()
  page.locator('#pageB').tap();assert page.locator('.step').first.get_attribute('class').find('on')>=0
+ page.locator('[data-kit="1"]').tap()
+ assert page.locator('[data-kit="1"]').get_attribute('class').find('active')>=0
+ page.locator('[data-kit="0"]').tap()
+ page.locator('.pattern-cell[data-pad="0"][data-step="0"]').tap()
+ page.locator('.pattern-cell[data-pad="0"][data-step="0"]').tap()
+ page.locator('#eqLow').fill('4')
+ assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).eqLow')==4
+ page.locator('#crossfade').fill('66')
+ assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).crossfader')==.66
+ page.locator('[data-pane="library"]').tap()
+ assert page.locator('.library-style').count()==12
+ page.locator('[data-pane="main"]').tap()
  page.locator('[data-pane="mix"]').tap();assert page.locator('.mixrow').count()==8
  page.locator('#filter').fill('50');assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).filter')==.5
  page.locator('#echo').fill('30');assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).echo')==.3
- assert not page.locator('#crossfade').count()
+ assert page.locator('#crossfade').count()==1
  page.locator('.mixrow input[type="range"]').first.fill('67');assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).levels[0]')==.67
  page.locator('[data-pane="takes"]').tap()
  with page.expect_download(timeout=60000) as event: page.locator('#export').tap()
@@ -84,16 +102,16 @@ with sync_playwright() as playwright:
  page.locator('.sample-rec-head').tap()
  assert page.locator('#sampleSource').is_visible()
  page.locator('#sampleSource').select_option('live')
- page.locator('[data-pad="1"]').tap()
+ page.locator('.pad[data-pad="1"]').tap()
  page.locator('#sampleStart').tap()
  page.wait_for_timeout(2500)
  assert not page.locator('#sampleStop').is_disabled(), page.evaluate('''({status:document.querySelector('#status').textContent,mediaRecorder:typeof MediaRecorder,mp4:typeof MediaRecorder==='undefined'?null:MediaRecorder.isTypeSupported('audio/mp4'),webm:typeof MediaRecorder==='undefined'?null:MediaRecorder.isTypeSupported('audio/webm'),startDisabled:document.querySelector('#sampleStart').disabled,stopDisabled:document.querySelector('#sampleStop').disabled})''')
- page.locator('[data-pad="1"]').tap()
+ page.locator('.pad[data-pad="1"]').tap()
  page.wait_for_timeout(650)
  page.locator('#sampleStop').tap()
  page.wait_for_function("document.querySelector('#sampleStart').disabled === false",timeout=15000)
  assert 'SAMPLE SAVED' in page.locator('#status').inner_text(),page.locator('#status').inner_text()
- assert page.locator('[data-pad="1"] .pad-own').inner_text()=='OWN'
+ assert page.locator('.pad[data-pad="1"] .pad-own').inner_text()=='OWN'
  stored=page.evaluate("""() => new Promise((resolve,reject)=>{
   const open=indexedDB.open('artss-live-user-samples',1);
   open.onerror=()=>reject('Could not open user samples');
@@ -103,12 +121,12 @@ with sync_playwright() as playwright:
  })""")
  assert stored['bytes']>2048,stored
  page.reload(wait_until='networkidle')
- page.locator('[data-pad="1"]').tap()
- page.wait_for_function("document.querySelector('[data-pad=\"1\"] .pad-own').textContent === 'OWN'",timeout=10000)
+ page.locator('.pad[data-pad="1"]').tap()
+ page.wait_for_function("document.querySelector('.pad[data-pad=\"1\"] .pad-own').textContent === 'OWN'",timeout=10000)
  page.locator('#bank').select_option('2')
- assert page.locator('[data-pad="1"] .pad-own').inner_text()!='OWN', 'Style 2 unexpectedly shares custom sample'
+ assert page.locator('.pad[data-pad="1"] .pad-own').inner_text()!='OWN', 'Style 2 unexpectedly shares custom sample'
  page.locator('#bank').select_option('0')
- assert page.locator('[data-pad="1"] .pad-own').inner_text()=='OWN', 'Preset sample missing when returning to style 0'
+ assert page.locator('.pad[data-pad="1"] .pad-own').inner_text()=='OWN', 'Preset sample missing when returning to style 0'
  # Additional responsive widths
  for width in [320,375,390,430]:
   page.set_viewport_size({'width':width,'height':844})

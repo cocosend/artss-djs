@@ -1,56 +1,107 @@
 <!doctype html>
 <html lang="ru">
 <head>
- <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
- <meta name="theme-color" content="#010103"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
- <meta name="description" content="ARTSS DJ Creator iPhone PWA — performance pads, step sequencer, techno presets, loop overdubs and WAV export."><meta name="apple-mobile-web-app-title" content="ARTSS DJ">
- <link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="manifest" href="/manifest.webmanifest"><link rel="stylesheet" href="/studio.css"><link rel="stylesheet" href="/nexus.css">
- <title>ARTSS DJ CREATOR 22.0 — NEXUS BLACK METAL</title>
+ <meta charset="utf-8">
+ <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+ <meta name="theme-color" content="#020203">
+ <meta name="apple-mobile-web-app-capable" content="yes">
+ <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+ <meta name="apple-mobile-web-app-title" content="ARTSS NEXUS">
+ <meta name="description" content="ARTSS NEXUS DJ Creator — eight live pads, 16-step sequencer, recording, DSP mixer and local WAV export for iPhone.">
+ <link rel="icon" href="/icon.svg" type="image/svg+xml">
+ <link rel="manifest" href="/manifest.webmanifest">
+ <link rel="stylesheet" href="/studio.css">
+ <link rel="stylesheet" href="/nexus.css">
+ <link rel="stylesheet" href="/reference.css">
+ <title>ARTSS NEXUS 23.0 — DJ CREATOR</title>
 </head>
 <body>
-<div class="app">
- <header class="topbar">
-  <div class="identity"><div class="logomark" aria-hidden="true"><span>A</span><i></i></div><div class="logotype"><b>ARTSS <em>NEXUS</em></b><small>DJ CREATOR <span>22</span></small></div></div>
-  <div class="statusarea"><div class="activity"><span class="status-dot"></span><span id="runState">STOP</span></div><span id="status" class="status" role="status">READY</span></div>
+<div class="app nexus-app">
+ <header class="nexus-header">
+  <button type="button" id="menuToggle" class="chrome-icon menu-toggle" aria-label="Открыть меню" aria-expanded="false"><span class="hamburger"><i></i><i></i><i></i></span></button>
+  <div class="brand-stack"><b>NEXUS</b><span>DJ CREATOR</span></div>
+  <div class="head-tools">
+   <button id="quickUpload" class="chrome-icon" type="button" aria-label="Импортировать сэмпл"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7 9m5-5 5 5M5 15c-3 0-3 5 1 5h12c4 0 4-6 0-6h-1"/></svg></button>
+   <button id="quickSettings" class="chrome-icon" type="button" aria-label="Настройки"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 2-.6 2.3-2.1.9-2-.9L3 7l1.3 2.1-.2 2.2L2 13l1.4 3.1 2.4-.1 1.6 1.5.2 2.5L11 22l1.2-2.3 2.2-.4 2 1.1 2.8-2.5-.8-2.2.7-2 2.3-1.1-.2-3.3-2.4-.8-1.1-1.9.4-2.4L15.1 2l-1.8 1.5-2.1-.2z"/><circle cx="12" cy="12" r="3"/></svg></button>
+  </div>
  </header>
- <section class="console" aria-label="Профессиональная live-панель">
-  <div class="consoletop"><span class="overline">ARTSS NEXUS <i>/</i> DJ PERFORMANCE</span><button id="stop" class="stop" aria-label="Остановить воспроизведение">■ STOP</button></div>
-  <nav class="transport" aria-label="Воспроизведение и запись">
-   <button id="play" class="play" aria-label="Play или пауза">▶ PLAY</button>
-   <div class="wave-screen" aria-label="Осциллограмма текущего звука">
-    <div class="wave-top"><span class="signal" id="pulseDot" aria-hidden="true"></span><strong>LIVE SIGNAL</strong><small>STEREO MASTER</small></div>
-    <canvas id="waveform" width="480" height="144" aria-label="Осциллограмма выходного аудио" role="img"></canvas>
-    <div class="wave-bottom"><span>16 STEPS</span><div class="meter" aria-hidden="true"><i id="outputMeter"></i></div></div>
-   </div>
-   <button id="record" class="record" aria-label="Записывать нажатия в петлю">● LIVE REC</button>
-  </nav>
+ <aside id="drawer" class="drawer" hidden>
+  <div class="drawer-head"><strong>ARTSS NEXUS</strong><span>STUDIO 23</span></div>
+  <p>One engine · one creative workspace</p>
+  <button id="drawerImport" type="button">+ IMPORT SAMPLE</button>
+  <button id="drawerRecord" type="button">● AUDIO RECORDING</button>
+  <button id="drawerSettings" type="button">⚙ LOCAL SETTINGS</button>
+ </aside>
+ <section class="hero-deck" aria-label="Панель воспроизведения и записи">
+  <button id="play" class="deck-transport deck-play" aria-label="Запустить или приостановить"><span class="deck-disc"><span class="deck-play-icon">▶</span></span><span class="deck-label">PLAY</span></button>
+  <div class="hero-wave">
+   <div class="trackline"><span class="signal" id="pulseDot"></span><span id="trackName">WAREHOUSE · GROOVE</span><span id="transportTime">00:00 / LOOP</span><button id="stop" type="button" aria-label="Стоп">■</button></div>
+   <canvas id="waveform" width="480" height="140" role="img" aria-label="Живая осциллограмма стереовыхода"></canvas>
+   <div class="wave-foot"><span>LIVE SIGNAL</span><div class="meter"><i id="outputMeter"></i></div><span id="runState">STOP</span></div>
+  </div>
+  <button id="record" class="deck-transport deck-record" aria-label="Запись исполнения в луп"><span class="deck-disc"><span class="deck-rec-icon"></span></span><span class="deck-label">LIVE REC</span></button>
  </section>
- <div class="settings"><label><span>STYLE</span><select id="bank" aria-label="Стиль музыки"></select></label><label><span>SCENE</span><select id="scene" aria-label="Сцена"></select></label><div class="bpm"><small>BPM</small><div><button id="tempoDown" aria-label="BPM минус">−</button><b id="bpm">136</b><button id="tempoUp" aria-label="BPM плюс">+</button></div><button id="tapTempo" class="tap-tempo" aria-label="Установить темп нажатиями">TAP TEMPO</button></div></div>
- <section class="generator"><button id="autoGroove" class="auto"><span aria-hidden="true">✦</span> AUTO CREATE</button><label for="density">ENERGY <input id="density" type="range" min="25" max="100" value="70" aria-label="Плотность ритма"></label><button id="undoGroove" class="undo" hidden>↶ UNDO</button></section>
+ <div class="status-strip"><span id="status" class="status" role="status">READY</span><span>STEREO · AUDIO CORE</span></div>
+ <section class="control-deck" aria-label="Стиль темп и сцена">
+  <div class="select-unit">
+   <strong>STYLE</strong><div class="arrow-select"><button type="button" id="stylePrev" aria-label="Предыдущий стиль">‹</button><select id="bank" aria-label="Стиль музыки"></select><button type="button" id="styleNext" aria-label="Следующий стиль">›</button></div>
+   <div class="selector-lights" id="styleLights" aria-hidden="true"><i class="active"></i><i></i><i></i><i></i><i></i></div>
+  </div>
+  <div class="bpm-unit">
+   <strong>BPM</strong><div class="bpm-counter"><button type="button" id="tempoDown" aria-label="Уменьшить BPM">‹</button><b id="bpm">136</b><button type="button" id="tempoUp" aria-label="Увеличить BPM">›</button></div>
+   <input id="bpmRange" type="range" min="80" max="175" value="136" aria-label="Темп BPM">
+   <button id="tapTempo" type="button">TAP TEMPO</button>
+  </div>
+  <div class="select-unit">
+   <strong>SCENE</strong><div class="arrow-select"><button type="button" id="scenePrev" aria-label="Предыдущая сцена">‹</button><select id="scene" aria-label="Сцена"></select><button type="button" id="sceneNext" aria-label="Следующая сцена">›</button></div>
+   <div class="selector-lights" id="sceneLights" aria-hidden="true"><i class="active"></i><i></i><i></i><i></i><i></i></div>
+  </div>
+ </section>
+ <section class="creator-actions" aria-label="Создание ритма">
+  <button type="button" class="side-action" id="randomGroove"><span class="action-glyph">⚄</span><span>RANDOM<br>IDEAS</span></button>
+  <button type="button" class="auto" id="autoGroove"><span class="galaxy" aria-hidden="true">✦</span><span class="auto-lines"><strong>AUTO CREATE</strong><small>GENERATE A DJ GROOVE</small></span><span class="auto-arrow">›</span></button>
+  <button type="button" class="side-action" id="editGroove"><span class="action-glyph">≋</span><span>EDIT<br>RESULT</span></button>
+ </section>
+ <div class="utility-actions"><label for="density">ENERGY <input id="density" type="range" min="25" max="100" value="70" aria-label="Плотность ритма"></label><button id="undoGroove" class="undo" hidden>↶ UNDO GROOVE</button></div>
  <main id="mainPanel">
-  <div class="section-heading"><div><span class="overline">01 / INSTRUMENTS</span><h2>DRUM PADS</h2></div><span class="hint">TAP · PLAY / HOLD · IMPORT</span></div>
+  <div class="section-heading pad-head"><div class="headline"><span class="heading-icon">▦</span><h2>DRUM PADS</h2></div><div id="kitBanks" class="kit-banks" role="group" aria-label="Банки пэдов"><button type="button" data-kit="0" class="active">A</button><button type="button" data-kit="1">B</button><button type="button" data-kit="2">C</button><button type="button" data-kit="3">D</button></div></div>
   <div id="pads" class="pads"></div>
-  <div class="section-heading seqheading"><div><span class="overline">02 / PATTERN</span><h2>STEP SEQUENCER <em id="selectedPad">KICK</em></h2></div><span class="hint" id="stepLabel">01–08 / 16</span></div>
-  <div id="patternOverview" class="pattern-overview" aria-label="Обзор ритма на 16 шагов"></div><div class="sequencer"><div id="steps" class="steps"></div><div class="pages"><button id="pageA" class="active" aria-label="Шаги с 1 по 8">1</button><button id="pageB" aria-label="Шаги с 9 по 16">2</button></div></div>
+  <div class="section-heading seqheading"><div class="headline"><span class="heading-icon">▦</span><h2>STEP SEQUENCER</h2></div><button type="button" id="seqEdit" class="sequencer-edit" aria-label="Редактирование всех пэдов">DRUMS <span>⌄</span></button></div>
+  <div id="patternOverview" class="pattern-overview" aria-label="Редактируемый 16-шаговый ритм"></div>
+  <details id="advancedEditor" class="advanced-editor"><summary>EDIT PAD <em id="selectedPad">KICK</em><small id="stepLabel">01–08 / 16</small></summary>
+   <div class="sequencer"><div id="steps" class="steps"></div><div class="pages"><button id="pageA" class="active" aria-label="Шаги с 1 по 8">1</button><button id="pageB" aria-label="Шаги с 9 по 16">2</button></div></div>
+  </details>
+  <section id="quickMix" class="main-mixer" aria-label="Эквалайзер и кроссфейдер">
+   <div class="mix-sign"><span>☷</span><strong>MIX</strong></div>
+   <div class="eq-cluster">
+    <label class="knob-unit"><input id="eqLow" type="range" min="-12" max="12" value="0" aria-label="Низкие частоты, децибелы"><span class="knob-visual" aria-hidden="true"></span><small>LOW</small></label>
+    <label class="knob-unit"><input id="eqMid" type="range" min="-12" max="12" value="0" aria-label="Средние частоты, децибелы"><span class="knob-visual" aria-hidden="true"></span><small>MID</small></label>
+    <label class="knob-unit"><input id="eqHigh" type="range" min="-12" max="12" value="0" aria-label="Высокие частоты, децибелы"><span class="knob-visual" aria-hidden="true"></span><small>HIGH</small></label>
+   </div>
+   <div class="cross-unit"><div><span>A</span><span>B</span></div><input id="crossfade" type="range" min="0" max="100" value="50" aria-label="Баланс групп A и B"></div>
+  </section>
   <details class="sample-recorder" aria-label="Запись собственного сэмпла">
-   <summary class="sample-rec-head"><strong>+ RECORD SAMPLE</strong><span id="sampleRecordHint">TARGET · PAD 01 · CURRENT STYLE</span></summary>
+   <summary class="sample-rec-head"><strong>+ RECORD / IMPORT SAMPLE</strong><span id="sampleRecordHint">TARGET · PAD 01</span></summary>
    <div class="sample-rec-controls">
     <label class="sample-input-source"><span>SOURCE</span><select id="sampleSource" aria-label="Источник записи сэмпла"><option value="live">LIVE MIX</option><option value="mic">MIC</option></select></label>
-    <button type="button" id="sampleStart" aria-label="Начать запись сэмпла">● START</button>
-    <button type="button" id="sampleStop" aria-label="Остановить запись сэмпла" disabled>■ STOP</button>
+    <button type="button" id="sampleStart">● START</button>
+    <button type="button" id="sampleStop" disabled>■ STOP</button>
    </div>
+   <button id="addSound" type="button" class="upload"><span class="up-icon">+</span><span><b>ADD YOUR SAMPLE</b><small>Import WAV · MP3 · AAC</small></span><span class="uplarr">↗</span></button>
   </details>
-  <button id="addSound" class="upload"><span class="up-icon">+</span><span><b>ADD YOUR SAMPLE</b><small>Automatic trim · level · EQ · pad matching</small></span><span class="uplarr">↗</span></button>
  </main>
- <section id="mixPanel" hidden><div class="section-heading"><div><span class="overline">03 / ENGINE</span><h2>MIX & EFFECTS</h2></div><span class="hint">REAL-TIME DSP</span></div>
-  <div class="fxbox"><label><span>MASTER FILTER</span><strong id="filterValue">OPEN</strong><input id="filter" type="range" min="0" max="100" value="100" aria-label="Фильтр мастер микшера"></label><label><span>ECHO SEND</span><strong id="echoValue">12%</strong><input id="echo" type="range" min="0" max="100" value="12" aria-label="Громкость задержки"></label></div>
+ <section id="libraryPanel" hidden><div class="section-heading"><h2>SOUND LIBRARY</h2><span class="hint">12 STYLES · LOCAL SAMPLES</span></div><div class="library-grid" id="libraryStyles"></div><button id="libraryImport" class="secondary" type="button">+ IMPORT AUDIO SAMPLE</button></section>
+ <section id="mixPanel" hidden><div class="section-heading"><h2>MIX & EFFECTS</h2><span class="hint">REAL-TIME DSP</span></div>
+  <div class="fxbox"><label><span>MASTER FILTER</span><strong id="filterValue">OPEN</strong><input id="filter" type="range" min="0" max="100" value="100" aria-label="Мастер фильтр"></label><label><span>ECHO SEND</span><strong id="echoValue">12%</strong><input id="echo" type="range" min="0" max="100" value="12" aria-label="Эхо"></label></div>
   <div id="mixRows" class="mixrows"></div><button id="replaceSound" class="secondary">+ REPLACE SELECTED PAD</button>
  </section>
- <section id="takesPanel" hidden><div class="section-heading"><div><span class="overline">04 / MASTER</span><h2>RECORDER</h2></div><span class="hint">LOCAL PROJECT</span></div>
-  <button id="take" class="takebutton">● RECORD AUDIO TAKE</button><button id="export" class="secondary">↓ EXPORT STEREO WAV · 4 BARS</button><div id="takesList" class="takeslist"></div><button id="reset" class="danger">CLEAR 16-STEP PATTERN</button>
+ <section id="takesPanel" hidden><div class="section-heading"><h2>PERFORMANCE RECORDING</h2><span class="hint">LOCAL PROJECT</span></div>
+  <button id="take" class="takebutton">● RECORD AUDIO TAKE</button><button id="export" class="secondary">↓ EXPORT STEREO WAV · 4 BARS</button><div id="takesList" class="takeslist"></div><button id="reset" class="danger">CLEAR ACTIVE 16-STEP PATTERN</button>
  </section>
- <footer class="bottomnav"><button data-pane="main" class="active"><span>▦</span>CREATE</button><button data-pane="mix"><span>≋</span>MIX / FX</button><button data-pane="takes"><span>◉</span>REC / WAV</button><div class="nav-led"><span></span></div></footer>
+ <section id="profilePanel" hidden><div class="section-heading"><h2>LOCAL PROFILE</h2><span class="hint">PRIVATE ON-DEVICE STUDIO</span></div><div class="profile-card"><strong>ARTSS NEXUS</strong><p>All grooves, custom samples and audio takes remain on your device. No account is required.</p><div id="deviceStatus"></div><button id="goToRecording" class="secondary">OPEN RECORDER</button></div></section>
+ <nav class="bottomnav" aria-label="Навигация"><button data-pane="main" class="active"><span>⌂</span>CREATE</button><button data-pane="library"><span>♫</span>LIBRARY</button><button data-pane="takes"><span>◎</span>PERFORM</button><button data-pane="mix"><span>≋</span>MIX</button><button data-pane="profile"><span>♙</span>PROFILE</button></nav>
 </div>
-<input type="file" id="sampleInput" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.flac" multiple hidden>
+<input id="sampleInput" type="file" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.flac" multiple hidden>
 <script type="module" src="/app/main.js"></script>
-</body></html>
+</body>
+</html>

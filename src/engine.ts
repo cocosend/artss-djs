@@ -15,18 +15,18 @@ function wavExport(buffer:AudioBuffer):Blob {
 }
 function createBus(ctx:BaseAudioContext,destination:AudioNode,settings:Session){
  const a=ctx.createGain(), b=ctx.createGain(), input=ctx.createGain();
- const filter=ctx.createBiquadFilter(), dry=ctx.createGain(), echoSend=ctx.createGain(), echo=ctx.createDelay(1), feedback=ctx.createGain(), returnGain=ctx.createGain();
+ const filter=ctx.createBiquadFilter(), eqLow=ctx.createBiquadFilter(),eqMid=ctx.createBiquadFilter(),eqHigh=ctx.createBiquadFilter(),dry=ctx.createGain(), echoSend=ctx.createGain(), echo=ctx.createDelay(1), feedback=ctx.createGain(), returnGain=ctx.createGain();
  const compressor=ctx.createDynamicsCompressor(), master=ctx.createGain(), meter=ctx.createAnalyser();
- filter.type='lowpass';filter.Q.value=.62;
+ filter.type='lowpass';filter.Q.value=.62;eqLow.type='lowshelf';eqLow.frequency.value=180;eqMid.type='peaking';eqMid.frequency.value=1000;eqMid.Q.value=.7;eqHigh.type='highshelf';eqHigh.frequency.value=4500;
  echo.delayTime.value=.23; feedback.gain.value=.24; returnGain.gain.value=.38;
  compressor.threshold.value=-12;compressor.ratio.value=6;compressor.knee.value=7;compressor.attack.value=.004;compressor.release.value=.13;master.gain.value=.80;
- a.connect(input);b.connect(input);input.connect(filter);filter.connect(dry).connect(compressor);
- filter.connect(echoSend).connect(echo);echo.connect(feedback).connect(echo);echo.connect(returnGain).connect(compressor);
+ a.connect(input);b.connect(input);input.connect(filter);filter.connect(eqLow).connect(eqMid).connect(eqHigh);eqHigh.connect(dry).connect(compressor);
+ eqHigh.connect(echoSend).connect(echo);echo.connect(feedback).connect(echo);echo.connect(returnGain).connect(compressor);
  compressor.connect(master).connect(meter).connect(destination);meter.fftSize=256;
  function update(st:Session){const t=ctx.currentTime;const x=clamp(st.crossfader,0,1);
   a.gain.setTargetAtTime(Math.cos(x*Math.PI/2),t,.014);b.gain.setTargetAtTime(Math.sin(x*Math.PI/2),t,.014);
   const cutoff=160+19840*Math.pow(clamp(st.filter,0,1),2.4);filter.frequency.setTargetAtTime(cutoff,t,.025);
-  echoSend.gain.setTargetAtTime(.40*clamp(st.echo,0,1),t,.025);
+  echoSend.gain.setTargetAtTime(.40*clamp(st.echo,0,1),t,.025);eqLow.gain.setTargetAtTime(clamp(st.eqLow,-12,12),t,.018);eqMid.gain.setTargetAtTime(clamp(st.eqMid,-12,12),t,.018);eqHigh.gain.setTargetAtTime(clamp(st.eqHigh,-12,12),t,.018);
   echo.delayTime.setTargetAtTime(.75*60/clamp(st.tempo,80,175),t,.02);
  }
  update(settings);return {input,a,b,master,meter,update};
