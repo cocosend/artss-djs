@@ -145,7 +145,7 @@ export class Engine{
   if(source==='live'&&!this.running)await this.start();
   if(!this.capture)throw Error('Аудиозахват недоступен');
   const target={pad,style:this.getSession().style};
-  await this.sampleRecorder.start(source,this.capture.stream,()=>{void this.endSampleCapture().catch(e=>this.events.onState?.(e instanceof Error?e.message:'SAMPLE ERROR'));});
+  await this.sampleRecorder.start(source,this.capture.stream,this.ctx!,()=>{void this.endSampleCapture().catch(e=>this.events.onState?.(e instanceof Error?e.message:'SAMPLE ERROR'));});
   this.sampleTarget=target;
   this.events.onState?.(`SAMPLE REC · ${target.pad+1}`);
  }
