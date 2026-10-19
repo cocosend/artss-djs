@@ -69,7 +69,7 @@ export class Engine{
    if(this.fallback!==null){window.clearInterval(this.fallback);this.fallback=null;}
   }catch{}
  }
- async start(){await this.unlock();if(this.running)return;await this.bank.warm(this.ctx!); const d=60/this.getSession().tempo/4;
+ async start(){const generation=this.generation;await this.unlock();if(this.running||this.generation!==generation)return;await this.bank.warm(this.ctx!);if(this.running||this.generation!==generation)return;const d=60/this.getSession().tempo/4;
   if(this.stopAt>0){const progress=this.stopAt-this.origin;this.origin=this.time-progress;this.nextStep=Math.max(0,Math.ceil((this.time-this.origin)/d));this.nextTime=this.origin+this.nextStep*d;}
   else{this.origin=this.time+.05;this.nextStep=0;this.nextTime=this.origin;}
   this.running=true;this.stopAt=0;this.generation++;this.pump();this.events.onState?.('PLAY');
@@ -88,6 +88,8 @@ export class Engine{
  private silence(){for(const v of this.active){try{v.stop();}catch{}}this.active.clear();}
  private pump(){if(!this.ctx||!this.running||!this.bus)return;
   const now=this.ctx.currentTime;const d=60/this.getSession().tempo/4;
+  // Safari background suspension: fast-forward stale transport steps instead of bursting delayed notes.
+  if(this.nextTime<now-.035){const skip=Math.max(1,Math.ceil((now-this.nextTime-.008)/d));this.nextStep+=skip;this.nextTime+=skip*d;}
   while(this.nextTime<now+.115){const step=this.nextStep%STEPS,session=this.getSession();
    for(let p=0;p<8;p++){let velocity=session.pattern[p]?.[step]??0;if(session.muted[p]||velocity===0)continue;
     if(session.scene===1&&p>3)continue; // intro reduced
@@ -164,7 +166,7 @@ export class Engine{
   this.events.onState?.(`SAMPLE SAVED · PAD ${target.pad+1}`);
   return {pad:result.pad,style:target.style,name:file.name};
  }
- async beginTake():Promise<void>{await this.unlock();if(!this.capture)throw Error('Запись недоступна');if(this.recorder?.state==='recording')return;
+ async beginTake():Promise<void>{await this.unlock();if(!this.capture||typeof MediaRecorder==='undefined')throw Error('Audio take недоступен — используй EXPORT WAV');if(this.recorder?.state==='recording')return;
   const types=['audio/mp4','audio/webm;codecs=opus','audio/webm'];const type=types.find(t=>MediaRecorder.isTypeSupported(t));
   const r=new MediaRecorder(this.capture.stream,type?{mimeType:type}:{});this.currentChunks=[];
   r.ondataavailable=e=>{if(e.data.size)this.currentChunks.push(e.data)};

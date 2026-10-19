@@ -26,7 +26,7 @@ with sync_playwright() as playwright:
  if os.getenv('ARTSS_LOCAL_PREVIEW')=='1':
   context.route('https://artss.test/**',serve_static)
   URL='https://artss.test/'
- page.goto(URL,wait_until='networkidle');assert 'DJ CREATOR 20' in page.title(),page.title()
+ page.goto(URL,wait_until='networkidle');assert 'DJ CREATOR 21' in page.title(),page.title()
  assert page.locator('.pad').count()==8
  assert page.locator('.step').count()==8
  assert page.locator('.console').is_visible()
@@ -74,6 +74,8 @@ with sync_playwright() as playwright:
  page.wait_for_timeout(1300)
  assert 'AUTO MIX' in page.locator('#status').inner_text(),page.locator('#status').inner_text()
  # Capture 500 ms of the live mixer as an independent pad sample, save under current style.
+ page.locator('.sample-rec-head').tap()
+ assert page.locator('#sampleSource').is_visible()
  page.locator('#sampleSource').select_option('live')
  page.locator('[data-pad="1"]').tap()
  page.locator('#sampleStart').tap()
