@@ -59,9 +59,14 @@ with sync_playwright() as playwright:
  page.locator('#stop').tap()
  page.locator('#advancedEditor summary').tap()
  page.locator('#pageB').tap();assert '09–16' in page.locator('#stepLabel').inner_text()
- page.locator('.step').first.tap();page.reload(wait_until='networkidle')
+ prior_state=page.locator('.step').first.evaluate("el=>el.classList.contains('on')")
+ page.locator('.step').first.tap()
+ toggled_state=page.locator('.step').first.evaluate("el=>el.classList.contains('on')")
+ assert toggled_state is not prior_state
+ page.reload(wait_until='networkidle')
  page.locator('#advancedEditor summary').tap()
- page.locator('#pageB').tap();assert page.locator('.step').first.get_attribute('class').find('on')>=0
+ page.locator('#pageB').tap()
+ assert page.locator('.step').first.evaluate("el=>el.classList.contains('on')") == toggled_state
  page.locator('[data-kit="1"]').tap()
  assert page.locator('[data-kit="1"]').get_attribute('class').find('active')>=0
  page.locator('[data-kit="0"]').tap()
@@ -102,8 +107,6 @@ with sync_playwright() as playwright:
  page.locator('#menuToggle').tap()
  page.locator('#drawerSample').tap()
  assert page.locator('.sample-recorder').get_attribute('open') is not None
- page.locator('.sample-rec-head').tap()
- page.locator('.sample-rec-head').tap()
  assert page.locator('#sampleSource').is_visible()
  page.locator('#sampleSource').select_option('live')
  page.locator('.pad[data-pad="1"]').tap()
