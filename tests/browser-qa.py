@@ -26,12 +26,19 @@ with sync_playwright() as playwright:
  if os.getenv('ARTSS_LOCAL_PREVIEW')=='1':
   context.route('https://artss.test/**',serve_static)
   URL='https://artss.test/'
- page.goto(URL,wait_until='networkidle');assert 'DJ CREATOR 21' in page.title(),page.title()
+ page.goto(URL,wait_until='networkidle');assert 'DJ CREATOR 22' in page.title(),page.title()
  assert page.locator('.pad').count()==8
  assert page.locator('.step').count()==8
  assert page.locator('.console').is_visible()
+ assert page.locator('#waveform').count()==1
+ assert page.locator('.pattern-lane').count()==4
+ assert page.locator('.pattern-cell').count()==64
  assert page.locator('.channel').count()==0
  assert not page.locator('#crossfade').count()
+ page.locator('#tapTempo').tap()
+ page.wait_for_timeout(450)
+ page.locator('#tapTempo').tap()
+ assert 80<=int(page.locator('#bpm').inner_text())<=175
  page.locator('#autoGroove').tap()
  assert page.locator('#undoGroove').is_visible()
  assert sum(1 for x in page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).pattern[0]') if x>0)>=4
