@@ -80,6 +80,14 @@ with sync_playwright() as playwright:
  page.wait_for_function("document.querySelector('#sampleStart').disabled === false",timeout=15000)
  assert 'SAMPLE SAVED' in page.locator('#status').inner_text(),page.locator('#status').inner_text()
  assert page.locator('[data-pad="1"] .pad-own').inner_text()=='OWN'
+ stored=page.evaluate("""() => new Promise((resolve,reject)=>{
+  const open=indexedDB.open('artss-live-user-samples',1);
+  open.onerror=()=>reject('Could not open user samples');
+  open.onsuccess=()=>{const db=open.result;const request=db.transaction('pads','readonly').objectStore('pads').get('0:1');
+   request.onerror=()=>reject('Could not fetch sample');
+   request.onsuccess=()=>{const data=request.result;resolve({name:data?.name,bytes:data?.data?.byteLength??0})};};
+ })""")
+ assert stored['bytes']>2048,stored
  page.reload(wait_until='networkidle')
  page.locator('[data-pad="1"]').tap()
  page.wait_for_function("document.querySelector('[data-pad=\"1\"] .pad-own').textContent === 'OWN'",timeout=10000)

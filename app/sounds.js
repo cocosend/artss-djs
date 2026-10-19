@@ -70,11 +70,13 @@ export class SoundBank {
     async persist(key, file) {
         const db = await this.database();
         if (!db)
-            return;
+            throw Error('Сохранение сэмпла на устройстве недоступно');
+        // Store binary PCM/compressed data as structured-clone-safe ArrayBuffer. WebKit may
+        // silently fail to restore File objects persisted across navigation.
+        const value = { data: await file.arrayBuffer(), name: file.name, type: file.type };
         try {
-            await new Promise((resolve, reject) => { const tx = db.transaction('pads', 'readwrite'); tx.objectStore('pads').put(file, key); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); });
+            await new Promise((resolve, reject) => { const tx = db.transaction('pads', 'readwrite'); tx.objectStore('pads').put(value, key); tx.oncomplete = () => resolve(); tx.onabort = () => reject(tx.error); tx.onerror = () => reject(tx.error); });
         }
-        catch { }
         finally {
             db.close();
         }
@@ -96,14 +98,22 @@ export class SoundBank {
             for (const item of entries) {
                 const key = typeof item.key === 'number' ? `legacy:${item.key}` : String(item.key);
                 const scoped = /^[0-5]:[0-7]$/.test(key), legacy = /^legacy:[0-7]$/.test(key);
-                if ((scoped || legacy) && !this.custom.has(key) && item.value && item.value.size) {
-                    try {
-                        const decoded = await ctx.decodeAudioData(await item.value.arrayBuffer());
-                        const analysis = analyzeAudio(Array.from({ length: decoded.numberOfChannels }, (_, i) => decoded.getChannelData(i)), decoded.sampleRate);
-                        this.custom.set(key, { buffer: withFades(decoded, analysis, ctx), gain: analysis.gain, lowCut: analysis.lowCut, highCut: analysis.highCut, name: item.value.name?.replace(/\.[^.]+$/, '') ?? 'USER', user: true });
-                    }
-                    catch { }
+                if (!(scoped || legacy) || this.custom.has(key) || !item.value)
+                    continue;
+                const entry = item.value;
+                let data = null;
+                if (entry.data instanceof ArrayBuffer)
+                    data = entry.data;
+                else if (typeof entry.arrayBuffer === 'function')
+                    data = await entry.arrayBuffer(); // legacy stored File/Blob
+                if (!data || !data.byteLength)
+                    continue;
+                try {
+                    const decoded = await ctx.decodeAudioData(data.slice(0));
+                    const analysis = analyzeAudio(Array.from({ length: decoded.numberOfChannels }, (_, i) => decoded.getChannelData(i)), decoded.sampleRate);
+                    this.custom.set(key, { buffer: withFades(decoded, analysis, ctx), gain: analysis.gain, lowCut: analysis.lowCut, highCut: analysis.highCut, name: entry.name?.replace(/\.[^.]+$/, '') ?? 'USER', user: true });
                 }
+                catch { }
             }
         }
         finally {

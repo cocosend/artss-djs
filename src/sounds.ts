@@ -37,16 +37,28 @@ export class SoundBank {
   });
  }
  private async persist(key:string,file:File):Promise<void>{
-  const db=await this.database();if(!db)return;
-  try{await new Promise<void>((resolve,reject)=>{const tx=db.transaction('pads','readwrite');tx.objectStore('pads').put(file,key);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});}catch{}finally{db.close()}
+  const db=await this.database();if(!db)throw Error('Сохранение сэмпла на устройстве недоступно');
+  // Store binary PCM/compressed data as structured-clone-safe ArrayBuffer. WebKit may
+  // silently fail to restore File objects persisted across navigation.
+  const value={data:await file.arrayBuffer(),name:file.name,type:file.type};
+  try{await new Promise<void>((resolve,reject)=>{const tx=db.transaction('pads','readwrite');tx.objectStore('pads').put(value,key);tx.oncomplete=()=>resolve();tx.onabort=()=>reject(tx.error);tx.onerror=()=>reject(tx.error);});}
+  finally{db.close()}
  }
  async restore(ctx:AudioContext):Promise<void>{
   if(this.restored)return;this.restored=true;const db=await this.database();if(!db)return;
-  try{const entries=await new Promise<Array<{key:IDBValidKey;value:File}>>(resolve=>{const result:Array<{key:IDBValidKey;value:File}>=[];const req=db.transaction('pads','readonly').objectStore('pads').openCursor();req.onsuccess=()=>{const c=req.result;if(c){result.push({key:c.key,value:c.value as File});c.continue()}else resolve(result)};req.onerror=()=>resolve(result)});
-   for(const item of entries){const key=typeof item.key==='number'?`legacy:${item.key}`:String(item.key);const scoped=/^[0-5]:[0-7]$/.test(key),legacy=/^legacy:[0-7]$/.test(key);if((scoped||legacy)&&!this.custom.has(key)&&item.value&&item.value.size){
-    try{const decoded=await ctx.decodeAudioData(await item.value.arrayBuffer());const analysis=analyzeAudio(Array.from({length:decoded.numberOfChannels},(_,i)=>decoded.getChannelData(i)),decoded.sampleRate);
-     this.custom.set(key,{buffer:withFades(decoded,analysis,ctx),gain:analysis.gain,lowCut:analysis.lowCut,highCut:analysis.highCut,name:item.value.name?.replace(/\.[^.]+$/,'')??'USER',user:true});}catch{}
-   }}
+  try{const entries=await new Promise<Array<{key:IDBValidKey;value:unknown}>>(resolve=>{const result:Array<{key:IDBValidKey;value:unknown}>=[];const req=db.transaction('pads','readonly').objectStore('pads').openCursor();req.onsuccess=()=>{const c=req.result;if(c){result.push({key:c.key,value:c.value});c.continue()}else resolve(result)};req.onerror=()=>resolve(result)});
+   for(const item of entries){
+    const key=typeof item.key==='number'?`legacy:${item.key}`:String(item.key);
+    const scoped=/^[0-5]:[0-7]$/.test(key),legacy=/^legacy:[0-7]$/.test(key);
+    if(!(scoped||legacy)||this.custom.has(key)||!item.value)continue;
+    const entry=item.value as {data?:unknown;name?:string;type?:string;size?:number;arrayBuffer?:()=>Promise<ArrayBuffer>};
+    let data:ArrayBuffer|null=null;
+    if(entry.data instanceof ArrayBuffer)data=entry.data;
+    else if(typeof entry.arrayBuffer==='function')data=await entry.arrayBuffer(); // legacy stored File/Blob
+    if(!data||!data.byteLength)continue;
+    try{const decoded=await ctx.decodeAudioData(data.slice(0));const analysis=analyzeAudio(Array.from({length:decoded.numberOfChannels},(_,i)=>decoded.getChannelData(i)),decoded.sampleRate);
+     this.custom.set(key,{buffer:withFades(decoded,analysis,ctx),gain:analysis.gain,lowCut:analysis.lowCut,highCut:analysis.highCut,name:entry.name?.replace(/\.[^.]+$/,'')??'USER',user:true});}catch{}
+   }
   }finally{db.close()}
  }
  customInfo(pad:number,style:number){return (this.custom.get(`${style}:${pad}`)??this.custom.get(`legacy:${pad}`))?.name??null;}
