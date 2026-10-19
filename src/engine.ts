@@ -49,6 +49,7 @@ export class Engine{
  get time(){return this.ctx?.currentTime??0;}
  private meterData=new Uint8Array(256);
  get meterLevel(){if(!this.bus)return 0;this.bus.meter.getByteTimeDomainData(this.meterData);let energy=0;for(let i=0;i<this.meterData.length;i++){const v=(this.meterData[i]!-128)/128;energy+=v*v;}return Math.min(1,Math.sqrt(energy/this.meterData.length)*2.8);}
+ readWaveform(output:Uint8Array):boolean{if(!this.bus||!this.ctx||this.ctx.state!=='running')return false;this.bus.meter.getByteTimeDomainData(output);return true;}
  get currentStep(){if(!this.ctx||!this.running)return 0;const d=60/this.getSession().tempo/4;return ((Math.floor((this.time-this.origin)/d+1e-4)%STEPS)+STEPS)%STEPS;}
  async unlock():Promise<void>{
   if(!this.ctx){const C=window.AudioContext||(window as Window & {webkitAudioContext?:typeof AudioContext}).webkitAudioContext;if(!C)throw Error('Web Audio недоступен');this.ctx=new C({latencyHint:'interactive'});this.capture=this.ctx.createMediaStreamDestination();void this.bank.restore(this.ctx).then(()=>this.events.onSamples?.()).catch(()=>{});this.bus=createBus(this.ctx,this.ctx.destination,this.getSession());this.bus.master.connect(this.capture);}
