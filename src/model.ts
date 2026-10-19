@@ -10,6 +10,13 @@ export const STYLES = [
  {name:'DARK',bpm:132,kick:[0,4,8,12],hat:[2,6,10,14],snare:[4,12],bass:[0,8,11],acid:[7,15]},
  {name:'RAVE',bpm:146,kick:[0,4,8,12],hat:[2,6,10,14],snare:[4,12],bass:[0,8],acid:[2,6,10,14]},
  {name:'PHONK',bpm:142,kick:[0,3,8,11],hat:[2,6,10,14],snare:[4,12],bass:[0,6,8,14],acid:[7,15]}
+,
+ {name:'INDUSTRIAL',bpm:158,kick:[0,4,7,8,12],hat:[2,4,6,10,12,14],snare:[4,12],bass:[0,7,11],acid:[3,10,14]},
+ {name:'HYPNOTIC',bpm:129,kick:[0,4,8,12],hat:[2,6,10,14],snare:[4,12],bass:[0,6,8,14],acid:[1,5,9,13]},
+ {name:'PEAK TIME',bpm:144,kick:[0,4,8,12,15],hat:[2,6,10,14,15],snare:[4,12],bass:[0,3,8,11],acid:[3,7,11,15]},
+ {name:'BREAKS',bpm:138,kick:[0,3,8,11,14],hat:[2,5,10,13],snare:[4,12],bass:[0,6,10],acid:[2,6,13]},
+ {name:'MINIMAL',bpm:124,kick:[0,4,8,12],hat:[6,14],snare:[4,12],bass:[0,8],acid:[7,15]},
+ {name:'ELECTRO',bpm:133,kick:[0,6,8,14],hat:[2,6,10,14],snare:[4,12],bass:[0,7,10],acid:[3,9,13]}
 ] as const;
 export const SCENES=['GROOVE','INTRO','BUILD','DROP','BREAK'] as const;
 const clone = (v:unknown) => JSON.parse(JSON.stringify(v)) as unknown;

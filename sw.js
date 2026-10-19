@@ -1,7 +1,10 @@
+const CACHE='artss-dj-creator-v21.0.0';
 const KIT=['/samples/kicks/punch-01.wav','/samples/kicks/punch-03.wav','/samples/kicks/deep-01.wav','/samples/kicks/tight-02.wav','/samples/claps/classic-01.wav','/samples/claps/classic-03.wav','/samples/snares/snap-01.wav','/samples/hats/closed-01.wav','/samples/hats/closed-05.wav','/samples/hats/open-01.wav','/samples/hats/open-03.wav','/samples/percs/tom-01.wav','/samples/percs/shaker-01.wav','/samples/percs/tick-02.wav','/samples/percs/blip-01.wav','/samples/cymbals/ride-01.wav'];
-const CACHE='artss-dj-creator-v20.1.0',SHELL=['/','/studio.css','/app/main.js','/app/model.js','/app/sounds.js','/app/engine.js','/app/sample-recorder.js','/app/smart.js','/app/clock.js','/app/arranger.js','/manifest.webmanifest','/icon.svg'];
-self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(c=>c.addAll([...SHELL,...KIT])).then(()=>self.skipWaiting())));
-self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>(k.startsWith('artss-live-')||k.startsWith('artss-dj-creator-'))&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
-self.addEventListener('fetch',event=>{const req=event.request;if(req.method!=='GET'||new URL(req.url).origin!==self.location.origin)return;
- event.respondWith(caches.match(req).then(found=>found||fetch(req).then(response=>{if(response.ok&&new URL(req.url).pathname.startsWith('/samples/')){const clone=response.clone();caches.open(CACHE).then(cache=>cache.put(req,clone)).catch(()=>{});}return response;})));
-});
+const SHELL=['/','/index.html','/studio.css','/app/main.js','/app/model.js','/app/sounds.js','/app/engine.js','/app/sample-recorder.js','/app/smart.js','/app/clock.js','/app/arranger.js','/manifest.webmanifest','/icon.svg'];
+self.addEventListener('install',event=>event.waitUntil((async()=>{const cache=await caches.open(CACHE);await cache.addAll(SHELL);await Promise.allSettled(KIT.map(url=>cache.add(url)));await self.skipWaiting()})()));
+self.addEventListener('activate',event=>event.waitUntil((async()=>{const keys=await caches.keys();await Promise.all(keys.filter(key=>key!==CACHE&&(key.startsWith('artss-live-')||key.startsWith('artss-dj-creator-'))).map(key=>caches.delete(key)));await self.clients.claim()})()));
+self.addEventListener('fetch',event=>{const request=event.request,url=new URL(request.url);if(request.method!=='GET'||url.origin!==self.location.origin)return;event.respondWith((async()=>{const cache=await caches.open(CACHE);
+ if(url.pathname.startsWith('/samples/')){const hit=await cache.match(request);if(hit)return hit;const response=await fetch(request);if(response.ok)await cache.put(request,response.clone());return response;}
+ // Network-first executable shell prevents stale installed PWA after deploy, with offline fallback.
+ try{const response=await fetch(request);if(response.ok)await cache.put(request,response.clone());return response;}catch(error){const hit=await cache.match(request);if(hit)return hit;if(request.mode==='navigate'){const home=await cache.match('/');if(home)return home;}throw error;}
+})())});
