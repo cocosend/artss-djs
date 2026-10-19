@@ -1,5 +1,6 @@
 import { defaultSession, importSession, PAD_NAMES, STYLES, SCENES, toggle } from './model.js';
 import { Engine } from './engine.js';
+import { composeGroove } from './arranger.js';
 const $ = (q) => document.querySelector(q);
 const getStorage = () => { for (const key of ['artss-live-session-v19', 'artss-live-session-v18']) {
     try {
@@ -141,30 +142,24 @@ finally {
     busy = false;
 } }
 const init = () => {
-    $('#crossfade').addEventListener('input', () => { state.crossfader = Number(($('#crossfade')).value) / 100; engine.updateMix(); save(); });
-    $('#crossfade').value = String(Math.round(state.crossfader * 100));
-    $('#filter').addEventListener('input', () => { state.filter = Number(($('#filter')).value) / 100; $('#filterValue').textContent = state.filter > .97 ? 'OPEN' : `${Math.round(state.filter * 100)}%`; engine.updateMix(); save(); });
+state.crossfader=.5;engine.updateMix();
+ $('#filter').addEventListener('input', () => { state.filter = Number(($('#filter')).value) / 100; $('#filterValue').textContent = state.filter > .97 ? 'OPEN' : `${Math.round(state.filter * 100)}%`; engine.updateMix(); save(); });
     $('#filter').value = String(Math.round(state.filter * 100));
     $('#filterValue').textContent = state.filter > .97 ? 'OPEN' : `${Math.round(state.filter * 100)}%`;
     $('#echo').addEventListener('input', () => { state.echo = Number(($('#echo')).value) / 100; $('#echoValue').textContent = `${Math.round(state.echo * 100)}%`; engine.updateMix(); save(); });
     $('#echo').value = String(Math.round(state.echo * 100));
     $('#echoValue').textContent = `${Math.round(state.echo * 100)}%`;
-    let vuClock = 0;
-    const vu = () => { const now = performance.now(); if (now - vuClock > 70) {
-        vuClock = now;
-        const v = engine.meterLevel;
-        const left = (1 - state.crossfader) * v * 130, right = state.crossfader * v * 130;
-        $('#vuA').style.height = `${Math.round(Math.min(100, left * 100))}%`;
-        $('#vuB').style.height = `${Math.round(Math.min(100, right * 100))}%`;
-    } requestAnimationFrame(vu); };
-    requestAnimationFrame(vu);
+    let vuClock=0;const vu=()=>{const now=performance.now();if(document.visibilityState==='visible'&&now-vuClock>90){vuClock=now;const v=engine.meterLevel;$('#outputMeter').style.width=`${Math.round(Math.min(100,v*100))}%`;$('#pulseDot').classList.toggle('on',engine.state==='PLAY');}requestAnimationFrame(vu);};requestAnimationFrame(vu);
     $('#bank').replaceChildren(...STYLES.map((s, i) => { const o = h('option', s.name); o.value = String(i); return o; }));
     $('#bank').value = String(state.style);
     $('#scene').replaceChildren(...SCENES.map((s, i) => { const o = h('option', s); o.value = String(i); return o; }));
     $('#scene').value = String(state.scene);
     $('#bpm').textContent = String(state.tempo);
     $('#bank').addEventListener('change', () => { state.style = Number($('#bank').value); state.tempo = STYLES[state.style]?.bpm ?? 136; $('#bpm').textContent = String(state.tempo); save(); paintPads(); updateSampleTarget(); });
-    $('#scene').addEventListener('change', () => { state.scene = Number($('#scene').value); save(); });
+    let generation=0,previousPattern=null;
+ $('#autoGroove').addEventListener('click',()=>{previousPattern=state.pattern.map(row=>row.slice());generation++;const energy=Number($('#density').value)/100;state.pattern=composeGroove(state.style,energy,generation);save();paintSteps();$('#undoGroove').hidden=false;setStatus('AUTO GROOVE READY');});
+ $('#undoGroove').addEventListener('click',()=>{if(!previousPattern)return;state.pattern=previousPattern;previousPattern=null;save();paintSteps();$('#undoGroove').hidden=true;setStatus('GROOVE RESTORED')});
+ $('#scene').addEventListener('change', () => { state.scene = Number($('#scene').value); save(); });
     $('#tempoDown').addEventListener('click', () => { state.tempo = Math.max(80, state.tempo - 1); $('#bpm').textContent = String(state.tempo); save(); });
     $('#tempoUp').addEventListener('click', () => { state.tempo = Math.min(175, state.tempo + 1); $('#bpm').textContent = String(state.tempo); save(); });
     $('#play').addEventListener('click', () => void safe(async () => { if (engine.state === 'PLAY')

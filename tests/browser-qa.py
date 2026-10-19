@@ -30,7 +30,12 @@ with sync_playwright() as playwright:
  assert page.locator('.pad').count()==8
  assert page.locator('.step').count()==8
  assert page.locator('.console').is_visible()
- assert page.locator('.channel').count()==2
+ assert page.locator('.channel').count()==0
+ assert not page.locator('#crossfade').count()
+ page.locator('#autoGroove').tap()
+ assert page.locator('#undoGroove').is_visible()
+ assert sum(1 for x in page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).pattern[0]') if x>0)>=4
+ page.locator('#undoGroove').tap()
  assert page.locator('body').evaluate('(el)=>el.scrollWidth <= innerWidth+2')
  # First gesture unlocks AudioContext; transport must not throw, and pad will respond.
  page.locator('#record').tap();page.wait_for_timeout(400)
@@ -47,7 +52,7 @@ with sync_playwright() as playwright:
  page.locator('[data-pane="mix"]').tap();assert page.locator('.mixrow').count()==8
  page.locator('#filter').fill('50');assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).filter')==.5
  page.locator('#echo').fill('30');assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).echo')==.3
- page.locator('#crossfade').fill('80');assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).crossfader')==.8
+ assert not page.locator('#crossfade').count()
  page.locator('.mixrow input[type="range"]').first.fill('67');assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).levels[0]')==.67
  page.locator('[data-pane="takes"]').tap()
  with page.expect_download(timeout=60000) as event: page.locator('#export').tap()
