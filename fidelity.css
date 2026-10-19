@@ -1,0 +1,35 @@
+/* ARTSS NEXUS / responsive visual calibration to the approved reference */
+:root{--nexus-black:#000001;--nexus-white:#fdfdff;--nexus-yellow:#ffeb00;--nexus-red:#ff2435}
+.nexus-app{--surface-gap:clamp(3px,.55svh,6px);gap:var(--surface-gap)!important;padding-block-start:max(7px,env(safe-area-inset-top))!important;padding-block-end:max(5px,env(safe-area-inset-bottom))!important}
+.nexus-header{height:clamp(43px,5.6svh,56px);min-height:0}
+.brand-stack{padding-left:0;transform:translateX(12px)}.brand-stack b{font-weight:950;text-shadow:0 0 5px #fff5}.brand-stack span{font-size:8px}
+.hero-deck{height:clamp(113px,14svh,140px);min-height:0;grid-template-columns:clamp(67px,20vw,82px) minmax(0,1fr) clamp(67px,20vw,82px);gap:5px;padding:5px;border-radius:13px}
+.hero-deck .deck-transport{gap:3px;padding-top:5px}.hero-deck .deck-disc{width:clamp(54px,17vw,73px);height:clamp(54px,17vw,73px)}.deck-label{font-size:clamp(9px,2.4vw,11px)}
+.trackline{height:20px}.hero-wave #waveform{height:clamp(51px,7.6svh,71px)}#trackName{font-size:8px}
+.status-strip{min-height:12px;max-height:12px}
+.control-deck{grid-template-columns:minmax(0,1fr) clamp(94px,28vw,116px) minmax(0,1fr);gap:5px;min-height:clamp(85px,11svh,105px)}
+.control-deck>.select-unit,.control-deck>.bpm-unit{padding-block:7px 4px}.control-deck strong{font-size:9px}.arrow-select{margin-top:8px}.arrow-select button{height:31px}.arrow-select select{height:29px}.selector-lights{margin-top:8px}
+.bpm-counter{margin:2px 0}.bpm-counter #bpm{font-size:27px}#tapTempo{height:18px}
+.creator-actions{min-height:clamp(59px,8svh,77px);grid-template-columns:clamp(59px,18vw,73px) minmax(0,1fr) clamp(59px,18vw,73px);gap:5px}
+.creator-actions .side-action{gap:3px;padding:3px;font-size:8px}.galaxy{font-size:clamp(23px,7vw,34px)}.auto-lines strong{font-size:clamp(11px,3.4vw,16px)}.auto-lines small{font-size:clamp(6px,1.9vw,8px)}
+.utility-actions{min-height:10px}.utility-actions label{font-size:7px}.utility-actions input{height:10px}
+.nexus-app .section-heading{min-height:clamp(24px,3.1svh,31px);margin:1px 0 4px}.nexus-app .section-heading h2{font-size:clamp(11px,3.15vw,13px)}
+.nexus-app .pads{gap:5px}.nexus-app .pad{height:clamp(63px,8.45svh,82px);min-height:0;padding:5px 3px 7px;border-radius:11px}.nexus-app .pad-glyph svg{width:clamp(21px,6.8vw,27px);height:clamp(21px,6.8vw,27px)}
+.nexus-app .pad-name{font-size:clamp(8px,2.3vw,10px)}.nexus-app .seqheading{margin-top:5px}
+.nexus-app .pattern-overview{padding:6px 5px;gap:3px}.pattern-lane{grid-template-columns:44px minmax(0,1fr);gap:3px}.pattern-lane-name{height:20px}.pattern-cell{height:clamp(16px,2.5svh,22px)}.timeline-numbers span{font-size:6px}
+.advanced-editor{margin-top:4px}.advanced-editor>summary{padding:5px 8px;font-size:8px}
+.main-mixer{min-height:clamp(66px,9svh,83px);margin-top:5px;padding:6px;gap:5px}.mix-sign{width:28px}.eq-cluster{gap:3px}.knob-unit{width:clamp(36px,10vw,50px);gap:1px}
+.knob-visual{width:clamp(34px,9.8vw,47px);height:clamp(34px,9.8vw,47px)}.knob-unit input{width:clamp(35px,10vw,48px);height:clamp(35px,10vw,48px)}.knob-visual:after{height:16px;transform-origin:50% 18px}.cross-unit{padding-left:5px;min-width:57px}.cross-unit>div{font-size:10px}
+.sample-recorder:not([open]){display:none!important}.sample-recorder[open]{display:block!important}
+.nexus-app .bottomnav{position:sticky;bottom:0;min-height:clamp(48px,6svh,60px);margin-top:auto;padding:3px 2px max(4px,env(safe-area-inset-bottom));background:linear-gradient(180deg,#151518,#000 38%)}
+.nexus-app .bottomnav button{min-height:43px;font-size:clamp(7px,1.9vw,9px)}.nexus-app .bottomnav button span{font-size:19px}
+.nexus-app .pad{touch-action:manipulation}
+@media(max-width:370px){
+ .brand-stack{transform:translateX(8px)}.nexus-header{grid-template-columns:35px 1fr 77px}
+ .hero-deck{grid-template-columns:63px minmax(0,1fr) 63px}.hero-deck .deck-disc{width:51px;height:51px}
+ .control-deck{grid-template-columns:minmax(0,1fr) 89px minmax(0,1fr)}.arrow-select button{width:19px}
+ .creator-actions{grid-template-columns:56px minmax(0,1fr) 56px}
+ .pattern-lane{grid-template-columns:39px minmax(0,1fr)}.pattern-cell{height:17px}
+}
+@media(min-height:880px){.nexus-app{gap:7px!important}.nexus-app .pad{height:86px}.pattern-cell{height:24px}.hero-deck{height:141px}.main-mixer{min-height:88px}}
+@media(hover:none){.nexus-app input,.nexus-app button,.nexus-app summary{touch-action:manipulation}}
