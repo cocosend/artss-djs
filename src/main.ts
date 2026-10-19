@@ -28,7 +28,17 @@ function paintPads(){const wrap=$('#pads');wrap.replaceChildren();PAD_NAMES.forE
  const p=h('button','','pad') as HTMLButtonElement;p.type='button';p.style.setProperty('--tone',['#ff2839','#fbe600','#f8fbff','#ffdf00','#fbfdff','#8f9baa','#ff2839','#ffdf00'][i]??'#fff');p.setAttribute('aria-label',`Играть ${name}`);p.dataset.pad=String(i);
  const top=h('span',`${String(i+1).padStart(2,'0')}`,'pad-number'),short=h('span',name,'pad-name');
  const dot=h('span',engine.bank.customInfo(i,state.style)?'OWN':'','pad-own');
- const glyph=h('span',['◉','▣','✳','✦','◎','◇','≈','▥'][i]??'◆','pad-glyph');
+ const glyphPaths=[
+  '<circle cx="12" cy="12" r="7"/><path d="M7 6 4 3M17 6l3-3M6 19l-2 2m14-2 2 2"/>',
+  '<path d="M2 13h3l2-6 4 11 4-13 3 8h4"/>',
+  '<path d="M6 8c-2-2-3-1-3 1v5c0 4 4 7 9 7 5 0 9-3 9-7v-4c0-2-2-3-3-1V6c0-2-3-2-3 0V4c0-2-3-2-3 0v2c0-2-3-2-3 0v2"/>',
+  '<path d="M3 10c5-5 13-5 18 0-4 3-14 3-18 0ZM12 10v10m-4 0h8M12 3v3"/>',
+  '<path d="M3 10c5-4 13-4 18 0m-18 4c5 4 13 4 18 0m-9 0v7m-5 0h10"/>',
+  '<ellipse cx="12" cy="7" rx="7" ry="3"/><path d="M5 7v11c0 4 14 4 14 0V7M9 10v9m6-9v9"/>',
+  '<path d="M3 17 7 7l4 10 4-10 4 10M4 20h16"/>',
+  '<path d="M12 2v5m0 10v5M2 12h5m10 0h5M5 5l4 4m6 6 4 4M5 19l4-4m6-6 4-4"/><circle cx="12" cy="12" r="3"/>'
+ ] as const;
+ const glyph=h('span','','pad-glyph');glyph.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+glyphPaths[i]+'</svg>';
  const bar=h('span','','pad-bar');p.append(top,glyph,short,dot,bar);
  if(i===state.selected)p.classList.add('selected');if(state.muted[i])p.classList.add('muted');
  p.addEventListener('pointerdown',async e=>{if(e.pointerType==='mouse'&&e.button!==0)return;e.preventDefault();state.selected=i;save();for(const other of wrap.querySelectorAll('.pad'))other.classList.toggle('selected',other===p);$('#selectedPad').textContent=name;updateSampleTarget();paintSteps();p.classList.add('pressed');
