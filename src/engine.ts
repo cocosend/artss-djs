@@ -52,7 +52,7 @@ export class Engine{
  private clock:AudioWorkletNode|null=null;private fallback:number|null=null;
  private pending=false;private running=false;private recordArmed=false;private origin=0;private nextStep=0;private nextTime=0;private stopAt=0;
  private active=new Set<{stop:()=>void;until:number}>();
- private generation=0;private recorder:MediaRecorder|null=null;private capture:MediaStreamAudioDestinationNode|null=null;
+ private generation=0;private scheduledTempo=136;private recorder:MediaRecorder|null=null;private capture:MediaStreamAudioDestinationNode|null=null;
  private recorded:Blob[]=[];private currentChunks:Blob[]=[];
  private gain=1;private sampleRecorder=new SampleRecorder();private sampleTarget:{pad:number;style:number}|null=null;events:EngineEvents={};
  constructor(readonly getSession:()=>Session){if(typeof indexedDB!=='undefined')void this.restoreTakes();}
@@ -88,7 +88,7 @@ export class Engine{
  async start(){const generation=this.generation;await this.unlock();if(this.running||this.generation!==generation)return;await this.bank.warm(this.ctx!);if(this.running||this.generation!==generation)return;const d=60/this.getSession().tempo/4;
   if(this.stopAt>0){const progress=this.stopAt-this.origin;this.origin=this.time-progress;this.nextStep=Math.max(0,Math.ceil((this.time-this.origin)/d));this.nextTime=this.origin+this.nextStep*d;}
   else{this.origin=this.time+.05;this.nextStep=0;this.nextTime=this.origin;}
-  this.running=true;this.stopAt=0;this.generation++;this.pump();this.events.onState?.('PLAY');
+  this.scheduledTempo=this.getSession().tempo;this.running=true;this.stopAt=0;this.generation++;this.pump();this.events.onState?.('PLAY');
  }
  pause(){if(!this.running)return;this.running=false;this.stopAt=this.time;this.generation++;this.silence();this.events.onState?.('PAUSE');}
  stop(){this.running=false;this.stopAt=0;this.recordArmed=false;this.nextStep=0;this.nextTime=0;this.generation++;this.silence();this.events.onState?.('STOP');}
@@ -105,7 +105,8 @@ export class Engine{
  }
  private silence(){for(const v of this.active){try{v.stop();}catch{}}this.active.clear();}
  private pump(){if(!this.ctx||!this.running||!this.bus)return;
-  const now=this.ctx.currentTime;const d=60/this.getSession().tempo/4;
+  const now=this.ctx.currentTime;const tempo=this.getSession().tempo;const d=60/tempo/4;
+  if(this.scheduledTempo!==tempo){this.origin=this.nextTime-this.nextStep*d;this.scheduledTempo=tempo;}
   // Safari background suspension: fast-forward stale transport steps instead of bursting delayed notes.
   if(this.nextTime<now-.035){const skip=Math.max(1,Math.ceil((now-this.nextTime-.008)/d));this.nextStep+=skip;this.nextTime+=skip*d;}
   while(this.nextTime<now+.115){const step=this.nextStep%STEPS,session=this.getSession();

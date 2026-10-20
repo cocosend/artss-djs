@@ -26,14 +26,16 @@ with sync_playwright() as playwright:
  if os.getenv('ARTSS_LOCAL_PREVIEW')=='1':
   context.route('https://artss.test/**',serve_static)
   URL='https://artss.test/'
- page.goto(URL,wait_until='networkidle');assert 'NEXUS 24' in page.title(),page.title()
- assert page.locator('.pad').count()==8
+ page.goto(URL,wait_until='networkidle');assert 'NEXUS 25' in page.title(),page.title()
+ assert page.locator('.pad').count()==6
+ assert page.locator('.pad[data-pad="4"]').count()==0
+ assert page.locator('.pad[data-pad="7"]').count()==0
  assert page.locator('.step').count()==8
  assert page.locator('.hero-deck').is_visible()
  assert page.locator('.control-deck').is_visible()
  assert page.locator('.creator-actions').is_visible()
  assert page.locator('.main-mixer').is_visible()
- assert page.locator('.bottomnav button').count()==5
+ assert page.locator('.bottomnav button').count()==3
  assert page.locator('#waveform').count()==1
  assert page.locator('.pattern-lane').count()==4
  assert page.locator('.pattern-cell').count()==64
@@ -76,10 +78,22 @@ with sync_playwright() as playwright:
  assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).eqLow')==4
  page.locator('#crossfade').fill('66')
  assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).crossfader')==.66
- page.locator('[data-pane="library"]').tap()
+ page.locator('[data-pane="sources"]').tap()
+ assert page.locator('#sourceMount iframe').count()==0
+ page.locator('#sourceLink').fill('https://evil-soundcloud.com/x/y')
+ page.locator('#sourceForm button[type="submit"]').tap()
+ assert page.locator('#sourceMount iframe').count()==0
+ page.locator('#sourceLink').fill('https://music.youtube.com/watch?v=dQw4w9WgXcQ')
+ page.locator('#sourceForm button[type="submit"]').tap()
+ assert page.locator('#sourceMount iframe').count()==1
+ assert 'youtube-nocookie.com/embed/' in page.locator('#sourceMount iframe').get_attribute('src')
+ page.locator('[data-pane="main"]').tap()
+ assert page.locator('#sourceMount iframe').count()==0
+ page.locator('#menuToggle').tap()
+ page.locator('#drawerPresets').tap()
  assert page.locator('.library-style').count()==12
  page.locator('[data-pane="main"]').tap()
- page.locator('[data-pane="mix"]').tap();assert page.locator('.mixrow').count()==8
+ page.locator('#menuToggle').tap();page.locator('#drawerFX').tap();assert page.locator('.mixrow').count()==8
  page.locator('#filter').fill('50');assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).filter')==.5
  page.locator('#echo').fill('30');assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).echo')==.3
  assert page.locator('#crossfade').count()==1
