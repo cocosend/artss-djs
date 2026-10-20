@@ -38,3 +38,14 @@ test('music sources validate exact domains, trusted embed origins and paths',()=
  const apple=resolveMusicSource('https://music.apple.com/us/album/example/123456789?i=987654321');assert.equal(apple.platform,'Apple Music');assert.match(apple.embedUrl,/embed.music.apple.com/);
  for(const link of ['javascript:alert(1)','https://fake.soundcloud.com/user/track','https://soundcloud.com.bad.test/user/track','http://127.0.0.1/audio','https://youtube.com/watch?v=%3Cscript%3E','https://music.apple.com/us/browse','https://youtube.com/watch?v=dQw4w9WgXcQ&list=o'])assert.throws(()=>resolveMusicSource(link));
 });
+
+test('sample overrides are user-controlled and never imported by an automatic classifier',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const source=readFileSync('src/sounds.ts','utf8'),engine=readFileSync('src/engine.ts','utf8');
+ assert.match(source,/overridePad===undefined/);
+ assert.match(source,/const url=options\[0\]/);
+ assert.match(source,/async restoreFactory\(/);
+ assert.match(source,/store\.delete\(pad\)/);
+ assert.match(engine,/async restoreFactorySound\(/);
+ assert.match(engine,/if\(slot===undefined\)throw/);
+});
