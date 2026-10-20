@@ -1,0 +1,80 @@
+/* ARTSS NEXUS 26 / AURORA — restrained black-violet, pearlescent cyan and red */
+:root{color-scheme:dark;--bg:#03030a;--panel:#101020;--panel2:#1c1833;--line:#525070;--text:#f8faff;--hi:#ffffff;--sub:#afb5c9;--ice:#ecfeff;--a:#ff354e;--b:#48f4de;--red:#ff354e;--yellow:#54f4e8;--focus-outline:#7ef8e9}
+html{background:#020208;overscroll-behavior-y:contain}
+body{background:radial-gradient(ellipse 82% 25% at 80% -10%,#422066 0%,transparent 74%),radial-gradient(ellipse 48% 39% at -15% 34%,#13244880 0%,transparent 90%),linear-gradient(170deg,#0c091b 0%,#03030b 41%,#020208 100%);background-attachment:fixed;color:#f7f9ff}
+.nexus-app{gap:clamp(7px,1svh,11px)!important;max-width:560px}
+.nexus-header{border-bottom:1px solid #4c3c70;box-shadow:none}
+.nexus-app .brand-stack b{color:#fbfaff;text-shadow:0 0 13px #947ae954;font-weight:950}
+.nexus-app .brand-stack span{color:#87efe5;letter-spacing:.25em}
+.chrome-icon{background:linear-gradient(145deg,#2b1d41,#0a0b16)!important;border-color:#6c558c!important;box-shadow:inset 0 1px #af92cf65!important;color:#f6eaff!important}
+.nexus-app .hero-deck,.nexus-app .control-deck,.nexus-app .main-mixer,.nexus-app .pattern-overview{
+ border:1px solid #55476e!important;
+ background:linear-gradient(150deg,#282142 0%,#100e20 23%,#050614 75%,#19152b 100%)!important;
+ box-shadow:inset 0 1px #c6bbf04a,0 5px 15px #0008!important;
+}
+.nexus-app .hero-wave{background:linear-gradient(135deg,#141126,#060810)!important;border-color:#484063!important}
+.nexus-app #waveform{background:#03030b!important}
+.nexus-app .deck-disc{border-color:#a99acc!important;box-shadow:inset 0 1px #fff5,0 0 13px #5437a654!important}
+.nexus-app .deck-play .deck-disc{border-color:#52eddf!important;box-shadow:0 0 14px #30eec64f,inset 0 1px #fff6!important}
+.nexus-app .deck-play-icon,.nexus-app #runState{color:#74fff0!important}
+.nexus-app .deck-record .deck-disc{border-color:#ff3757!important;box-shadow:0 0 13px #ff36563b!important}
+.nexus-app .trackline{color:#e7e8f3}.nexus-app .trackline #stop{color:#ff5f7a}
+.nexus-app .selector-lights i.active{background:#6af9e9!important;box-shadow:0 0 8px #6af9e988}
+.nexus-app .select-unit,.nexus-app .bpm-unit{background:linear-gradient(150deg,#241c39,#0b0b17)!important;border-color:#58466e!important}
+.nexus-app .bpm-counter #bpm{color:#f6f9ff;text-shadow:0 0 12px #80f6e75e}
+.nexus-app .arrow-select select,.nexus-app .arrow-select button{color:#f0f5ff!important}
+.nexus-app #tapTempo{border-color:#49e5d5!important;color:#90fff0!important;background:#122a30!important}
+.nexus-app .creator-actions{gap:6px}.nexus-app .creator-actions .auto{color:#f4feff!important;border-color:#52d7cc!important;background:linear-gradient(135deg,#194858,#17112d,#21102d)!important;box-shadow:inset 0 1px #d0fffc73,0 0 9px #1dcbca27!important}
+.nexus-app .creator-actions .side-action{background:linear-gradient(140deg,#281c40,#090b17)!important;border-color:#58456f!important}
+.nexus-app .galaxy{color:#70f9e5!important;text-shadow:0 0 12px #6ef6e683}
+.nexus-app .section-heading h2{color:#fcfdff;letter-spacing:.1em}
+.nexus-app .pad-head,.nexus-app .seqheading{margin-block:8px 5px}
+.nexus-app .pads{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.nexus-app .pad{height:clamp(82px,11svh,108px);min-height:0;padding:9px 6px;border-radius:15px;background:linear-gradient(145deg,#34254e 0%,#17162c 13%,#0a0a19 74%,#211d36)!important;
+ border:1px solid #615177!important;border-bottom:3px solid var(--tone)!important;
+ box-shadow:inset 0 1px #b7c1dc7a,0 5px 10px #000a!important;contain:paint;transform:translateZ(0)}
+.nexus-app .pad.selected{border-color:#7dfbed!important;box-shadow:inset 0 1px #dfffffbb,0 0 0 1px #70ffdf9c!important}
+.nexus-app .pad:active{transform:scale(.98)}.nexus-app .pad-glyph svg{stroke:var(--tone)}
+.nexus-app .pad-name{font-weight:900;color:#f9faff}
+.nexus-app .pad-subhead{color:#84e4e2}
+.more-pads{display:block;width:100%;height:34px;margin:8px 0 4px;border:1px solid #48445e;border-radius:11px;background:linear-gradient(125deg,#251a3b,#0b0d19);color:#acfcf3;font-size:10px;letter-spacing:.13em;font-weight:900}
+.nexus-app .pattern-lane-name.active{color:#85fff1!important}
+.nexus-app .step.on{background:linear-gradient(135deg,#98fff1,#3bb7c1)!important;color:#041222!important;border-color:#68e2da!important;box-shadow:none!important}
+.nexus-app .step.playhead,.nexus-app .pattern-cell.playhead{box-shadow:0 0 0 2px #f74766!important}
+.nexus-app .knob-visual{background:conic-gradient(from -132deg,#80fff0 0 27%,#51496a 27% 74%,#0e1022 74%)!important;border-color:#5b4d74!important}
+.nexus-app .knob-visual:before{background:linear-gradient(135deg,#d7f7f2,#4b4669 22%,#111122 53%,#aebbc5 80%,#211e37)!important}
+.nexus-app input[type=range]{accent-color:#65eadd}
+.nexus-app .sample-recorder{border-color:#604974!important}
+.nexus-app .bottomnav{display:flex!important;overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;gap:5px;
+ padding:6px 4px max(4px,env(safe-area-inset-bottom));background:linear-gradient(180deg,#21162eea,#060712 35%,#04050b)!important;border-color:#625078!important;
+ scrollbar-width:none;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+.nexus-app .bottomnav::-webkit-scrollbar{display:none}
+.nexus-app .bottomnav button{flex:0 0 calc((100% - 20px)/4.3);min-width:69px;scroll-snap-align:center;min-height:49px;border-radius:10px;color:#aebac8}
+.nexus-app .bottomnav button.active{background:linear-gradient(145deg,#27394a,#1a172d)!important;border:1px solid #4de7d69c!important;color:#99fff0!important;box-shadow:inset 0 1px #89fae05c!important;text-shadow:none!important}
+.nexus-app .bottomnav button.active span{color:#6af8e7!important;text-shadow:none!important}
+.fan-workspace{margin-top:11px;display:grid;gap:8px}
+.workspace-fan{background:linear-gradient(140deg,#241936,#0c0b1c 65%,#141020);border:1px solid #544467;border-radius:15px;overflow:hidden;box-shadow:inset 0 1px #c6b1de3a}
+.workspace-fan[open]{border-color:#6686aa;box-shadow:inset 0 1px #d1d7eb66,0 4px 16px #0008}
+.workspace-fan>summary{list-style:none;display:flex;gap:13px;align-items:center;min-height:63px;padding:11px 14px;cursor:pointer;touch-action:manipulation;user-select:none}
+.workspace-fan>summary::-webkit-details-marker{display:none}
+.fan-icon{display:flex;align-items:center;justify-content:center;width:36px;height:36px;flex:none;border:1px solid #68507c;border-radius:12px;font-size:17px;color:#89fbef;background:linear-gradient(140deg,#373055,#121329)}
+.fan-text{display:flex;flex-direction:column;gap:4px;min-width:0}.fan-text strong{font-size:12px;letter-spacing:.13em;color:#fff}.fan-text small{font-size:9px;color:#aeb7ca;line-height:1.3}
+.fan-arrow{margin-left:auto;color:#90f3ea;font-size:19px;transition:transform .14s}.workspace-fan[open] .fan-arrow{transform:rotate(180deg)}
+.workspace-fan>section{padding:10px 11px 16px!important;min-height:0!important;border-top:1px solid #54476b;background:linear-gradient(145deg,#161228,#070a16)!important}
+.workspace-fan .section-heading{margin:2px 0 12px}
+.sound-library{display:grid;gap:12px}.sound-notice,.sound-hint{margin:0;color:#c3ccdc;font-size:11px;line-height:1.5}.sound-hint{font-size:10px;color:#8fa1b2}
+.sound-select{display:flex;flex-direction:column;gap:7px;font-size:10px;letter-spacing:.15em;font-weight:900;color:#b4fff5}
+.sound-select select{width:100%;height:48px;border:1px solid #665c83;border-radius:10px;background:#0e1021;color:#fff;font-weight:800;padding:0 12px}
+.sound-info{font-size:12px;color:#a8faec;font-weight:850;letter-spacing:.06em;margin:0}
+.sound-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.sound-actions button{min-height:51px;padding:8px;border:1px solid #65547d;border-radius:11px;background:linear-gradient(135deg,#24273f,#101121);color:#fff;font-size:10px;font-weight:900}
+#replaceSound{border-color:#68e4d7!important;color:#a7fff1!important}
+#restoreSound{border-color:#f3486d!important;color:#ffa1b0!important}
+#restoreSound:disabled{opacity:.4}
+.nexus-app .library-style.on{border-color:#77ede2!important;color:#a2fff0!important;box-shadow:none!important}
+.nexus-app .library-style{background:linear-gradient(135deg,#28203b,#101221);border-color:#5a4f70}
+.nexus-app .fxbox,.nexus-app .mixrow,.nexus-app .profile-card{background:linear-gradient(140deg,#241c35,#090b1b)!important;border-color:#605478!important}
+.nexus-app .takebutton{border-color:#f24e65!important;background:linear-gradient(135deg,#461b39,#170f1e)!important}
+.nexus-app button:focus-visible,.nexus-app select:focus-visible,.nexus-app summary:focus-visible{outline:2px solid #76ffee;outline-offset:2px}
+@media(max-width:360px){.nexus-app .pads{gap:6px}.nexus-app .pad{height:76px;padding:7px 3px}.nexus-app .bottomnav button{flex-basis:25%;min-width:66px}.fan-text small{font-size:8px}.workspace-fan>summary{padding:9px}}
+@media(min-height:880px){.nexus-app .pad{height:111px}}
+@media(prefers-reduced-motion:reduce){.fan-arrow{transition:none}.nexus-app .pad{transform:none}}
