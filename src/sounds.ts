@@ -12,10 +12,28 @@ const paths=[
 ];
 export type Sound={buffer:AudioBuffer;gain:number;lowCut:number;highCut:number;name:string;user:boolean};
 export class SoundBank {
- private restored=false;private deleted=new Set<string>();private defaultBuffers=new Map<string,AudioBuffer>();private warming:Promise<void>|null=null;private raw=new Map<string,Promise<ArrayBuffer>>();private custom=new Map<string,Sound>();
+ private restored=false;private deleted=new Set<string>();private decoding=new Map<string,Promise<void>>();private defaultBuffers=new Map<string,AudioBuffer>();private warming:Promise<void>|null=null;private raw=new Map<string,Promise<ArrayBuffer>>();private custom=new Map<string,Sound>();
  constructor(){this.preload();}
  private preload(){for(const row of paths)for(const path of row){if(!this.raw.has(path))this.raw.set(path,fetch(path,{cache:'force-cache'}).then(r=>{if(!r.ok)throw Error('sample unavailable');return r.arrayBuffer()}).catch(()=>new ArrayBuffer(0)));}}
- async warm(ctx:AudioContext):Promise<void>{if(this.warming)return this.warming;const needed=new Set(paths.flat());const promise=Promise.allSettled([...needed].map(async path=>{if(this.defaultBuffers.has(path))return;const raw=await this.raw.get(path);if(!raw?.byteLength)return;const buff=await ctx.decodeAudioData(raw.slice(0));this.defaultBuffers.set(path,buff);})).then(()=>{});this.warming=promise;await promise;}
+ private async decodePath(ctx:AudioContext,path:string):Promise<void>{
+  if(this.defaultBuffers.has(path))return;
+  const existing=this.decoding.get(path);if(existing)return existing;
+  const pending=(async()=>{const raw=await this.raw.get(path);if(!raw?.byteLength)throw Error('Factory WAV not available: '+path);
+   const buffer=await ctx.decodeAudioData(raw.slice(0));this.defaultBuffers.set(path,buffer);
+  })();this.decoding.set(path,pending);
+  try{await pending}finally{this.decoding.delete(path)}
+ }
+ async ensurePad(ctx:AudioContext,pad:number):Promise<void>{
+  if(!Number.isInteger(pad)||pad<0||pad>=8)return;
+  const path=paths[pad]?.[0];if(path)await this.decodePath(ctx,path);
+ }
+ async warm(ctx:AudioContext):Promise<void>{
+  if(this.warming)return this.warming;
+  const pending=(async()=>{const files=[...new Set(paths.flat())];
+   // WebKit struggles with multiple concurrent decoder jobs; bound parallelism to two.
+   for(let i=0;i<files.length;i+=2)await Promise.allSettled(files.slice(i,i+2).map(path=>this.decodePath(ctx,path)));
+  })();this.warming=pending;try{await pending}finally{this.warming=null}
+ }
  resolve(pad:number,style:number):Sound|null {
  const imported=this.custom.get(`${style}:${pad}`) ?? this.custom.get(`legacy:${pad}`);if(imported)return imported;
  const options=paths[pad];if(!options?.length)return null;

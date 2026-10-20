@@ -70,8 +70,7 @@ export class Engine{
   if(!this.ctx){const C=window.AudioContext||(window as Window & {webkitAudioContext?:typeof AudioContext}).webkitAudioContext;if(!C)throw Error('Web Audio недоступен');this.ctx=new C({latencyHint:'interactive'});void this.bank.restore(this.ctx).then(()=>this.events.onSamples?.()).catch(()=>{});this.bus=createBus(this.ctx,this.ctx.destination,this.getSession());}
   if(this.ctx.state!=='running')await this.ctx.resume();
   if(this.ctx.state!=='running')throw Error('Разреши воспроизведение звука в Safari');
-  // Keep the audio context gesture-driven. Sample arrays are fetched before first play.
-  void this.bank.warm(this.ctx).catch(()=>{});
+  // Decoding is demand-driven: a pad never waits for all eight WAV decoders.
   if(!this.clock&&this.fallback===null){
    this.fallback=window.setInterval(()=>this.pump(),25); // reliable on the very first gesture
    void this.enableWorklet(this.ctx);
@@ -96,7 +95,7 @@ export class Engine{
  async hit(pad:number,velocity=1){if(!Number.isInteger(pad)||pad<0||pad>7||this.getSession().muted[pad])return;
   // Do not await resume or worklet setup once AudioContext is already running. Trigger voice on pointerdown.
   if(!this.ctx||this.ctx.state!=='running'||!this.bus)await this.unlock();
-  if(!this.bank.resolve(pad,this.getSession().style))await this.bank.warm(this.ctx!);
+  if(!this.bank.resolve(pad,this.getSession().style))await this.bank.ensurePad(this.ctx!,pad);
   const now=this.ctx!.currentTime+.002;
   this.voice(this.ctx!,((pad===1||pad>=6)?this.bus!.b:this.bus!.a),pad,now,velocity,this.getSession().style,this.getSession().levels[pad]??1);
   if(this.recordArmed&&this.running){const d=60/this.getSession().tempo/4;
