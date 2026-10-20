@@ -13,8 +13,8 @@
  <link rel="stylesheet" href="/studio.css">
  <link rel="stylesheet" href="/nexus.css">
  <link rel="stylesheet" href="/reference.css">
- <link rel="stylesheet" href="/fidelity.css">
- <title>ARTSS NEXUS 24.1 — DJ CREATOR</title>
+ <link rel="stylesheet" href="/fidelity.css"><link rel="stylesheet" href="/minimal.css">
+ <title>ARTSS NEXUS 25.0 — LIVE STUDIO</title>
 </head>
 <body>
 <div class="app nexus-app">
@@ -27,12 +27,15 @@
   </div>
  </header>
  <aside id="drawer" class="drawer" hidden>
-  <div class="drawer-head"><strong>ARTSS NEXUS</strong><span>STUDIO 24</span></div>
+  <div class="drawer-head"><strong>ARTSS NEXUS</strong><span>STUDIO 25</span></div>
   <p>One engine · one creative workspace</p>
   <button id="drawerImport" type="button">+ IMPORT SAMPLE</button>
   <button id="drawerRecord" type="button">● AUDIO RECORDING</button>
   <button id="drawerSample" type="button">◉ RECORD A NEW SAMPLE</button>
   <button id="drawerSettings" type="button">⚙ LOCAL SETTINGS</button>
+  <button id="drawerFX" type="button">≋ ADVANCED MIX / FX</button>
+  <button id="drawerPresets" type="button">♫ PRESET STYLES</button>
+  <details class="drawer-banks"><summary>◈ PATTERN BANKS</summary><div id="kitBanks" class="kit-banks" role="group" aria-label="Банки паттернов"><button type="button" data-kit="0" class="active">A</button><button type="button" data-kit="1">B</button><button type="button" data-kit="2">C</button><button type="button" data-kit="3">D</button></div></details>
  </aside>
  <section class="hero-deck" aria-label="Панель воспроизведения и записи">
   <button id="play" class="deck-transport deck-play" aria-label="Запустить или приостановить"><span class="deck-disc"><span class="deck-play-icon">▶</span></span><span class="deck-label">PLAY</span></button>
@@ -66,8 +69,8 @@
  </section>
  <div class="utility-actions"><label for="density">ENERGY <input id="density" type="range" min="25" max="100" value="70" aria-label="Плотность ритма"></label><button id="undoGroove" class="undo" hidden>↶ UNDO GROOVE</button></div>
  <main id="mainPanel">
-  <div class="section-heading pad-head"><div class="headline"><span class="heading-icon">▦</span><h2>DRUM PADS</h2></div><div id="kitBanks" class="kit-banks" role="group" aria-label="Банки пэдов"><button type="button" data-kit="0" class="active">A</button><button type="button" data-kit="1">B</button><button type="button" data-kit="2">C</button><button type="button" data-kit="3">D</button></div></div>
-  <div id="pads" class="pads"></div>
+  <div class="section-heading pad-head"><div class="headline"><span class="heading-icon">▦</span><h2>PERFORMANCE PADS</h2></div><span class="pad-subhead">6 INSTRUMENTS</span></div>
+  <div id="pads" class="pads" aria-label="Шесть основных инструментов"></div>
   <div class="section-heading seqheading"><div class="headline"><span class="heading-icon">▦</span><h2>STEP SEQUENCER</h2></div><button type="button" id="seqEdit" class="sequencer-edit" aria-label="Редактирование всех пэдов">DRUMS <span>⌄</span></button></div>
   <div id="patternOverview" class="pattern-overview" aria-label="Редактируемый 16-шаговый ритм"></div>
   <details id="advancedEditor" class="advanced-editor"><summary>EDIT PAD <em id="selectedPad">KICK</em><small id="stepLabel">01–08 / 16</small></summary>
@@ -92,6 +95,16 @@
    <button id="addSound" type="button" class="upload"><span class="up-icon">+</span><span><b>ADD YOUR SAMPLE</b><small>Import WAV · MP3 · AAC</small></span><span class="uplarr">↗</span></button>
   </details>
  </main>
+ <section id="sourcesPanel" hidden><div class="section-heading"><h2>MUSIC SOURCES</h2><span class="hint">OFFICIAL PLAYERS</span></div>
+  <p class="source-intro">Listen to SoundCloud, YouTube Music and Apple Music with their embedded players. External streams are separate from the DJ mix.</p>
+  <form id="sourceForm" class="source-form"><label for="sourceLink">TRACK OR PLAYLIST URL</label><div class="source-input-row"><input id="sourceLink" type="url" inputmode="url" autocomplete="url" placeholder="Paste SoundCloud / YouTube / Apple Music link" required><button type="submit">LOAD</button></div></form>
+  <div class="source-providers"><span>SoundCloud</span><span>YouTube Music</span><span>Apple Music</span></div>
+  <div id="sourceStatus" class="source-status" role="status">Paste a public link to load an official player.</div>
+  <div id="sourceMount" class="source-mount"></div>
+  <div id="sourceActions" class="source-actions" hidden><a id="sourceOriginal" target="_blank" rel="noopener noreferrer">OPEN ORIGINAL ↗</a><button id="sourceClose" type="button">CLOSE PLAYER</button></div>
+  <p class="source-policy">Use audio files you own or are licensed to process for remixes and WAV exports. Third-party streams cannot be captured as DJ samples.</p>
+  <button id="sourcesLocalImport" type="button" class="secondary">+ IMPORT MY OWN AUDIO</button>
+ </section>
  <section id="libraryPanel" hidden><div class="section-heading"><h2>SOUND LIBRARY</h2><span class="hint">12 STYLES · LOCAL SAMPLES</span></div><div class="library-grid" id="libraryStyles"></div><button id="libraryImport" class="secondary" type="button">+ IMPORT AUDIO SAMPLE</button></section>
  <section id="mixPanel" hidden><div class="section-heading"><h2>MIX & EFFECTS</h2><span class="hint">REAL-TIME DSP</span></div>
   <div class="fxbox"><label><span>MASTER FILTER</span><strong id="filterValue">OPEN</strong><input id="filter" type="range" min="0" max="100" value="100" aria-label="Мастер фильтр"></label><label><span>ECHO SEND</span><strong id="echoValue">12%</strong><input id="echo" type="range" min="0" max="100" value="12" aria-label="Эхо"></label></div>
@@ -101,7 +114,7 @@
   <button id="take" class="takebutton">● RECORD AUDIO TAKE</button><button id="export" class="secondary">↓ EXPORT STEREO WAV · 4 BARS</button><div id="takesList" class="takeslist"></div><button id="reset" class="danger">CLEAR ACTIVE 16-STEP PATTERN</button>
  </section>
  <section id="profilePanel" hidden><div class="section-heading"><h2>LOCAL PROFILE</h2><span class="hint">PRIVATE ON-DEVICE STUDIO</span></div><div class="profile-card"><strong>ARTSS NEXUS</strong><p>All grooves, custom samples and audio takes remain on your device. No account is required.</p><div id="deviceStatus"></div><button id="goToRecording" class="secondary">OPEN RECORDER</button></div></section>
- <nav class="bottomnav" aria-label="Навигация"><button data-pane="main" class="active"><span>⌂</span>CREATE</button><button data-pane="library"><span>♫</span>LIBRARY</button><button data-pane="takes"><span>◎</span>PERFORM</button><button data-pane="mix"><span>≋</span>MIX</button><button data-pane="profile"><span>♙</span>PROFILE</button></nav>
+ <nav class="bottomnav" aria-label="Навигация"><button data-pane="main" class="active"><span>⌂</span>CREATE</button><button data-pane="sources"><span>♫</span>SOURCES</button><button data-pane="takes"><span>◎</span>RECORD</button></nav>
 </div>
 <input id="sampleInput" type="file" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.flac" multiple hidden>
 <script type="module" src="/app/main.js"></script>

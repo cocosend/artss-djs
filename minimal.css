@@ -1,0 +1,24 @@
+/* NEXUS 25: minimalist 6-pad performance UI, hidden advanced controls, touch-first sources */
+.nexus-app{gap:clamp(4px,.65svh,8px)!important}
+.nexus-app .nexus-header{border-color:#34363c}.brand-stack b{letter-spacing:.34em;text-indent:.34em}
+.nexus-app .pads{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.nexus-app .pad{height:clamp(72px,11svh,105px);padding-block:10px;border-radius:14px;box-shadow:inset 0 1px #fffb,0 4px 8px #000e}
+.nexus-app .pad-glyph svg{width:clamp(25px,8vw,35px);height:clamp(25px,8vw,35px)}
+.nexus-app .pad-name{font-size:clamp(10px,2.7vw,12px);letter-spacing:.06em}
+.pad-subhead{font-size:8px;font-weight:900;color:#aeb3bd;letter-spacing:.12em}
+.nexus-app .main-mixer{border-color:#545861}.nexus-app .pattern-overview{border-color:#484c53;background:linear-gradient(150deg,#24262b,#060709 42%)}
+.nexus-app .bottomnav{grid-template-columns:repeat(3,minmax(0,1fr));border-color:#555761}
+.nexus-app .bottomnav button{min-height:49px;font-size:10px;gap:3px}.nexus-app .bottomnav button span{font-size:21px}
+.drawer{z-index:25;display:flex;flex-wrap:wrap;gap:5px}.drawer-head,.drawer p{width:100%}.drawer button{flex:1 0 43%;margin:0}
+.drawer-banks{width:100%;padding:7px;border:1px solid #3d414b;border-radius:9px}.drawer-banks summary{padding:7px;font-size:10px;color:#eee;font-weight:850}.drawer-banks .kit-banks{width:max-content;margin:8px 0}
+#sourcesPanel{padding:4px 2px 25px!important;display:flex;flex-direction:column;gap:13px;min-height:60svh!important}#sourcesPanel[hidden]{display:none!important}
+.source-intro,.source-policy{margin:0;color:#c2c7d0;font-size:11px;line-height:1.6}.source-policy{color:#959aa7;font-size:10px}
+.source-form{background:linear-gradient(145deg,#2b2d33,#0a0a0e 40%);border:1px solid #585962;border-radius:14px;padding:12px}
+.source-form label{display:block;font-size:10px;letter-spacing:.12em;font-weight:950;color:#fff;margin-bottom:9px}
+.source-input-row{display:flex;gap:7px}.source-input-row input{min-width:0;flex:1;color:#fff;font-size:12px;background:#030406;padding:12px 10px;border:1px solid #5f626c;border-radius:9px}
+.source-input-row button{min-height:44px;border:1px solid #ffe500;border-radius:9px;background:#312b09;color:#ffed00;font-size:11px;font-weight:950;padding:0 13px}
+.source-providers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.source-providers span{text-align:center;padding:9px 2px;border:1px solid #4b4f58;background:linear-gradient(145deg,#24262b,#08080b);border-radius:8px;color:#f1f1fa;font-size:clamp(9px,2.35vw,11px);font-weight:850}
+.source-status{min-height:24px;font-size:11px;color:#ffe600}.source-mount{min-width:0;width:100%}.source-frame{display:block;width:100%;height:245px;border:1px solid #75777f;border-radius:13px;background:#070708}
+.source-actions{display:flex;gap:8px}.source-actions>*{flex:1;text-align:center;padding:12px 8px;border:1px solid #545863;background:#14151b;border-radius:10px;color:#ffe400;font-size:10px;font-weight:950;text-decoration:none}
+@media(max-width:370px){.nexus-app .pads{gap:6px}.nexus-app .pad{height:clamp(69px,10.6svh,88px)}.nexus-app .pad-glyph svg{width:25px;height:25px}.source-frame{height:224px}}
+@media(min-height:880px){.nexus-app .pad{height:104px}}

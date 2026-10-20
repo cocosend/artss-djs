@@ -1,13 +1,13 @@
 {
   "id": "/",
-  "name": "ARTSS NEXUS DJ Creator 24",
+  "name": "ARTSS NEXUS DJ Creator 25",
   "short_name": "NEXUS",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#020203",
   "theme_color": "#020203",
-  "description": "16-step live music performance instrument",
+  "description": "Minimal live DJ performance instrument, official music source embeds and WAV recording.",
   "icons": [
     {
       "src": "/icon.svg",

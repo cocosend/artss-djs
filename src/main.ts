@@ -1,10 +1,11 @@
 import {defaultSession,importSession,PAD_NAMES,STYLES,SCENES,toggle,STEPS,sanitizeSession,type Session} from './model.js';
 import {Engine} from './engine.js';
 import { composeGroove } from './arranger.js';
+import {resolveMusicSource,type MusicSource} from './music-sources.js';
 const $=<T extends HTMLElement=HTMLElement>(q:string)=>document.querySelector<T>(q)!;
 const getStorage=():Session=>{for(const key of ['artss-live-session-v19','artss-live-session-v18']){try{const v=localStorage.getItem(key);if(v)return importSession(v)}catch{}}return defaultSession()};
 const state=getStorage();const engine=new Engine(()=>state);
-type Pane='main'|'library'|'takes'|'mix'|'profile';
+type Pane='main'|'sources'|'library'|'takes'|'mix'|'profile';
 let page=0,importSlot:number|undefined,pane:Pane='main',busy=false;
 const KIT_KEY='artss-nexus-pattern-banks-v23',clonePattern=(v:number[][])=>v.map(row=>row.slice());
 const loadKits=():{active:number;patterns:number[][][]}=>{
@@ -24,7 +25,8 @@ const persistKits=()=>{kits.patterns[kits.active]=clonePattern(state.pattern);tr
 const save=()=>{try{localStorage.setItem('artss-live-session-v19',JSON.stringify(state));persistKits()}catch{setStatus('STORAGE FULL')}};
 const setStatus=(v:string)=>{$('#status').textContent=v;$('#status').classList.toggle('live',v.includes('REC')||v==='PLAY')};
 const h=(name:string,text:string,cls='')=>{const el=document.createElement(name);el.className=cls;el.textContent=text;return el;};
-function paintPads(){const wrap=$('#pads');wrap.replaceChildren();PAD_NAMES.forEach((name,i)=>{
+const performancePads=[0,1,2,3,5,6] as const;
+function paintPads(){const wrap=$('#pads');wrap.replaceChildren();performancePads.forEach(i=>{const name=PAD_NAMES[i];
  const p=h('button','','pad') as HTMLButtonElement;p.type='button';p.style.setProperty('--tone',['#ff2839','#fbe600','#f8fbff','#ffdf00','#fbfdff','#8f9baa','#ff2839','#ffdf00'][i]??'#fff');p.setAttribute('aria-label',`Играть ${name}`);p.dataset.pad=String(i);
  const top=h('span',`${String(i+1).padStart(2,'0')}`,'pad-number'),short=h('span',name,'pad-name');
  const dot=h('span',engine.bank.customInfo(i,state.style)?'OWN':'','pad-own');
@@ -44,7 +46,7 @@ function paintPads(){const wrap=$('#pads');wrap.replaceChildren();PAD_NAMES.forE
  p.addEventListener('pointerdown',async e=>{if(e.pointerType==='mouse'&&e.button!==0)return;e.preventDefault();
   // Schedule Web Audio before synchronous localStorage, painting or visual effects.
   const playing=engine.hit(i,Math.min(1,.65+(e.pressure>0?e.pressure*.32:.3)));
-  state.selected=i;save();for(const other of wrap.querySelectorAll('.pad'))other.classList.toggle('selected',other===p);$('#selectedPad').textContent=name;updateSampleTarget();paintSteps();p.classList.add('pressed');
+  if(state.selected!==i){state.selected=i;for(const other of wrap.querySelectorAll('.pad'))other.classList.toggle('selected',other===p);$('#selectedPad').textContent=name;updateSampleTarget();paintSteps();save();}p.classList.add('pressed');
   try{await playing;setStatus(engine.recording?'REC ON':'AUDIO READY')}catch(err){setStatus(err instanceof Error?err.message:'AUDIO ERROR')}
   window.setTimeout(()=>p.classList.remove('pressed'),90);
  },{passive:false});
@@ -88,8 +90,8 @@ function paintSteps(){paintPatternOverview();const wrap=$('#steps');wrap.replace
  $('#pageA').classList.toggle('active',page===0);$('#pageB').classList.toggle('active',page===1);
  $('#stepLabel').textContent=`${page===0?'01–08':'09–16'} / 16`;
 }
-function setPane(next:Pane){pane=next;
- for(const [key,id] of [['main','mainPanel'],['mix','mixPanel'],['takes','takesPanel'],['library','libraryPanel'],['profile','profilePanel']] as const)$('#'+id).hidden=key!==next;
+function setPane(next:Pane){if(pane==='sources'&&next!=='sources')unloadExternalPlayer('Player closed on navigation.');pane=next;
+ for(const [key,id] of [['main','mainPanel'],['sources','sourcesPanel'],['mix','mixPanel'],['takes','takesPanel'],['library','libraryPanel'],['profile','profilePanel']] as const)$('#'+id).hidden=key!==next;
  $('#quickMix').hidden=next!=='main';
  for(const b of document.querySelectorAll<HTMLButtonElement>('[data-pane]')){const selected=b.dataset.pane===pane;b.classList.toggle('active',selected);b.setAttribute('aria-current',selected?'page':'false')}
  if(next==='mix')paintMix();if(next==='takes')paintTakes();
@@ -108,12 +110,35 @@ function paintTakes(){for(const url of takeUrls)URL.revokeObjectURL(url);takeUrl
  }if(!engine.takes.length)el.append(h('p','Запиши первый дубль.','dim'));
 }
 async function safe(task:()=>Promise<void>){if(busy)return;busy=true;try{await task()}catch(e){setStatus(e instanceof Error?e.message:'ERROR')}finally{busy=false;}}
+let currentMusicSource:MusicSource|null=null;
+function unloadExternalPlayer(message='Player closed.'){
+ $('#sourceMount').replaceChildren();currentMusicSource=null;
+ $('#sourceActions').hidden=true;$('#sourceStatus').textContent=message;
+}
+function mountExternalPlayer(source:MusicSource){
+ unloadExternalPlayer();currentMusicSource=source;
+ const frame=document.createElement('iframe');
+ frame.title=source.platform+' official embedded player';
+ frame.src=source.embedUrl;frame.loading='eager';
+ frame.referrerPolicy='strict-origin-when-cross-origin';
+ frame.setAttribute('allow','autoplay; encrypted-media; fullscreen; picture-in-picture');
+ frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-presentation allow-popups');
+ frame.className='source-frame';
+ frame.addEventListener('error',()=>{$('#sourceStatus').textContent='Embedding unavailable. Use OPEN ORIGINAL.'});
+ $('#sourceMount').append(frame);
+ $<HTMLAnchorElement>('#sourceOriginal').href=source.originalUrl;
+ $('#sourceActions').hidden=false;
+ $('#sourceStatus').textContent=source.platform+': official player loaded (not routed to DJ audio).';
+}
 const paintLibrary=()=>{const host=$('#libraryStyles');const frag=document.createDocumentFragment();
  STYLES.forEach((style,i)=>{const btn=h('button',style.name,'library-style') as HTMLButtonElement;btn.classList.toggle('on',i===state.style);btn.addEventListener('click',()=>{($<HTMLSelectElement>('#bank')).value=String(i);$('#bank').dispatchEvent(new Event('change'));setPane('main')});frag.append(btn)});
  host.replaceChildren(frag);
 };
 const init=()=>{
 engine.updateMix();refreshKitButtons();
+ $('#sourceForm').addEventListener('submit',event=>{event.preventDefault();try{const source=resolveMusicSource($<HTMLInputElement>('#sourceLink').value);mountExternalPlayer(source);}catch(error){unloadExternalPlayer(error instanceof Error?error.message:'Invalid music link');}});
+ $('#sourceClose').addEventListener('click',()=>unloadExternalPlayer());
+ $('#sourcesLocalImport').addEventListener('click',()=>{$('#sampleInput').click()});
  $('#filter').addEventListener('input',()=>{state.filter=Number(($<HTMLInputElement>('#filter')).value)/100;$('#filterValue').textContent=state.filter>.97?'OPEN':`${Math.round(state.filter*100)}%`;engine.updateMix();save()});
  ($('#filter') as HTMLInputElement).value=String(Math.round(state.filter*100));$('#filterValue').textContent=state.filter>.97?'OPEN':`${Math.round(state.filter*100)}%`;
  $('#echo').addEventListener('input',()=>{state.echo=Number(($<HTMLInputElement>('#echo')).value)/100;$('#echoValue').textContent=`${Math.round(state.echo*100)}%`;engine.updateMix();save()});
@@ -142,7 +167,7 @@ engine.updateMix();refreshKitButtons();
   }
   pen.stroke();pen.strokeStyle='#ff2736';pen.lineWidth=2.5;pen.beginPath();pen.moveTo(width*.52,2);pen.lineTo(width*.52,height-2);pen.stroke();
  };
- let vuClock=0,signalClock=0;const vu=()=>{const now=performance.now();if(document.visibilityState==='visible'){
+ let vuClock=0,signalClock=0;const vu=()=>{const now=performance.now();if(document.visibilityState==='visible'&&pane==='main'){
    if(now-vuClock>100){vuClock=now;const v=engine.meterLevel;$('#outputMeter').style.width=`${Math.round(Math.min(100,v*100))}%`;$('#pulseDot').classList.toggle('on',engine.state==='PLAY');}
    if(now-signalClock>180){signalClock=now;drawSignal();}
   }requestAnimationFrame(vu);};drawSignal();requestAnimationFrame(vu);
@@ -194,6 +219,8 @@ engine.updateMix();refreshKitButtons();
  $('#drawerRecord').addEventListener('click',()=>{closeDrawer();setPane('takes')});
  $('#drawerSample').addEventListener('click',()=>{closeDrawer();setPane('main');const panel=$<HTMLDetailsElement>('.sample-recorder');panel.open=true;panel.scrollIntoView({block:'nearest',behavior:'smooth'});});
  $('#drawerSettings').addEventListener('click',()=>{closeDrawer();setPane('profile')});
+ $('#drawerFX').addEventListener('click',()=>{closeDrawer();setPane('mix')});
+ $('#drawerPresets').addEventListener('click',()=>{closeDrawer();setPane('library')});
  $('#libraryImport').addEventListener('click',()=>{$('#sampleInput').click()});
  $('#goToRecording').addEventListener('click',()=>setPane('takes'));
  $('#pageA').addEventListener('click',()=>{page=0;paintSteps()});$('#pageB').addEventListener('click',()=>{page=1;paintSteps()});

@@ -3,6 +3,7 @@ import {defaultSession,sanitizeSession,note,toggle,createPattern,STEPS,STYLES} f
 import {analyzeAudio,choosePad} from '../app/smart.js';
 import {composeGroove} from '../app/arranger.js';
 import {AUDIO_HEADROOM,crossfadeGains,voiceGain,lowpassHz} from '../app/audio-quality.js';
+import {resolveMusicSource} from '../app/music-sources.js';
 test('8 pads, 16 steps and different style compositions',()=>{const a=defaultSession();assert.equal(a.pattern.length,8);for(const row of a.pattern)assert.equal(row.length,16);assert.ok(STYLES.length>=12);assert.notDeepEqual(createPattern(0),createPattern(5));});
 test('live overdub adds notes but never clears existing events',()=>{const p=createPattern();assert.equal(note(p,5,9,.85),true);assert.ok((p[5][9]??0)>.8);assert.equal(note(p,5,9,.25),true);assert.ok((p[5][9]??0)>.8);toggle(p,5,9);assert.equal(p[5][9],0);});
 test('older 32 step projects truncate safely to 16',()=>{const raw={version:16,bpm:143,bank:3,pattern:Array.from({length:16},()=>Array(32).fill(1)),levels:Array(8).fill(1.5)};const a=sanitizeSession(raw);assert.equal(a.pattern.length,8);assert.equal(a.pattern[0].length,16);assert.equal(a.tempo,143);assert.equal(a.style,3);assert.equal(a.levels[0],1.2);});
@@ -29,4 +30,11 @@ test('sample voice gain is safe for imported and extreme source levels',()=>{
 test('audio filter covers low/mid/high without crossing Nyquist',()=>{
  for(const rate of [44100,48000,96000]){let last=0;for(let i=0;i<=100;i++){const v=lowpassHz(i/100,rate);assert.ok(v>=40&&v<=rate*.45);assert.ok(v>=last);last=v;}}
  assert.ok(lowpassHz(0,48000)<100);assert.ok(lowpassHz(.5,48000)>500);assert.ok(AUDIO_HEADROOM.master<1);
+});
+
+test('music sources validate exact domains, trusted embed origins and paths',()=>{
+ const sc=resolveMusicSource('https://soundcloud.com/artist/track');assert.equal(sc.platform,'SoundCloud');assert.match(sc.embedUrl,/w.soundcloud.com/);
+ const yt=resolveMusicSource('https://music.youtube.com/watch?v=dQw4w9WgXcQ');assert.equal(yt.platform,'YouTube Music');assert.match(yt.embedUrl,/youtube-nocookie.com\/embed/);
+ const apple=resolveMusicSource('https://music.apple.com/us/album/example/123456789?i=987654321');assert.equal(apple.platform,'Apple Music');assert.match(apple.embedUrl,/embed.music.apple.com/);
+ for(const link of ['javascript:alert(1)','https://fake.soundcloud.com/user/track','https://soundcloud.com.bad.test/user/track','http://127.0.0.1/audio','https://youtube.com/watch?v=%3Cscript%3E','https://music.apple.com/us/browse','https://youtube.com/watch?v=dQw4w9WgXcQ&list=o'])assert.throws(()=>resolveMusicSource(link));
 });
