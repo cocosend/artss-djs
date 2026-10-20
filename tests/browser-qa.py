@@ -89,7 +89,7 @@ with sync_playwright() as playwright:
  assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).eqLow')==4
  page.locator('#crossfade').fill('66')
  assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).crossfader')==.66
- page.locator('[data-pane="sounds"]').tap()
+ page.locator('#quickUpload').tap()
  assert page.locator('#soundsFan').get_attribute('open') is not None
  assert page.locator('#replaceTarget option').count()==8
  assert page.locator('#restoreSound').is_disabled()
@@ -120,7 +120,7 @@ with sync_playwright() as playwright:
   wf.setnchannels(1);wf.setsampwidth(2);wf.setframerate(44100)
   wf.writeframes(b''.join(struct.pack('<h',int(13000*math.sin(i*.016)*math.exp(-i/20000))) for i in range(44100)))
  # Importing audio alone must NEVER auto-replace a drum. The user explicitly chooses REPLACE.
- page.locator('[data-pane="sounds"]').tap()
+ page.locator('#quickUpload').tap()
  page.locator('#replaceTarget').select_option('0')
  assert page.locator('#restoreSound').is_disabled()
  page.locator('#sampleInput').set_input_files({'name':'ignored.wav','mimeType':'audio/wav','buffer':wav.getvalue()})
@@ -139,7 +139,7 @@ with sync_playwright() as playwright:
  page.wait_for_function("document.querySelector('#soundInfo').textContent.includes('ORIGINAL')")
  assert page.locator('.pad[data-pad="0"] .pad-own').inner_text()==''
  page.reload(wait_until='networkidle')
- page.locator('[data-pane="sounds"]').tap()
+ page.locator('#quickUpload').tap()
  assert page.locator('#restoreSound').is_disabled()
  page.locator('[data-pane="main"]').tap()
  # Capture 500 ms of the live mixer as an independent pad sample, save under current style.
