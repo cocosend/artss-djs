@@ -26,10 +26,18 @@ with sync_playwright() as playwright:
  if os.getenv('ARTSS_LOCAL_PREVIEW')=='1':
   context.route('https://artss.test/**',serve_static)
   URL='https://artss.test/'
- page.goto(URL,wait_until='networkidle');assert 'NEXUS 26' in page.title(),page.title()
- assert page.locator('.pad').count()==6
- assert page.locator('.pad[data-pad="4"]').count()==0
- assert page.locator('.pad[data-pad="7"]').count()==0
+ page.goto(URL,wait_until='networkidle');assert 'NEXUS 27' in page.title(),page.title()
+ assert page.locator('.pad').count()==8
+ assert page.locator('.pad[data-pad="4"]').is_visible()
+ assert page.locator('.pad[data-pad="7"]').is_visible()
+ assert page.locator('#kitBanks button').count()==4
+ assert page.locator('[data-kit="0"]').is_visible()
+ assert page.locator('link[rel="stylesheet"]').count()==1
+ assert page.locator('link[rel="stylesheet"]').get_attribute('href')=='/studio27.css'
+ grid=page.locator('#pads').evaluate("el=>getComputedStyle(el).gridTemplateColumns.split(' ').length")
+ assert grid==4,('Reference requires 4 pads per row',grid)
+ positions=page.locator('.pad').evaluate_all("els=>els.map(e=>Math.round(e.getBoundingClientRect().top))")
+ assert len(set(positions))==2,('Reference requires exactly 2 rows',positions)
  assert page.locator('.step').count()==8
  assert page.locator('.hero-deck').is_visible()
  assert page.locator('.control-deck').is_visible()
@@ -37,6 +45,7 @@ with sync_playwright() as playwright:
  assert page.locator('.main-mixer').is_visible()
  assert page.locator('.bottomnav button').count()==5
  assert page.locator('.workspace-fan').count()==5
+ assert page.locator('[data-pane="profile"]').is_visible()
  assert page.locator('#sourceForm').count()==0
  assert page.locator('#waveform').count()==1
  assert page.locator('.pattern-lane').count()==4
@@ -71,12 +80,9 @@ with sync_playwright() as playwright:
  page.locator('#advancedEditor summary').tap()
  page.locator('#pageB').tap()
  assert page.locator('.step').first.evaluate("el=>el.classList.contains('on')") == toggled_state
- page.locator('#menuToggle').tap()
- page.locator('.drawer-banks summary').tap()
  page.locator('[data-kit="1"]').tap()
  assert page.locator('[data-kit="1"]').get_attribute('class').find('active')>=0
  page.locator('[data-kit="0"]').tap()
- page.locator('#menuToggle').tap()
  page.locator('.pattern-cell[data-pad="0"][data-step="0"]').tap()
  page.locator('.pattern-cell[data-pad="0"][data-step="0"]').tap()
  page.locator('#eqLow').fill('4')
@@ -87,10 +93,6 @@ with sync_playwright() as playwright:
  assert page.locator('#soundsFan').get_attribute('open') is not None
  assert page.locator('#replaceTarget option').count()==8
  assert page.locator('#restoreSound').is_disabled()
- page.locator('#morePads').tap()
- assert page.locator('.pad').count()==8
- page.locator('#morePads').tap()
- assert page.locator('.pad').count()==6
  page.locator('#menuToggle').tap()
  page.locator('#drawerPresets').tap()
  assert page.locator('.library-style').count()==12
