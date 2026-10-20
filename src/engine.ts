@@ -67,11 +67,10 @@ export class Engine{
  readWaveform(output:Uint8Array):boolean{if(!this.bus||!this.ctx||this.ctx.state!=='running')return false;this.bus.meter.getByteTimeDomainData(output);return true;}
  get currentStep(){if(!this.ctx||!this.running)return 0;const d=60/this.getSession().tempo/4;return ((Math.floor((this.time-this.origin)/d+1e-4)%STEPS)+STEPS)%STEPS;}
  async unlock():Promise<void>{
-  if(!this.ctx){const C=window.AudioContext||(window as Window & {webkitAudioContext?:typeof AudioContext}).webkitAudioContext;if(!C)throw Error('Web Audio недоступен');this.ctx=new C({latencyHint:'interactive'});this.capture=this.ctx.createMediaStreamDestination();void this.bank.restore(this.ctx).then(()=>this.events.onSamples?.()).catch(()=>{});this.bus=createBus(this.ctx,this.ctx.destination,this.getSession());this.bus.master.connect(this.capture);}
+  if(!this.ctx){const C=window.AudioContext||(window as Window & {webkitAudioContext?:typeof AudioContext}).webkitAudioContext;if(!C)throw Error('Web Audio недоступен');this.ctx=new C({latencyHint:'interactive'});void this.bank.restore(this.ctx).then(()=>this.events.onSamples?.()).catch(()=>{});this.bus=createBus(this.ctx,this.ctx.destination,this.getSession());}
   if(this.ctx.state!=='running')await this.ctx.resume();
   if(this.ctx.state!=='running')throw Error('Разреши воспроизведение звука в Safari');
-  // Keep the audio context gesture-driven. Sample arrays are fetched before first play.
-  void this.bank.warm(this.ctx).catch(()=>{});
+  // Decoding is demand-driven: a pad never waits for all eight WAV decoders.
   if(!this.clock&&this.fallback===null){
    this.fallback=window.setInterval(()=>this.pump(),25); // reliable on the very first gesture
    void this.enableWorklet(this.ctx);
@@ -96,7 +95,7 @@ export class Engine{
  async hit(pad:number,velocity=1){if(!Number.isInteger(pad)||pad<0||pad>7||this.getSession().muted[pad])return;
   // Do not await resume or worklet setup once AudioContext is already running. Trigger voice on pointerdown.
   if(!this.ctx||this.ctx.state!=='running'||!this.bus)await this.unlock();
-  if(pad!==1&&pad!==6&&!this.bank.resolve(pad,this.getSession().style))await this.bank.warm(this.ctx!);
+  if(!this.bank.resolve(pad,this.getSession().style))await this.bank.ensurePad(this.ctx!,pad);
   const now=this.ctx!.currentTime+.002;
   this.voice(this.ctx!,((pad===1||pad>=6)?this.bus!.b:this.bus!.a),pad,now,velocity,this.getSession().style,this.getSession().levels[pad]??1);
   if(this.recordArmed&&this.running){const d=60/this.getSession().tempo/4;
@@ -123,7 +122,7 @@ export class Engine{
  private voice(ctx:BaseAudioContext,bus:AudioNode,pad:number,when:number,velocity:number,style:number,level:number){
   const live=ctx===this.ctx;
   if(live&&this.active.size>=28){const oldest=this.active.values().next().value;if(oldest){oldest.stop();this.active.delete(oldest);}}
-  const sample=this.bank.resolve(pad,style),amp=ctx.createGain();
+  const sample=this.bank.resolve(pad,style);if(!sample)return;const amp=ctx.createGain();
   const low=ctx.createBiquadFilter(),high=ctx.createBiquadFilter();
   low.type='highpass';high.type='lowpass';
   low.frequency.value=sample?.lowCut??(pad===1?24:pad===6?55:pad===0?22:85);
@@ -135,7 +134,7 @@ export class Engine{
   const playing:{stop:()=>void;until:number}={stop:()=>{},until:when+1};
   const cleanup=()=>{try{low.disconnect();high.disconnect();amp.disconnect()}catch{}this.active.delete(playing)};
   amp.gain.setValueAtTime(0,when);amp.gain.linearRampToValueAtTime(Math.max(.00001,baseline),when+attack);
-  if(sample){
+
    const source=ctx.createBufferSource();source.buffer=sample.buffer;source.connect(low);
    const end=when+sample.buffer.duration;const fade=Math.min(release,Math.max(.003,sample.buffer.duration*.25));
    amp.gain.setValueAtTime(Math.max(.00001,baseline),Math.max(when+attack,end-fade));
@@ -143,28 +142,6 @@ export class Engine{
    source.onended=cleanup;source.start(when);source.stop(end+.004);
    playing.until=end+.025;
    playing.stop=()=>{try{const now=Math.max(ctx.currentTime,when);amp.gain.cancelScheduledValues(now);amp.gain.setTargetAtTime(0,now,.003);source.stop(now+.018)}catch{cleanup()}};
-  }else{
-   const osc=ctx.createOscillator(),osc2=ctx.createOscillator(),tone=ctx.createBiquadFilter();
-   const isAcid=pad===6,root=[41.2,43.65,49,46.25,43.65,49][style%6]??43.65;
-   const progression=isAcid?[0,0,7,3,0,10,7,3]:[0,0,0,-5,0,0,7,-5];
-   const step=Math.abs(Math.round(when/(60/this.getSession().tempo/4)))%8;
-   const freq=root*Math.pow(2,(progression[step]??0)/12)*(isAcid?2:1);
-   osc.type=isAcid?'sawtooth':'sine';osc2.type=isAcid?'triangle':'sine';
-   osc.frequency.setValueAtTime(freq,when);osc2.frequency.setValueAtTime(freq*(isAcid?1.003:.5002),when);
-   tone.type='lowpass';tone.Q.value=isAcid?3.1:.7;
-   const length=isAcid?.24:.35;
-   if(isAcid){tone.frequency.setValueAtTime(2600,when);tone.frequency.exponentialRampToValueAtTime(350,when+length*.88)}
-   else tone.frequency.setValueAtTime(320,when);
-   const oscGain=ctx.createGain();oscGain.gain.value=isAcid?.24:.58;
-   osc.connect(oscGain);osc2.connect(oscGain);oscGain.connect(tone).connect(low);
-   osc.start(when);osc2.start(when);
-   amp.gain.setValueAtTime(Math.max(.0001,baseline),when+attack);
-   amp.gain.exponentialRampToValueAtTime(.0001,when+length);
-   osc.stop(when+length+.006);osc2.stop(when+length+.006);
-   playing.until=when+length+.025;
-   osc.onended=()=>{try{tone.disconnect();oscGain.disconnect()}catch{}cleanup()};
-   playing.stop=()=>{try{const now=Math.max(ctx.currentTime,when);amp.gain.cancelScheduledValues(now);amp.gain.setTargetAtTime(0,now,.003);osc.stop(now+.018);osc2.stop(now+.018)}catch{cleanup()}};
-  }
   if(live)this.active.add(playing);
  }
 
@@ -175,14 +152,20 @@ export class Engine{
   return [{pad:result.pad,name:file.name}];
  }
  async restoreFactorySound(pad:number):Promise<void>{await this.bank.restoreFactory(pad,this.getSession().style);this.events.onSamples?.();}
+ private ensureCapture():MediaStreamAudioDestinationNode{
+  // Ordinary playback never enters WebKit's capture pipeline; allocate only for an explicit recording.
+  if(!this.ctx||!this.bus)throw Error('Audio engine not initialized');
+  if(!this.capture){this.capture=this.ctx.createMediaStreamDestination();this.bus.master.connect(this.capture);}
+  return this.capture;
+ }
  async beginSampleCapture(source:CaptureSource, pad:number):Promise<void>{
   if(!Number.isInteger(pad)||pad<0||pad>=8)throw Error('Выбери пэд');
   if(this.sampling)throw Error('Запись уже идёт');
   await this.unlock();
   if(source==='live'&&!this.running)await this.start();
-  if(!this.capture)throw Error('Аудиозахват недоступен');
+  const capture=this.ensureCapture();
   const target={pad,style:this.getSession().style};
-  await this.sampleRecorder.start(source,this.capture.stream,this.ctx!,()=>{void this.endSampleCapture().catch(e=>this.events.onState?.(e instanceof Error?e.message:'SAMPLE ERROR'));});
+  await this.sampleRecorder.start(source,capture.stream,this.ctx!,()=>{void this.endSampleCapture().catch(e=>this.events.onState?.(e instanceof Error?e.message:'SAMPLE ERROR'));});
   this.sampleTarget=target;
   this.events.onState?.(`SAMPLE REC · ${target.pad+1}`);
  }
@@ -200,9 +183,10 @@ export class Engine{
   this.events.onState?.(`SAMPLE SAVED · PAD ${target.pad+1}`);
   return {pad:result.pad,style:target.style,name:file.name};
  }
- async beginTake():Promise<void>{await this.unlock();if(!this.capture||typeof MediaRecorder==='undefined')throw Error('Audio take недоступен — используй EXPORT WAV');if(this.recorder?.state==='recording')return;
+ async beginTake():Promise<void>{await this.unlock();if(typeof MediaRecorder==='undefined')throw Error('Audio take недоступен — используй EXPORT WAV');if(this.recorder?.state==='recording')return;
+  const capture=this.ensureCapture();
   const types=['audio/mp4','audio/webm;codecs=opus','audio/webm'];const type=types.find(t=>MediaRecorder.isTypeSupported(t));
-  const r=new MediaRecorder(this.capture.stream,type?{mimeType:type}:{});this.currentChunks=[];
+  const r=new MediaRecorder(capture.stream,type?{mimeType:type}:{});this.currentChunks=[];
   r.ondataavailable=e=>{if(e.data.size)this.currentChunks.push(e.data)};
   r.onstop=()=>{const blob=new Blob(this.currentChunks,{type:r.mimeType||'audio/webm'});if(blob.size){this.recorded.unshift(blob);void this.storeTake(blob);this.events.onState?.('TAKE SAVED');}};
   r.start(250);this.recorder=r;this.events.onState?.('TAKE RECORDING');

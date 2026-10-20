@@ -41,3 +41,16 @@ test('sample overrides are user-controlled and never imported by an automatic cl
  assert.match(engine,/async restoreFactorySound\(/);
  assert.match(engine,/if\(slot===undefined\)throw/);
 });
+
+test('every factory slot resolves to one fixed shipped sample, never fallback synthesized tones',async()=>{
+ const {readFileSync,existsSync}=await import('node:fs');
+ const source=readFileSync('src/sounds.ts','utf8');
+ const engine=readFileSync('src/engine.ts','utf8');
+ const sampleRows=source.match(/\['\/samples\/[^\]]+'\]/g)??[];
+ assert.equal(sampleRows.length,8,'All 8 pads require authored WAV files');
+ for(const row of sampleRows){
+  const match=row.match(/'([^']+\.wav)'/);assert.ok(match&&existsSync('.'+match[1]),row);
+ }
+ assert.ok(!engine.includes('createOscillator'),'No synthetic substitute on missing pad WAV');
+ assert.match(engine,/if\(!sample\)return/);
+});
