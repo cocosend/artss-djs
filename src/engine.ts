@@ -169,10 +169,12 @@ export class Engine{
  }
 
  async addSamples(files:FileList|File[],slot?:number):Promise<Array<{pad:number;name:string}>>{
-  await this.unlock();const result=[];for(const file of Array.from(files).slice(0,8)){
-   const a=await this.bank.importFile(file,this.ctx!,slot,this.getSession().style);placeSample(this.getSession().pattern,a.pad,this.getSession().style);result.push({pad:a.pad,name:file.name});slot=undefined;
-  }return result;
+  if(slot===undefined)throw Error('Импорт разрешён только через REPLACE выбранного пэда.');
+  const file=Array.from(files)[0];if(!file)throw Error('Выбери аудиофайл');
+  await this.unlock();const result=await this.bank.importFile(file,this.ctx!,slot,this.getSession().style);
+  return [{pad:result.pad,name:file.name}];
  }
+ async restoreFactorySound(pad:number):Promise<void>{await this.bank.restoreFactory(pad,this.getSession().style);this.events.onSamples?.();}
  async beginSampleCapture(source:CaptureSource, pad:number):Promise<void>{
   if(!Number.isInteger(pad)||pad<0||pad>=8)throw Error('Выбери пэд');
   if(this.sampling)throw Error('Запись уже идёт');

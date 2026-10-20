@@ -1,4 +1,4 @@
-import {analyzeAudio,choosePad,withFades,type AudioAnalysis} from './smart.js';
+import {analyzeAudio,type AudioAnalysis} from './smart.js';
 const paths=[
  ['/samples/kicks/punch-01.wav','/samples/kicks/punch-03.wav','/samples/kicks/deep-01.wav','/samples/kicks/tight-02.wav'],
  [],['/samples/claps/classic-01.wav','/samples/claps/classic-03.wav','/samples/snares/snap-01.wav'],
@@ -9,14 +9,15 @@ const paths=[
 ];
 export type Sound={buffer:AudioBuffer;gain:number;lowCut:number;highCut:number;name:string;user:boolean};
 export class SoundBank {
- private restored=false;private defaultBuffers=new Map<string,AudioBuffer>();private warming:Promise<void>|null=null;private raw=new Map<string,Promise<ArrayBuffer>>();private custom=new Map<string,Sound>();
+ private restored=false;private deleted=new Set<string>();private defaultBuffers=new Map<string,AudioBuffer>();private warming:Promise<void>|null=null;private raw=new Map<string,Promise<ArrayBuffer>>();private custom=new Map<string,Sound>();
  constructor(){this.preload();}
  private preload(){for(const row of paths)for(const path of row){if(!this.raw.has(path))this.raw.set(path,fetch(path,{cache:'force-cache'}).then(r=>{if(!r.ok)throw Error('sample unavailable');return r.arrayBuffer()}).catch(()=>new ArrayBuffer(0)));}}
  async warm(ctx:AudioContext):Promise<void>{if(this.warming)return this.warming;const needed=new Set(paths.flat());const promise=Promise.allSettled([...needed].map(async path=>{if(this.defaultBuffers.has(path))return;const raw=await this.raw.get(path);if(!raw?.byteLength)return;const buff=await ctx.decodeAudioData(raw.slice(0));this.defaultBuffers.set(path,buff);})).then(()=>{});this.warming=promise;await promise;}
  resolve(pad:number,style:number):Sound|null {
  const imported=this.custom.get(`${style}:${pad}`) ?? this.custom.get(`legacy:${pad}`);if(imported)return imported;
  const options=paths[pad];if(!options?.length)return null;
- const url=options[style%options.length];const buffer=url?this.defaultBuffers.get(url):null;if(!buffer)return null;
+ // Keep each pad's factory timbre stable across genre/preset changes.
+ const url=options[0];const buffer=url?this.defaultBuffers.get(url):null;if(!buffer)return null;
  return {buffer,gain:.85,lowCut:pad===3||pad===4?3800:pad===0?22:80,highCut:pad===0?15000:19000,name:url!.split('/').at(-1)??'',user:false};
  }
  async importFile(file:File,ctx:AudioContext,overridePad?:number,style=0):Promise<{pad:number;analysis:AudioAnalysis;name:string}> {
@@ -24,9 +25,11 @@ export class SoundBank {
   const supported=/\.(wav|mp3|m4a|aac|ogg|flac)$/i.test(file.name)||file.type.startsWith('audio/');if(!supported)throw Error('Выбери аудиофайл');
   const decoded=await ctx.decodeAudioData(await file.arrayBuffer());if(decoded.duration>30)throw Error('Загрузи отдельный звук до 30 сек., не полный трек');
   const a=analyzeAudio(Array.from({length:decoded.numberOfChannels},(_,i)=>decoded.getChannelData(i)),decoded.sampleRate);
-  const pad=overridePad??choosePad(a);if(!Number.isInteger(pad)||pad<0||pad>7)throw Error('Некорректный пэд');const buffer=withFades(decoded,a,ctx);
-  this.custom.set(`${style}:${pad}`,{buffer,gain:a.gain,lowCut:a.lowCut,highCut:a.highCut,name:file.name.replace(/\.[^.]+$/,''),user:true});
-  await this.persist(`${style}:${pad}`,file);
+  if(overridePad===undefined)throw Error('Выбери пэд и явно нажми REPLACE. Автоматическая замена отключена.');
+  const pad=overridePad;if(!Number.isInteger(pad)||pad<0||pad>7)throw Error('Некорректный пэд');
+  // Preserve imported timbre; no automatic classifier EQ, gain boost or hard trimming.
+  const custom:Sound={buffer:decoded,gain:1,lowCut:20,highCut:Math.min(20000,decoded.sampleRate*.46),name:file.name.replace(/\.[^.]+$/,''),user:true};
+  const key=`${style}:${pad}`;await this.persist(key,file);this.deleted.delete(key);this.custom.set(key,custom);
   return {pad,analysis:a,name:file.name};
  }
  private async database():Promise<IDBDatabase|null>{
@@ -50,17 +53,33 @@ export class SoundBank {
    for(const item of entries){
     const key=typeof item.key==='number'?`legacy:${item.key}`:String(item.key);
     const scoped=/^(?:[0-9]|1[01]):[0-7]$/.test(key),legacy=/^legacy:[0-7]$/.test(key);
-    if(!(scoped||legacy)||this.custom.has(key)||!item.value)continue;
+    if(!(scoped||legacy)||this.deleted.has(key)||this.custom.has(key)||!item.value)continue;
     const entry=item.value as {data?:unknown;name?:string;type?:string;size?:number;arrayBuffer?:()=>Promise<ArrayBuffer>};
     let data:ArrayBuffer|null=null;
     if(entry.data instanceof ArrayBuffer)data=entry.data;
     else if(typeof entry.arrayBuffer==='function')data=await entry.arrayBuffer(); // legacy stored File/Blob
     if(!data||!data.byteLength)continue;
     try{const decoded=await ctx.decodeAudioData(data.slice(0));const analysis=analyzeAudio(Array.from({length:decoded.numberOfChannels},(_,i)=>decoded.getChannelData(i)),decoded.sampleRate);
-     this.custom.set(key,{buffer:withFades(decoded,analysis,ctx),gain:analysis.gain,lowCut:analysis.lowCut,highCut:analysis.highCut,name:entry.name?.replace(/\.[^.]+$/,'')??'USER',user:true});}catch{}
+     if(!this.deleted.has(key))this.custom.set(key,{buffer:decoded,gain:1,lowCut:20,highCut:Math.min(20000,decoded.sampleRate*.46),name:entry.name?.replace(/\.[^.]+$/,'')??'USER',user:true});}catch{}
    }
   }finally{db.close()}
  }
  customInfo(pad:number,style:number){return (this.custom.get(`${style}:${pad}`)??this.custom.get(`legacy:${pad}`))?.name??null;}
+ /** Remove a specific style override AND any legacy override without touching other pads/styles. */
+ async restoreFactory(pad:number,style:number):Promise<boolean>{
+  if(!Number.isInteger(pad)||pad<0||pad>7||!Number.isInteger(style)||style<0||style>11)throw Error('Некорректный пэд');
+  const keys=[`${style}:${pad}`,`legacy:${pad}`];
+  const found=keys.some(key=>this.custom.has(key));
+  // Prevent asynchronous IDB restore from reintroducing deleted overrides.
+  for(const key of keys){this.deleted.add(key);this.custom.delete(key);}
+  const db=await this.database();if(!db)return found;
+  try{await new Promise<void>((resolve,reject)=>{const tx=db.transaction('pads','readwrite');const store=tx.objectStore('pads');
+   for(const key of keys)store.delete(key);
+   // Older versions wrote numeric keys; those are read as legacy:<pad>.
+   store.delete(pad);
+   tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
+  });}finally{db.close()}
+  return found;
+ }
  clearCustom(){this.custom.clear();}
 }
