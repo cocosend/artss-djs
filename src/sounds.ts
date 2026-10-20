@@ -1,4 +1,4 @@
-import {analyzeAudio,withFades,type AudioAnalysis} from './smart.js';
+import {analyzeAudio,type AudioAnalysis} from './smart.js';
 const paths=[
  ['/samples/kicks/punch-01.wav','/samples/kicks/punch-03.wav','/samples/kicks/deep-01.wav','/samples/kicks/tight-02.wav'],
  [],['/samples/claps/classic-01.wav','/samples/claps/classic-03.wav','/samples/snares/snap-01.wav'],

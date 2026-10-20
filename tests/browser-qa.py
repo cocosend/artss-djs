@@ -26,7 +26,7 @@ with sync_playwright() as playwright:
  if os.getenv('ARTSS_LOCAL_PREVIEW')=='1':
   context.route('https://artss.test/**',serve_static)
   URL='https://artss.test/'
- page.goto(URL,wait_until='networkidle');assert 'NEXUS 25' in page.title(),page.title()
+ page.goto(URL,wait_until='networkidle');assert 'NEXUS 26' in page.title(),page.title()
  assert page.locator('.pad').count()==6
  assert page.locator('.pad[data-pad="4"]').count()==0
  assert page.locator('.pad[data-pad="7"]').count()==0
@@ -35,7 +35,9 @@ with sync_playwright() as playwright:
  assert page.locator('.control-deck').is_visible()
  assert page.locator('.creator-actions').is_visible()
  assert page.locator('.main-mixer').is_visible()
- assert page.locator('.bottomnav button').count()==3
+ assert page.locator('.bottomnav button').count()==5
+ assert page.locator('.workspace-fan').count()==5
+ assert page.locator('#sourceForm').count()==0
  assert page.locator('#waveform').count()==1
  assert page.locator('.pattern-lane').count()==4
  assert page.locator('.pattern-cell').count()==64
@@ -81,22 +83,21 @@ with sync_playwright() as playwright:
  assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).eqLow')==4
  page.locator('#crossfade').fill('66')
  assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).crossfader')==.66
- page.locator('[data-pane="sources"]').tap()
- assert page.locator('#sourceMount iframe').count()==0
- page.locator('#sourceLink').fill('https://evil-soundcloud.com/x/y')
- page.locator('#sourceForm button[type="submit"]').tap()
- assert page.locator('#sourceMount iframe').count()==0
- page.locator('#sourceLink').fill('https://music.youtube.com/watch?v=dQw4w9WgXcQ')
- page.locator('#sourceForm button[type="submit"]').tap()
- assert page.locator('#sourceMount iframe').count()==1
- assert 'youtube-nocookie.com/embed/' in page.locator('#sourceMount iframe').get_attribute('src')
- page.locator('[data-pane="main"]').tap()
- assert page.locator('#sourceMount iframe').count()==0
+ page.locator('[data-pane="sounds"]').tap()
+ assert page.locator('#soundsFan').get_attribute('open') is not None
+ assert page.locator('#replaceTarget option').count()==8
+ assert page.locator('#restoreSound').is_disabled()
+ page.locator('#morePads').tap()
+ assert page.locator('.pad').count()==8
+ page.locator('#morePads').tap()
+ assert page.locator('.pad').count()==6
  page.locator('#menuToggle').tap()
  page.locator('#drawerPresets').tap()
  assert page.locator('.library-style').count()==12
- page.locator('[data-pane="main"]').tap()
- page.locator('#menuToggle').tap();page.locator('#drawerFX').tap();assert page.locator('.mixrow').count()==8
+ assert page.locator('#libraryFan').get_attribute('open') is not None
+ page.locator('[data-pane="mix"]').tap()
+ assert page.locator('#mixFan').get_attribute('open') is not None
+ assert page.locator('.mixrow').count()==8
  page.locator('#filter').fill('50');assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).filter')==.5
  page.locator('#echo').fill('30');assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).echo')==.3
  assert page.locator('#crossfade').count()==1
@@ -116,10 +117,29 @@ with sync_playwright() as playwright:
  with wave.open(wav,'wb') as wf:
   wf.setnchannels(1);wf.setsampwidth(2);wf.setframerate(44100)
   wf.writeframes(b''.join(struct.pack('<h',int(13000*math.sin(i*.016)*math.exp(-i/20000))) for i in range(44100)))
- page.locator('[data-pane="main"]').tap()
+ # Importing audio alone must NEVER auto-replace a drum. The user explicitly chooses REPLACE.
+ page.locator('[data-pane="sounds"]').tap()
+ page.locator('#replaceTarget').select_option('0')
+ assert page.locator('#restoreSound').is_disabled()
+ page.locator('#sampleInput').set_input_files({'name':'ignored.wav','mimeType':'audio/wav','buffer':wav.getvalue()})
+ page.wait_for_timeout(150)
+ assert 'ORIGINAL' in page.locator('#soundInfo').inner_text()
+ page.locator('#replaceSound').tap()
  page.locator('#sampleInput').set_input_files({'name':'own-drum.wav','mimeType':'audio/wav','buffer':wav.getvalue()})
- page.wait_for_timeout(1300)
- assert 'AUTO MIX' in page.locator('#status').inner_text(),page.locator('#status').inner_text()
+ page.wait_for_timeout(1000)
+ assert 'REPLACED' in page.locator('#status').inner_text(),page.locator('#status').inner_text()
+ assert 'CUSTOM' in page.locator('#soundInfo').inner_text()
+ page.locator('#bank').select_option('2')
+ assert 'ORIGINAL' in page.locator('#soundInfo').inner_text()
+ page.locator('#bank').select_option('0')
+ assert 'CUSTOM' in page.locator('#soundInfo').inner_text()
+ page.locator('#restoreSound').tap()
+ page.wait_for_function("document.querySelector('#soundInfo').textContent.includes('ORIGINAL')")
+ assert page.locator('.pad[data-pad="0"] .pad-own').inner_text()==''
+ page.reload(wait_until='networkidle')
+ page.locator('[data-pane="sounds"]').tap()
+ assert page.locator('#restoreSound').is_disabled()
+ page.locator('[data-pane="main"]').tap()
  # Capture 500 ms of the live mixer as an independent pad sample, save under current style.
  page.locator('#menuToggle').tap()
  page.locator('#drawerSample').tap()
