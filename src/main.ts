@@ -6,7 +6,6 @@ const getStorage=():Session=>{for(const key of ['artss-live-session-v19','artss-
 const state=getStorage();const engine=new Engine(()=>state);
 type Pane='main'|'sounds'|'library'|'takes'|'mix'|'profile';
 let page=0,importSlot:number|undefined,pane:Pane='main',busy=false;
-let showAllPads=false;try{showAllPads=localStorage.getItem('artss-nexus-all-pads')==='1'}catch{}
 const KIT_KEY='artss-nexus-pattern-banks-v23',clonePattern=(v:number[][])=>v.map(row=>row.slice());
 const loadKits=():{active:number;patterns:number[][][]}=>{
  try{const raw=JSON.parse(localStorage.getItem(KIT_KEY)??'null') as {active?:number;patterns?:unknown[]}|null;
@@ -23,11 +22,12 @@ const refreshKitButtons=()=>{for(const btn of document.querySelectorAll<HTMLButt
 const persistKits=()=>{kits.patterns[kits.active]=clonePattern(state.pattern);try{localStorage.setItem(KIT_KEY,JSON.stringify(kits))}catch{}};
 
 const save=()=>{try{localStorage.setItem('artss-live-session-v19',JSON.stringify(state));persistKits()}catch{setStatus('STORAGE FULL')}};
+let pendingSave:ReturnType<typeof setTimeout>|null=null;
+const scheduleSave=()=>{if(pendingSave!==null)clearTimeout(pendingSave);pendingSave=setTimeout(()=>{pendingSave=null;save()},180)};
 const setStatus=(v:string)=>{$('#status').textContent=v;$('#status').classList.toggle('live',v.includes('REC')||v==='PLAY')};
 const h=(name:string,text:string,cls='')=>{const el=document.createElement(name);el.className=cls;el.textContent=text;return el;};
-const performancePads=[0,1,2,3,5,6] as const;
-function paintPads(){const wrap=$('#pads');wrap.replaceChildren();(showAllPads?[0,1,2,3,4,5,6,7]:performancePads).forEach(i=>{const name=PAD_NAMES[i]??'PAD';
- const p=h('button','','pad') as HTMLButtonElement;p.type='button';p.style.setProperty('--tone',['#ff2839','#fbe600','#f8fbff','#ffdf00','#fbfdff','#8f9baa','#ff2839','#ffdf00'][i]??'#fff');p.setAttribute('aria-label',`Играть ${name}`);p.dataset.pad=String(i);
+function paintPads(){const wrap=$('#pads');wrap.replaceChildren();for(let i=0;i<8;i++){const name=PAD_NAMES[i]??'PAD';
+ const p=h('button','','pad') as HTMLButtonElement;p.type='button';p.style.setProperty('--tone',['#fd3f59','#7df7e4','#f7faff','#79f6e1','#effbff','#aabacc','#f46b91','#6adfd5'][i]??'#f7faff');p.setAttribute('aria-label',`Играть ${name}`);p.dataset.pad=String(i);
  const top=h('span',`${String(i+1).padStart(2,'0')}`,'pad-number'),short=h('span',name,'pad-name');
  const dot=h('span',engine.bank.customInfo(i,state.style)?'OWN':'','pad-own');
  const glyphPaths=[
@@ -46,13 +46,18 @@ function paintPads(){const wrap=$('#pads');wrap.replaceChildren();(showAllPads?[
  p.addEventListener('pointerdown',async e=>{if(e.pointerType==='mouse'&&e.button!==0)return;e.preventDefault();
   // Schedule Web Audio before synchronous localStorage, painting or visual effects.
   const playing=engine.hit(i,Math.min(1,.65+(e.pressure>0?e.pressure*.32:.3)));
-  if(state.selected!==i){state.selected=i;$<HTMLSelectElement>('#replaceTarget').value=String(i);for(const other of wrap.querySelectorAll('.pad'))other.classList.toggle('selected',other===p);$('#selectedPad').textContent=name;updateSampleTarget();paintSteps();save();}p.classList.add('pressed');
+  if(state.selected!==i){
+   state.selected=i;$<HTMLSelectElement>('#replaceTarget').value=String(i);
+   for(const other of wrap.querySelectorAll('.pad'))other.classList.toggle('selected',other===p);
+   $('#selectedPad').textContent=name;updateSampleTarget();paintSteps(false);scheduleSave();
+  }
+  p.classList.add('pressed');
   try{await playing;setStatus(engine.recording?'REC ON':'AUDIO READY')}catch(err){setStatus(err instanceof Error?err.message:'AUDIO ERROR')}
   window.setTimeout(()=>p.classList.remove('pressed'),90);
  },{passive:false});
- p.addEventListener('contextmenu',e=>{e.preventDefault();importSlot=i;$('#sampleInput').click();});
+ p.addEventListener('contextmenu',e=>{e.preventDefault();$<HTMLSelectElement>('#replaceTarget').value=String(i);setPane('sounds');});
  wrap.append(p);
- });
+ }
  $('#selectedPad').textContent=PAD_NAMES[state.selected]??'KICK';updateSampleTarget();
 }
 function updateSampleTarget(){
@@ -69,7 +74,7 @@ function paintPatternOverview(){
  timeline.append(numbers);fragment.append(timeline);
  for(const pad of overviewPads){
   const lane=h('div','','pattern-lane');
-  const name=h('button',PAD_NAMES[pad],'pattern-lane-name') as HTMLButtonElement;
+  const name=h('button',PAD_NAMES[pad],'pattern-lane-name') as HTMLButtonElement;name.dataset.pad=String(pad);
   name.type='button';name.setAttribute('aria-label',`Редактировать ${PAD_NAMES[pad]}`);
   name.classList.toggle('active',state.selected===pad);
   name.addEventListener('click',()=>{state.selected=pad;save();paintPads();paintSteps()});
@@ -87,7 +92,10 @@ function paintPatternOverview(){
  }
  host.replaceChildren(fragment);
 }
-function paintSteps(){paintPatternOverview();const wrap=$('#steps');wrap.replaceChildren();for(let col=0;col<8;col++){
+function paintSteps(refreshOverview=true){
+ if(refreshOverview)paintPatternOverview();
+ else for(const button of document.querySelectorAll<HTMLButtonElement>('.pattern-lane-name'))button.classList.toggle('active',Number(button.dataset.pad)===state.selected);
+ const wrap=$('#steps');wrap.replaceChildren();for(let col=0;col<8;col++){
  const step=col+page*8,velocity=state.pattern[state.selected]?.[step]??0;
  const btn=h('button',String(step+1).padStart(2,'0'),'step') as HTMLButtonElement;btn.type='button';btn.dataset.step=String(step);
  if(velocity>0)btn.classList.add('on');btn.addEventListener('click',()=>{toggle(state.pattern,state.selected,step);save();paintSteps()});wrap.append(btn);
@@ -152,10 +160,12 @@ engine.updateMix();refreshKitButtons();
   }
   pen.stroke();pen.strokeStyle='#ff2736';pen.lineWidth=2.5;pen.beginPath();pen.moveTo(width*.52,2);pen.lineTo(width*.52,height-2);pen.stroke();
  };
- let vuClock=0,signalClock=0;const vu=()=>{const now=performance.now();if(document.visibilityState==='visible'&&pane==='main'){
-   if(now-vuClock>100){vuClock=now;const v=engine.meterLevel;$('#outputMeter').style.width=`${Math.round(Math.min(100,v*100))}%`;$('#pulseDot').classList.toggle('on',engine.state==='PLAY');}
-   if(now-signalClock>180){signalClock=now;drawSignal();}
-  }requestAnimationFrame(vu);};drawSignal();requestAnimationFrame(vu);
+ let signalClock=0;const vu=()=>{if(document.visibilityState!=='visible'||pane!=='main')return;
+  const now=performance.now(),v=engine.meterLevel;
+  $('#outputMeter').style.width=`${Math.round(Math.min(100,v*100))}%`;
+  $('#pulseDot').classList.toggle('on',engine.state==='PLAY');
+  if(now-signalClock>180){signalClock=now;drawSignal();}
+ };drawSignal();window.setInterval(vu,110);
  $('#bank').replaceChildren(...STYLES.map((s,i)=>{const o=h('option',s.name) as HTMLOptionElement;o.value=String(i);return o}));
  ($('#bank') as HTMLSelectElement).value=String(state.style);
  $('#scene').replaceChildren(...SCENES.map((s,i)=>{const o=h('option',s) as HTMLOptionElement;o.value=String(i);return o}));
@@ -230,11 +240,6 @@ engine.updateMix();refreshKitButtons();
   const pad=Number($<HTMLSelectElement>('#replaceTarget').value);await engine.restoreFactorySound(pad);
   paintPads();updateSampleTarget();setStatus('ORIGINAL RESTORED · '+PAD_NAMES[pad]);
  }));
- $('#morePads').addEventListener('click',()=>{showAllPads=!showAllPads;try{localStorage.setItem('artss-nexus-all-pads',showAllPads?'1':'0')}catch{}
-  const button=$<HTMLButtonElement>('#morePads');button.textContent=showAllPads?'− SHOW 6 PADS':'＋ SHOW ALL 8 PADS';button.setAttribute('aria-expanded',String(showAllPads));paintPads();
- });
- $('#morePads').textContent=showAllPads?'− SHOW 6 PADS':'＋ SHOW ALL 8 PADS';
- $('#morePads').setAttribute('aria-expanded',String(showAllPads));
  $('#sampleInput').addEventListener('change',()=>void safe(async()=>{
   const input=$<HTMLInputElement>('#sampleInput');const pad=importSlot;
   try{
@@ -252,7 +257,7 @@ engine.updateMix();refreshKitButtons();
    for(const el of document.querySelectorAll('.pattern-cell'))el.classList.toggle('playhead',Number((el as HTMLElement).dataset.step)===step);
    const total=60/state.tempo/4*16;const elapsed=(step*60/state.tempo/4);$('#transportTime').textContent=`${String(Math.floor(elapsed/60)).padStart(2,'0')}:${String(Math.floor(elapsed%60)).padStart(2,'0')} / ${String(Math.floor(total/60)).padStart(2,'0')}:${String(Math.ceil(total%60)).padStart(2,'0')}`;
   })};
- engine.events.onClip=()=>{save();paintSteps()};engine.events.onSamples=paintPads;engine.events.onState=v=>{setStatus(v);if(v.startsWith('SAMPLE SAVED')||v.startsWith('SAMPLE ERROR')){renderCapture();paintPads();}};
+ engine.events.onClip=()=>{scheduleSave();requestAnimationFrame(()=>paintSteps())};engine.events.onSamples=paintPads;engine.events.onState=v=>{setStatus(v);if(v.startsWith('SAMPLE SAVED')||v.startsWith('SAMPLE ERROR')){renderCapture();paintPads();}};
  paintPads();paintSteps();setPane('main');updateTransport();renderCapture();
  if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
 };
