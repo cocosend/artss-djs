@@ -1,13 +1,13 @@
 {
   "id": "/",
-  "name": "ARTSS NEXUS 26 Aurora DJ",
+  "name": "ARTSS NEXUS 27 DJ Creator",
   "short_name": "NEXUS",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#020203",
-  "theme_color": "#020203",
-  "description": "Local-first DJ creator with manual sample replacement and fan-out studio tools.",
+  "background_color": "#020208",
+  "theme_color": "#020208",
+  "description": "Reference-layout performance studio with eight playable pads, stable samples, mixer, and WAV recording.",
   "icons": [
     {
       "src": "/icon.svg",
