@@ -67,7 +67,7 @@ export class Engine{
  readWaveform(output:Uint8Array):boolean{if(!this.bus||!this.ctx||this.ctx.state!=='running')return false;this.bus.meter.getByteTimeDomainData(output);return true;}
  get currentStep(){if(!this.ctx||!this.running)return 0;const d=60/this.getSession().tempo/4;return ((Math.floor((this.time-this.origin)/d+1e-4)%STEPS)+STEPS)%STEPS;}
  async unlock():Promise<void>{
-  if(!this.ctx){const C=window.AudioContext||(window as Window & {webkitAudioContext?:typeof AudioContext}).webkitAudioContext;if(!C)throw Error('Web Audio недоступен');this.ctx=new C({latencyHint:'interactive'});this.capture=this.ctx.createMediaStreamDestination();void this.bank.restore(this.ctx).then(()=>this.events.onSamples?.()).catch(()=>{});this.bus=createBus(this.ctx,this.ctx.destination,this.getSession());this.bus.master.connect(this.capture);}
+  if(!this.ctx){const C=window.AudioContext||(window as Window & {webkitAudioContext?:typeof AudioContext}).webkitAudioContext;if(!C)throw Error('Web Audio недоступен');this.ctx=new C({latencyHint:'interactive'});void this.bank.restore(this.ctx).then(()=>this.events.onSamples?.()).catch(()=>{});this.bus=createBus(this.ctx,this.ctx.destination,this.getSession());}
   if(this.ctx.state!=='running')await this.ctx.resume();
   if(this.ctx.state!=='running')throw Error('Разреши воспроизведение звука в Safari');
   // Keep the audio context gesture-driven. Sample arrays are fetched before first play.
@@ -153,14 +153,20 @@ export class Engine{
   return [{pad:result.pad,name:file.name}];
  }
  async restoreFactorySound(pad:number):Promise<void>{await this.bank.restoreFactory(pad,this.getSession().style);this.events.onSamples?.();}
+ private ensureCapture():MediaStreamAudioDestinationNode{
+  // Ordinary playback never enters WebKit's capture pipeline; allocate only for an explicit recording.
+  if(!this.ctx||!this.bus)throw Error('Audio engine not initialized');
+  if(!this.capture){this.capture=this.ctx.createMediaStreamDestination();this.bus.master.connect(this.capture);}
+  return this.capture;
+ }
  async beginSampleCapture(source:CaptureSource, pad:number):Promise<void>{
   if(!Number.isInteger(pad)||pad<0||pad>=8)throw Error('Выбери пэд');
   if(this.sampling)throw Error('Запись уже идёт');
   await this.unlock();
   if(source==='live'&&!this.running)await this.start();
-  if(!this.capture)throw Error('Аудиозахват недоступен');
+  const capture=this.ensureCapture();
   const target={pad,style:this.getSession().style};
-  await this.sampleRecorder.start(source,this.capture.stream,this.ctx!,()=>{void this.endSampleCapture().catch(e=>this.events.onState?.(e instanceof Error?e.message:'SAMPLE ERROR'));});
+  await this.sampleRecorder.start(source,capture.stream,this.ctx!,()=>{void this.endSampleCapture().catch(e=>this.events.onState?.(e instanceof Error?e.message:'SAMPLE ERROR'));});
   this.sampleTarget=target;
   this.events.onState?.(`SAMPLE REC · ${target.pad+1}`);
  }
@@ -178,9 +184,10 @@ export class Engine{
   this.events.onState?.(`SAMPLE SAVED · PAD ${target.pad+1}`);
   return {pad:result.pad,style:target.style,name:file.name};
  }
- async beginTake():Promise<void>{await this.unlock();if(!this.capture||typeof MediaRecorder==='undefined')throw Error('Audio take недоступен — используй EXPORT WAV');if(this.recorder?.state==='recording')return;
+ async beginTake():Promise<void>{await this.unlock();if(typeof MediaRecorder==='undefined')throw Error('Audio take недоступен — используй EXPORT WAV');if(this.recorder?.state==='recording')return;
+  const capture=this.ensureCapture();
   const types=['audio/mp4','audio/webm;codecs=opus','audio/webm'];const type=types.find(t=>MediaRecorder.isTypeSupported(t));
-  const r=new MediaRecorder(this.capture.stream,type?{mimeType:type}:{});this.currentChunks=[];
+  const r=new MediaRecorder(capture.stream,type?{mimeType:type}:{});this.currentChunks=[];
   r.ondataavailable=e=>{if(e.data.size)this.currentChunks.push(e.data)};
   r.onstop=()=>{const blob=new Blob(this.currentChunks,{type:r.mimeType||'audio/webm'});if(blob.size){this.recorded.unshift(blob);void this.storeTake(blob);this.events.onState?.('TAKE SAVED');}};
   r.start(250);this.recorder=r;this.events.onState?.('TAKE RECORDING');
