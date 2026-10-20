@@ -26,7 +26,7 @@ const save=()=>{try{localStorage.setItem('artss-live-session-v19',JSON.stringify
 const setStatus=(v:string)=>{$('#status').textContent=v;$('#status').classList.toggle('live',v.includes('REC')||v==='PLAY')};
 const h=(name:string,text:string,cls='')=>{const el=document.createElement(name);el.className=cls;el.textContent=text;return el;};
 const performancePads=[0,1,2,3,5,6] as const;
-function paintPads(){const wrap=$('#pads');wrap.replaceChildren();(showAllPads?[0,1,2,3,4,5,6,7]:performancePads).forEach(i=>{const name=PAD_NAMES[i];
+function paintPads(){const wrap=$('#pads');wrap.replaceChildren();(showAllPads?[0,1,2,3,4,5,6,7]:performancePads).forEach(i=>{const name=PAD_NAMES[i]??'PAD';
  const p=h('button','','pad') as HTMLButtonElement;p.type='button';p.style.setProperty('--tone',['#ff2839','#fbe600','#f8fbff','#ffdf00','#fbfdff','#8f9baa','#ff2839','#ffdf00'][i]??'#fff');p.setAttribute('aria-label',`Играть ${name}`);p.dataset.pad=String(i);
  const top=h('span',`${String(i+1).padStart(2,'0')}`,'pad-number'),short=h('span',name,'pad-name');
  const dot=h('span',engine.bank.customInfo(i,state.style)?'OWN':'','pad-own');
