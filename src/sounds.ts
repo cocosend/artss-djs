@@ -1,11 +1,14 @@
 import {analyzeAudio,type AudioAnalysis} from './smart.js';
+// Every factory pad plays a known shipped sample; never substitute an oscillator.
 const paths=[
- ['/samples/kicks/punch-01.wav','/samples/kicks/punch-03.wav','/samples/kicks/deep-01.wav','/samples/kicks/tight-02.wav'],
- [],['/samples/claps/classic-01.wav','/samples/claps/classic-03.wav','/samples/snares/snap-01.wav'],
- ['/samples/hats/closed-01.wav','/samples/hats/closed-05.wav'],
- ['/samples/hats/open-01.wav','/samples/hats/open-03.wav'],
- ['/samples/percs/tom-01.wav','/samples/percs/shaker-01.wav','/samples/percs/tick-02.wav','/samples/percs/blip-01.wav'],
- [],['/samples/cymbals/ride-01.wav']
+ ['/samples/kicks/punch-01.wav'],
+ ['/samples/kicks/deep-01.wav'],
+ ['/samples/claps/classic-01.wav'],
+ ['/samples/hats/closed-01.wav'],
+ ['/samples/hats/open-01.wav'],
+ ['/samples/percs/tom-01.wav'],
+ ['/samples/percs/blip-01.wav'],
+ ['/samples/cymbals/ride-01.wav']
 ];
 export type Sound={buffer:AudioBuffer;gain:number;lowCut:number;highCut:number;name:string;user:boolean};
 export class SoundBank {
@@ -18,7 +21,7 @@ export class SoundBank {
  const options=paths[pad];if(!options?.length)return null;
  // Keep each pad's factory timbre stable across genre/preset changes.
  const url=options[0];const buffer=url?this.defaultBuffers.get(url):null;if(!buffer)return null;
- return {buffer,gain:.85,lowCut:pad===3||pad===4?3800:pad===0?22:80,highCut:pad===0?15000:19000,name:url!.split('/').at(-1)??'',user:false};
+ return {buffer,gain:.85,lowCut:pad===3||pad===4?3800:pad<=1?22:60,highCut:pad===1?650:pad===0?15000:19000,name:url!.split('/').at(-1)??'',user:false};
  }
  async importFile(file:File,ctx:AudioContext,overridePad?:number,style=0):Promise<{pad:number;analysis:AudioAnalysis;name:string}> {
   if(file.size>16*1024*1024)throw Error('Один сэмпл — максимум 16 МБ');

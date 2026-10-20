@@ -96,7 +96,7 @@ export class Engine{
  async hit(pad:number,velocity=1){if(!Number.isInteger(pad)||pad<0||pad>7||this.getSession().muted[pad])return;
   // Do not await resume or worklet setup once AudioContext is already running. Trigger voice on pointerdown.
   if(!this.ctx||this.ctx.state!=='running'||!this.bus)await this.unlock();
-  if(pad!==1&&pad!==6&&!this.bank.resolve(pad,this.getSession().style))await this.bank.warm(this.ctx!);
+  if(!this.bank.resolve(pad,this.getSession().style))await this.bank.warm(this.ctx!);
   const now=this.ctx!.currentTime+.002;
   this.voice(this.ctx!,((pad===1||pad>=6)?this.bus!.b:this.bus!.a),pad,now,velocity,this.getSession().style,this.getSession().levels[pad]??1);
   if(this.recordArmed&&this.running){const d=60/this.getSession().tempo/4;
@@ -123,7 +123,7 @@ export class Engine{
  private voice(ctx:BaseAudioContext,bus:AudioNode,pad:number,when:number,velocity:number,style:number,level:number){
   const live=ctx===this.ctx;
   if(live&&this.active.size>=28){const oldest=this.active.values().next().value;if(oldest){oldest.stop();this.active.delete(oldest);}}
-  const sample=this.bank.resolve(pad,style),amp=ctx.createGain();
+  const sample=this.bank.resolve(pad,style);if(!sample)return;const amp=ctx.createGain();
   const low=ctx.createBiquadFilter(),high=ctx.createBiquadFilter();
   low.type='highpass';high.type='lowpass';
   low.frequency.value=sample?.lowCut??(pad===1?24:pad===6?55:pad===0?22:85);
@@ -135,7 +135,7 @@ export class Engine{
   const playing:{stop:()=>void;until:number}={stop:()=>{},until:when+1};
   const cleanup=()=>{try{low.disconnect();high.disconnect();amp.disconnect()}catch{}this.active.delete(playing)};
   amp.gain.setValueAtTime(0,when);amp.gain.linearRampToValueAtTime(Math.max(.00001,baseline),when+attack);
-  if(sample){
+
    const source=ctx.createBufferSource();source.buffer=sample.buffer;source.connect(low);
    const end=when+sample.buffer.duration;const fade=Math.min(release,Math.max(.003,sample.buffer.duration*.25));
    amp.gain.setValueAtTime(Math.max(.00001,baseline),Math.max(when+attack,end-fade));
@@ -143,28 +143,6 @@ export class Engine{
    source.onended=cleanup;source.start(when);source.stop(end+.004);
    playing.until=end+.025;
    playing.stop=()=>{try{const now=Math.max(ctx.currentTime,when);amp.gain.cancelScheduledValues(now);amp.gain.setTargetAtTime(0,now,.003);source.stop(now+.018)}catch{cleanup()}};
-  }else{
-   const osc=ctx.createOscillator(),osc2=ctx.createOscillator(),tone=ctx.createBiquadFilter();
-   const isAcid=pad===6,root=[41.2,43.65,49,46.25,43.65,49][style%6]??43.65;
-   const progression=isAcid?[0,0,7,3,0,10,7,3]:[0,0,0,-5,0,0,7,-5];
-   const step=Math.abs(Math.round(when/(60/this.getSession().tempo/4)))%8;
-   const freq=root*Math.pow(2,(progression[step]??0)/12)*(isAcid?2:1);
-   osc.type=isAcid?'sawtooth':'sine';osc2.type=isAcid?'triangle':'sine';
-   osc.frequency.setValueAtTime(freq,when);osc2.frequency.setValueAtTime(freq*(isAcid?1.003:.5002),when);
-   tone.type='lowpass';tone.Q.value=isAcid?3.1:.7;
-   const length=isAcid?.24:.35;
-   if(isAcid){tone.frequency.setValueAtTime(2600,when);tone.frequency.exponentialRampToValueAtTime(350,when+length*.88)}
-   else tone.frequency.setValueAtTime(320,when);
-   const oscGain=ctx.createGain();oscGain.gain.value=isAcid?.24:.58;
-   osc.connect(oscGain);osc2.connect(oscGain);oscGain.connect(tone).connect(low);
-   osc.start(when);osc2.start(when);
-   amp.gain.setValueAtTime(Math.max(.0001,baseline),when+attack);
-   amp.gain.exponentialRampToValueAtTime(.0001,when+length);
-   osc.stop(when+length+.006);osc2.stop(when+length+.006);
-   playing.until=when+length+.025;
-   osc.onended=()=>{try{tone.disconnect();oscGain.disconnect()}catch{}cleanup()};
-   playing.stop=()=>{try{const now=Math.max(ctx.currentTime,when);amp.gain.cancelScheduledValues(now);amp.gain.setTargetAtTime(0,now,.003);osc.stop(now+.018);osc2.stop(now+.018)}catch{cleanup()}};
-  }
   if(live)this.active.add(playing);
  }
 
