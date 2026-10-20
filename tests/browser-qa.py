@@ -69,9 +69,12 @@ with sync_playwright() as playwright:
  page.locator('#advancedEditor summary').tap()
  page.locator('#pageB').tap()
  assert page.locator('.step').first.evaluate("el=>el.classList.contains('on')") == toggled_state
+ page.locator('#menuToggle').tap()
+ page.locator('.drawer-banks summary').tap()
  page.locator('[data-kit="1"]').tap()
  assert page.locator('[data-kit="1"]').get_attribute('class').find('active')>=0
  page.locator('[data-kit="0"]').tap()
+ page.locator('#menuToggle').tap()
  page.locator('.pattern-cell[data-pad="0"][data-step="0"]').tap()
  page.locator('.pattern-cell[data-pad="0"][data-step="0"]').tap()
  page.locator('#eqLow').fill('4')
