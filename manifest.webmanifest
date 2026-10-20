@@ -1,13 +1,13 @@
 {
   "id": "/",
-  "name": "ARTSS NEXUS DJ Creator 25",
+  "name": "ARTSS NEXUS 26 Aurora DJ",
   "short_name": "NEXUS",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#020203",
   "theme_color": "#020203",
-  "description": "Minimal live DJ performance instrument, official music source embeds and WAV recording.",
+  "description": "Local-first DJ creator with manual sample replacement and fan-out studio tools.",
   "icons": [
     {
       "src": "/icon.svg",

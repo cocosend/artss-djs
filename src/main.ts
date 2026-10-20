@@ -1,12 +1,12 @@
 import {defaultSession,importSession,PAD_NAMES,STYLES,SCENES,toggle,STEPS,sanitizeSession,type Session} from './model.js';
 import {Engine} from './engine.js';
 import { composeGroove } from './arranger.js';
-import {resolveMusicSource,type MusicSource} from './music-sources.js';
 const $=<T extends HTMLElement=HTMLElement>(q:string)=>document.querySelector<T>(q)!;
 const getStorage=():Session=>{for(const key of ['artss-live-session-v19','artss-live-session-v18']){try{const v=localStorage.getItem(key);if(v)return importSession(v)}catch{}}return defaultSession()};
 const state=getStorage();const engine=new Engine(()=>state);
-type Pane='main'|'sources'|'library'|'takes'|'mix'|'profile';
+type Pane='main'|'sounds'|'library'|'takes'|'mix'|'profile';
 let page=0,importSlot:number|undefined,pane:Pane='main',busy=false;
+let showAllPads=false;try{showAllPads=localStorage.getItem('artss-nexus-all-pads')==='1'}catch{}
 const KIT_KEY='artss-nexus-pattern-banks-v23',clonePattern=(v:number[][])=>v.map(row=>row.slice());
 const loadKits=():{active:number;patterns:number[][][]}=>{
  try{const raw=JSON.parse(localStorage.getItem(KIT_KEY)??'null') as {active?:number;patterns?:unknown[]}|null;
@@ -26,7 +26,7 @@ const save=()=>{try{localStorage.setItem('artss-live-session-v19',JSON.stringify
 const setStatus=(v:string)=>{$('#status').textContent=v;$('#status').classList.toggle('live',v.includes('REC')||v==='PLAY')};
 const h=(name:string,text:string,cls='')=>{const el=document.createElement(name);el.className=cls;el.textContent=text;return el;};
 const performancePads=[0,1,2,3,5,6] as const;
-function paintPads(){const wrap=$('#pads');wrap.replaceChildren();performancePads.forEach(i=>{const name=PAD_NAMES[i];
+function paintPads(){const wrap=$('#pads');wrap.replaceChildren();(showAllPads?[0,1,2,3,4,5,6,7]:performancePads).forEach(i=>{const name=PAD_NAMES[i];
  const p=h('button','','pad') as HTMLButtonElement;p.type='button';p.style.setProperty('--tone',['#ff2839','#fbe600','#f8fbff','#ffdf00','#fbfdff','#8f9baa','#ff2839','#ffdf00'][i]??'#fff');p.setAttribute('aria-label',`Играть ${name}`);p.dataset.pad=String(i);
  const top=h('span',`${String(i+1).padStart(2,'0')}`,'pad-number'),short=h('span',name,'pad-name');
  const dot=h('span',engine.bank.customInfo(i,state.style)?'OWN':'','pad-own');
@@ -46,7 +46,7 @@ function paintPads(){const wrap=$('#pads');wrap.replaceChildren();performancePad
  p.addEventListener('pointerdown',async e=>{if(e.pointerType==='mouse'&&e.button!==0)return;e.preventDefault();
   // Schedule Web Audio before synchronous localStorage, painting or visual effects.
   const playing=engine.hit(i,Math.min(1,.65+(e.pressure>0?e.pressure*.32:.3)));
-  if(state.selected!==i){state.selected=i;for(const other of wrap.querySelectorAll('.pad'))other.classList.toggle('selected',other===p);$('#selectedPad').textContent=name;updateSampleTarget();paintSteps();save();}p.classList.add('pressed');
+  if(state.selected!==i){state.selected=i;$<HTMLSelectElement>('#replaceTarget').value=String(i);for(const other of wrap.querySelectorAll('.pad'))other.classList.toggle('selected',other===p);$('#selectedPad').textContent=name;updateSampleTarget();paintSteps();save();}p.classList.add('pressed');
   try{await playing;setStatus(engine.recording?'REC ON':'AUDIO READY')}catch(err){setStatus(err instanceof Error?err.message:'AUDIO ERROR')}
   window.setTimeout(()=>p.classList.remove('pressed'),90);
  },{passive:false});
@@ -55,7 +55,12 @@ function paintPads(){const wrap=$('#pads');wrap.replaceChildren();performancePad
  });
  $('#selectedPad').textContent=PAD_NAMES[state.selected]??'KICK';updateSampleTarget();
 }
-function updateSampleTarget(){const target=$('#sampleRecordHint');target.textContent=`PAD ${String(state.selected+1).padStart(2,'0')} · ${STYLES[state.style]?.name??'PRESET'}`;}
+function updateSampleTarget(){
+ $('#sampleRecordHint').textContent=`PAD ${String(state.selected+1).padStart(2,'0')} · ${STYLES[state.style]?.name??'PRESET'}`;
+ const pad=Number($<HTMLSelectElement>('#replaceTarget').value);const custom=engine.bank.customInfo(pad,state.style);
+ $('#soundInfo').textContent=custom?`CUSTOM · ${custom}`:`ORIGINAL · ${PAD_NAMES[pad]}`;
+ $<HTMLButtonElement>('#restoreSound').disabled=!custom;
+}
 const overviewPads=[0,2,3,5] as const;
 function paintPatternOverview(){
  const host=$('#patternOverview');const fragment=document.createDocumentFragment();
@@ -90,13 +95,16 @@ function paintSteps(){paintPatternOverview();const wrap=$('#steps');wrap.replace
  $('#pageA').classList.toggle('active',page===0);$('#pageB').classList.toggle('active',page===1);
  $('#stepLabel').textContent=`${page===0?'01–08':'09–16'} / 16`;
 }
-function setPane(next:Pane){if(pane==='sources'&&next!=='sources')unloadExternalPlayer('Player closed on navigation.');pane=next;
- for(const [key,id] of [['main','mainPanel'],['sources','sourcesPanel'],['mix','mixPanel'],['takes','takesPanel'],['library','libraryPanel'],['profile','profilePanel']] as const)$('#'+id).hidden=key!==next;
- $('#quickMix').hidden=next!=='main';
- for(const b of document.querySelectorAll<HTMLButtonElement>('[data-pane]')){const selected=b.dataset.pane===pane;b.classList.toggle('active',selected);b.setAttribute('aria-current',selected?'page':'false')}
- if(next==='mix')paintMix();if(next==='takes')paintTakes();
- if(next==='library')paintLibrary();
+const fanIds:{[K in Exclude<Pane,'main'>]:string}={sounds:'soundsFan',mix:'mixFan',takes:'takesFan',library:'libraryFan',profile:'profileFan'};
+function setPane(next:Pane){
+ pane=next;
+ for(const [key,id] of Object.entries(fanIds))$<HTMLDetailsElement>('#'+id).open=key===next;
+ for(const b of document.querySelectorAll<HTMLButtonElement>('[data-pane]')){
+  const active=b.dataset.pane===next;b.classList.toggle('active',active);b.setAttribute('aria-current',active?'page':'false');
+ }
+ if(next==='mix')paintMix();if(next==='takes')paintTakes();if(next==='library')paintLibrary();if(next==='sounds')updateSampleTarget();
  if(next==='profile')$('#deviceStatus').textContent=`Session stored locally · ${engine.takes.length} audio takes · ${STYLES.length} music styles`;
+ if(next!=='main')$<HTMLDetailsElement>('#'+fanIds[next]).scrollIntoView({block:'nearest',behavior:'auto'});
 }
 function paintMix(){const wrap=$('#mixRows');wrap.replaceChildren();PAD_NAMES.forEach((name,i)=>{
  const row=h('div','','mixrow');const label=h('span',name,'mix-name');const range=document.createElement('input');range.type='range';range.min='0';range.max='120';range.step='1';range.value=String(Math.round((state.levels[i]??1)*100));
@@ -110,35 +118,12 @@ function paintTakes(){for(const url of takeUrls)URL.revokeObjectURL(url);takeUrl
  }if(!engine.takes.length)el.append(h('p','Запиши первый дубль.','dim'));
 }
 async function safe(task:()=>Promise<void>){if(busy)return;busy=true;try{await task()}catch(e){setStatus(e instanceof Error?e.message:'ERROR')}finally{busy=false;}}
-let currentMusicSource:MusicSource|null=null;
-function unloadExternalPlayer(message='Player closed.'){
- $('#sourceMount').replaceChildren();currentMusicSource=null;
- $('#sourceActions').hidden=true;$('#sourceStatus').textContent=message;
-}
-function mountExternalPlayer(source:MusicSource){
- unloadExternalPlayer();currentMusicSource=source;
- const frame=document.createElement('iframe');
- frame.title=source.platform+' official embedded player';
- frame.src=source.embedUrl;frame.loading='eager';
- frame.referrerPolicy='strict-origin-when-cross-origin';
- frame.setAttribute('allow','autoplay; encrypted-media; fullscreen; picture-in-picture');
- frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-presentation allow-popups');
- frame.className='source-frame';
- frame.addEventListener('error',()=>{$('#sourceStatus').textContent='Embedding unavailable. Use OPEN ORIGINAL.'});
- $('#sourceMount').append(frame);
- $<HTMLAnchorElement>('#sourceOriginal').href=source.originalUrl;
- $('#sourceActions').hidden=false;
- $('#sourceStatus').textContent=source.platform+': official player loaded (not routed to DJ audio).';
-}
 const paintLibrary=()=>{const host=$('#libraryStyles');const frag=document.createDocumentFragment();
  STYLES.forEach((style,i)=>{const btn=h('button',style.name,'library-style') as HTMLButtonElement;btn.classList.toggle('on',i===state.style);btn.addEventListener('click',()=>{($<HTMLSelectElement>('#bank')).value=String(i);$('#bank').dispatchEvent(new Event('change'));setPane('main')});frag.append(btn)});
  host.replaceChildren(frag);
 };
 const init=()=>{
 engine.updateMix();refreshKitButtons();
- $('#sourceForm').addEventListener('submit',event=>{event.preventDefault();try{const source=resolveMusicSource($<HTMLInputElement>('#sourceLink').value);mountExternalPlayer(source);}catch(error){unloadExternalPlayer(error instanceof Error?error.message:'Invalid music link');}});
- $('#sourceClose').addEventListener('click',()=>unloadExternalPlayer());
- $('#sourcesLocalImport').addEventListener('click',()=>{$('#sampleInput').click()});
  $('#filter').addEventListener('input',()=>{state.filter=Number(($<HTMLInputElement>('#filter')).value)/100;$('#filterValue').textContent=state.filter>.97?'OPEN':`${Math.round(state.filter*100)}%`;engine.updateMix();save()});
  ($('#filter') as HTMLInputElement).value=String(Math.round(state.filter*100));$('#filterValue').textContent=state.filter>.97?'OPEN':`${Math.round(state.filter*100)}%`;
  $('#echo').addEventListener('input',()=>{state.echo=Number(($<HTMLInputElement>('#echo')).value)/100;$('#echoValue').textContent=`${Math.round(state.echo*100)}%`;engine.updateMix();save()});
@@ -213,15 +198,15 @@ engine.updateMix();refreshKitButtons();
  }
  const drawer=$('#drawer');$('#menuToggle').addEventListener('click',()=>{drawer.hidden=!drawer.hidden;$('#menuToggle').setAttribute('aria-expanded',String(!drawer.hidden))});
  const closeDrawer=()=>{drawer.hidden=true;$('#menuToggle').setAttribute('aria-expanded','false')};
- $('#quickUpload').addEventListener('click',()=>{$('#sampleInput').click()});
+ $('#quickUpload').addEventListener('click',()=>setPane('sounds'));
  $('#quickSettings').addEventListener('click',()=>setPane('profile'));
- $('#drawerImport').addEventListener('click',()=>{closeDrawer();$('#sampleInput').click()});
+ $('#drawerImport').addEventListener('click',()=>{closeDrawer();setPane('sounds')});
  $('#drawerRecord').addEventListener('click',()=>{closeDrawer();setPane('takes')});
  $('#drawerSample').addEventListener('click',()=>{closeDrawer();setPane('main');const panel=$<HTMLDetailsElement>('.sample-recorder');panel.open=true;panel.scrollIntoView({block:'nearest',behavior:'smooth'});});
  $('#drawerSettings').addEventListener('click',()=>{closeDrawer();setPane('profile')});
  $('#drawerFX').addEventListener('click',()=>{closeDrawer();setPane('mix')});
  $('#drawerPresets').addEventListener('click',()=>{closeDrawer();setPane('library')});
- $('#libraryImport').addEventListener('click',()=>{$('#sampleInput').click()});
+ $('#libraryImport').addEventListener('click',()=>setPane('sounds'));
  $('#goToRecording').addEventListener('click',()=>setPane('takes'));
  $('#pageA').addEventListener('click',()=>{page=0;paintSteps()});$('#pageB').addEventListener('click',()=>{page=1;paintSteps()});
  const renderCapture=()=>{const active=engine.sampling;
@@ -238,10 +223,27 @@ engine.updateMix();refreshKitButtons();
   try{const result=await engine.endSampleCapture();save();paintSteps();setStatus(`SAMPLE SAVED · PAD ${result.pad+1}`);paintPads();}
   finally{renderCapture();}
  }));
- $('#addSound').addEventListener('click',()=>{importSlot=undefined;$('#sampleInput').click()});
- $('#replaceSound').addEventListener('click',()=>{importSlot=state.selected;$('#sampleInput').click()});
- $('#sampleInput').addEventListener('change',()=>void safe(async()=>{const input=$<HTMLInputElement>('#sampleInput');if(!input.files?.length)return;setStatus('ANALYZING SOUND');const added=await engine.addSamples(input.files,importSlot);save();paintSteps();
-   setStatus(`AUTO MIX: ${added.map(x=>PAD_NAMES[x.pad]).join(', ')}`);input.value='';importSlot=undefined;paintPads();}));
+ $('#addSound').addEventListener('click',()=>setPane('sounds'));
+ $('#replaceTarget').addEventListener('change',updateSampleTarget);
+ $('#replaceSound').addEventListener('click',()=>{importSlot=Number($<HTMLSelectElement>('#replaceTarget').value);$('#sampleInput').click()});
+ $('#restoreSound').addEventListener('click',()=>void safe(async()=>{
+  const pad=Number($<HTMLSelectElement>('#replaceTarget').value);await engine.restoreFactorySound(pad);
+  paintPads();updateSampleTarget();setStatus('ORIGINAL RESTORED · '+PAD_NAMES[pad]);
+ }));
+ $('#morePads').addEventListener('click',()=>{showAllPads=!showAllPads;try{localStorage.setItem('artss-nexus-all-pads',showAllPads?'1':'0')}catch{}
+  const button=$<HTMLButtonElement>('#morePads');button.textContent=showAllPads?'− SHOW 6 PADS':'＋ SHOW ALL 8 PADS';button.setAttribute('aria-expanded',String(showAllPads));paintPads();
+ });
+ $('#morePads').textContent=showAllPads?'− SHOW 6 PADS':'＋ SHOW ALL 8 PADS';
+ $('#morePads').setAttribute('aria-expanded',String(showAllPads));
+ $('#sampleInput').addEventListener('change',()=>void safe(async()=>{
+  const input=$<HTMLInputElement>('#sampleInput');const pad=importSlot;
+  try{
+   if(!input.files?.length||pad===undefined)return;
+   setStatus('LOADING CUSTOM AUDIO');const added=await engine.addSamples(input.files,pad);
+   setStatus(`REPLACED ${PAD_NAMES[added[0]!.pad]} · RESTORE AVAILABLE`);
+   paintPads();updateSampleTarget();
+  }finally{input.value='';importSlot=undefined;}
+ }));
  $('#take').addEventListener('click',()=>void safe(async()=>{if(($('#take') as HTMLButtonElement).classList.contains('on')){engine.endTake();$('#take').classList.remove('on');$('#take').textContent='● RECORD AUDIO';window.setTimeout(paintTakes,400)}else{await engine.beginTake();$('#take').classList.add('on');$('#take').textContent='■ FINISH TAKE'}}));
  $('#export').addEventListener('click',()=>void safe(async()=>{setStatus('RENDERING WAV');const blob=await engine.exportWav();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='ARTSS-NEXUS-LIVE.wav';a.click();window.setTimeout(()=>URL.revokeObjectURL(url),30000);setStatus('WAV EXPORTED')}));
  $('#reset').addEventListener('click',()=>{if(!confirm('Очистить записанные шаги?'))return;state.pattern=Array.from({length:8},()=>Array(16).fill(0));save();paintSteps()});
