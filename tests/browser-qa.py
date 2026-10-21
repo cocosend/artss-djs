@@ -208,6 +208,7 @@ with sync_playwright() as playwright:
  if os.getenv('ARTSS_LOCAL_PREVIEW')=='1':mix_context.route('https://artss.test/**',serve_static)
  page=mix_context.new_page();mix_errors=[];page.on('pageerror',lambda e:mix_errors.append(str(e)))
  page.goto(URL,wait_until='networkidle')
+ page.wait_for_function("document.querySelectorAll('#pads .pad').length===8",timeout=15000)
  assert page.locator('.pad').count()==8
  # Real DJ automix: two local WAV tracks, tempo analysis, beat-aware transition and stop.
  def music_track(bpm):
