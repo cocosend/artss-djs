@@ -32,6 +32,16 @@ Engineering priorities: **sound integrity → correctness/data preservation → 
 ## v27.1 recording regression rule
 - Recorded PCM is WAV, not WebM: MIME, filename extension, header and stored IndexedDB name must agree.
 - Asynchronous IndexedDB restore cannot overwrite a user's newer imported sample during decode.
-- MediaRecorder failures must release microphone tracks and notify UI instead of leaving the recording button armed.
+- The user prohibited microphone capture: never use getUserMedia or a microphone selector. LIVE REC captures pad events in the continuing 16-step loop.
 
-- On Safari and iOS WebKit, short live/microphone sample recordings use the bounded PCM capture path, avoiding the flaky short MediaRecorder pipeline. Chromium retains MediaRecorder. Browser QA verifies actual WAV storage.
+- On Safari/iOS only internal live mix sample capture uses bounded PCM; microphone capture is unsupported.
+
+## v27.2 tactile interaction
+- Pads render their pressed state immediately on pointerdown and retain it until pointerup or pointercancel; allow true multi-touch while forbidding long-press file pickers.
+- Pad selection changes classes, not audio engine, pad DOM nodes, or sequencer structure; tapping existing step controls persists via bounded 250 ms debounce with pagehide/background flush.
+- LOW/MID/HIGH accept vertical touch movement at 7 CSS px/dB, native keyboard access remains, and all frequency changes reach AudioParam before persistence.
+- One CSS cascade only; preserve 8 pads/4x2, A-D bank strip, five tabs and headroom/compressor behavior.
+
+- For short Safari/iOS PCM recordings, record post-limiter master directly through `/app/pcm-capture.js` AudioWorklet instead of routing live WebAudio through MediaStreamDestination -> MediaStreamSource -> ScriptProcessor. AudioWorklet remains allocated only while capturing; preserve playback connections on cleanup. The fallback ScriptProcessor remains for platforms without AudioWorklet.
+
+- Regression QA must assert long-press on a performance pad cannot accidentally switch to sample replacement, and computed touch-action for pads and EQ prevents scroll hijacking.
