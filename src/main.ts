@@ -23,7 +23,8 @@ const persistKits=()=>{kits.patterns[kits.active]=clonePattern(state.pattern);tr
 
 const save=()=>{try{localStorage.setItem('artss-live-session-v19',JSON.stringify(state));persistKits()}catch{setStatus('STORAGE FULL')}};
 let pendingSave:ReturnType<typeof setTimeout>|null=null;
-const scheduleSave=()=>{if(pendingSave!==null)clearTimeout(pendingSave);pendingSave=setTimeout(()=>{pendingSave=null;save()},180)};
+const scheduleSave=()=>{if(pendingSave!==null)clearTimeout(pendingSave);pendingSave=setTimeout(()=>{pendingSave=null;save()},250)};
+const flushSave=()=>{if(pendingSave!==null){clearTimeout(pendingSave);pendingSave=null;save()}};
 const setStatus=(v:string)=>{$('#status').textContent=v;$('#status').classList.toggle('live',v.includes('REC')||v==='PLAY')};
 const h=(name:string,text:string,cls='')=>{const el=document.createElement(name);el.className=cls;el.textContent=text;return el;};
 function paintPads(){const wrap=$('#pads');wrap.replaceChildren();for(let i=0;i<8;i++){const name=PAD_NAMES[i]??'PAD';
@@ -43,19 +44,24 @@ function paintPads(){const wrap=$('#pads');wrap.replaceChildren();for(let i=0;i<
  const glyph=h('span','','pad-glyph');glyph.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+glyphPaths[i]+'</svg>';
  const bar=h('span','','pad-bar');p.append(top,glyph,short,dot,bar);
  if(i===state.selected)p.classList.add('selected');if(state.muted[i])p.classList.add('muted');
- p.addEventListener('pointerdown',async e=>{if(e.pointerType==='mouse'&&e.button!==0)return;e.preventDefault();
-  // Schedule Web Audio before synchronous localStorage, painting or visual effects.
-  const playing=engine.hit(i,Math.min(1,.65+(e.pressure>0?e.pressure*.32:.3)));
-  if(state.selected!==i){
-   state.selected=i;$<HTMLSelectElement>('#replaceTarget').value=String(i);
-   for(const other of wrap.querySelectorAll('.pad'))other.classList.toggle('selected',other===p);
-   $('#selectedPad').textContent=name;updateSampleTarget();paintSteps(false);scheduleSave();
-  }
+ const pointers=new Set<number>();let releaseTimer:number|undefined;let pressedAt=0;
+ const release=(pointerId:number)=>{pointers.delete(pointerId);if(pointers.size)return;
+  if(releaseTimer!==undefined)clearTimeout(releaseTimer);
+  releaseTimer=window.setTimeout(()=>{if(!pointers.size)p.classList.remove('pressed');releaseTimer=undefined},Math.max(0,75-(performance.now()-pressedAt)));
+ };
+ p.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button!==0)return;if(pointers.has(e.pointerId))return;
+  e.preventDefault();pointers.add(e.pointerId);pressedAt=performance.now();
+  if(releaseTimer!==undefined){clearTimeout(releaseTimer);releaseTimer=undefined;}
   p.classList.add('pressed');
-  try{await playing;setStatus(engine.recording?'REC ON':'AUDIO READY')}catch(err){setStatus(err instanceof Error?err.message:'AUDIO ERROR')}
-  window.setTimeout(()=>p.classList.remove('pressed'),90);
+  // Begin sound before touching layout or storage; hold state ends on pointerup/cancel.
+  const playing=engine.hit(i,Math.min(1,.65+(e.pressure>0?e.pressure*.32:.3)));
+  if(state.selected!==i)selectPad(i);
+  try{p.setPointerCapture(e.pointerId)}catch{}
+  void playing.catch(err=>setStatus(err instanceof Error?err.message:'AUDIO ERROR'));
  },{passive:false});
- p.addEventListener('contextmenu',e=>{e.preventDefault();$<HTMLSelectElement>('#replaceTarget').value=String(i);setPane('sounds');});
+ for(const eventName of ['pointerup','pointercancel','lostpointercapture'] as const)p.addEventListener(eventName,e=>release(e.pointerId));
+ // Long press must never open the device sample picker or switch away from performance.
+ p.addEventListener('contextmenu',e=>e.preventDefault());
  wrap.append(p);
  }
  $('#selectedPad').textContent=PAD_NAMES[state.selected]??'KICK';updateSampleTarget();
@@ -65,6 +71,25 @@ function updateSampleTarget(){
  const pad=Number($<HTMLSelectElement>('#replaceTarget').value);const custom=engine.bank.customInfo(pad,state.style);
  $('#soundInfo').textContent=custom?`CUSTOM · ${custom}`:`ORIGINAL · ${PAD_NAMES[pad]}`;
  $<HTMLButtonElement>('#restoreSound').disabled=!custom;
+}
+/** O(8) class sync. Never rebuild pad/step nodes while a finger is triggering audio. */
+function syncSelectedSteps(){
+ for(const btn of document.querySelectorAll<HTMLButtonElement>('#steps .step')){
+  const step=Number(btn.dataset.step);
+  btn.classList.toggle('on',(state.pattern[state.selected]?.[step]??0)>0);
+ }
+ for(const btn of document.querySelectorAll<HTMLButtonElement>('.pattern-lane-name'))btn.classList.toggle('active',Number(btn.dataset.pad)===state.selected);
+}
+function selectPad(pad:number){
+ if(!Number.isInteger(pad)||pad<0||pad>=8||state.selected===pad)return;
+ state.selected=pad;$<HTMLSelectElement>('#replaceTarget').value=String(pad);
+ for(const btn of document.querySelectorAll<HTMLButtonElement>('#pads .pad'))btn.classList.toggle('selected',Number(btn.dataset.pad)===pad);
+ $('#selectedPad').textContent=PAD_NAMES[pad]??'KICK';updateSampleTarget();syncSelectedSteps();scheduleSave();
+}
+function syncPatternCells(pad:number,step:number){
+ const on=(state.pattern[pad]?.[step]??0)>0;
+ for(const cell of document.querySelectorAll<HTMLButtonElement>('.pattern-cell'))if(Number(cell.dataset.pad)===pad&&Number(cell.dataset.step)===step)cell.classList.toggle('on',on);
+ if(pad===state.selected)for(const btn of document.querySelectorAll<HTMLButtonElement>('#steps .step'))if(Number(btn.dataset.step)===step)btn.classList.toggle('on',on);
 }
 const overviewPads=[0,2,3,5] as const;
 function paintPatternOverview(){
@@ -77,7 +102,7 @@ function paintPatternOverview(){
   const name=h('button',PAD_NAMES[pad],'pattern-lane-name') as HTMLButtonElement;name.dataset.pad=String(pad);
   name.type='button';name.setAttribute('aria-label',`Редактировать ${PAD_NAMES[pad]}`);
   name.classList.toggle('active',state.selected===pad);
-  name.addEventListener('click',()=>{state.selected=pad;save();paintPads();paintSteps()});
+  name.addEventListener('click',()=>selectPad(pad));
   const blocks=h('div','','pattern-lane-steps');
   for(let step=0;step<STEPS;step++){
    const cell=h('button','','pattern-cell') as HTMLButtonElement;
@@ -85,7 +110,7 @@ function paintPatternOverview(){
    cell.setAttribute('aria-label',`${PAD_NAMES[pad]} step ${step+1}`);
    if((state.pattern[pad]?.[step]??0)>0)cell.classList.add('on');
    cell.style.setProperty('--accent',pad===0?'#ff2934':pad===2?'#ffdf00':pad===3?'#f8faff':'#929aa8');
-   cell.addEventListener('click',()=>{toggle(state.pattern,pad,step);state.selected=pad;save();paintPads();paintSteps()});
+   cell.addEventListener('click',()=>{toggle(state.pattern,pad,step);selectPad(pad);syncPatternCells(pad,step);scheduleSave()});
    blocks.append(cell);
   }
   lane.append(name,blocks);fragment.append(lane);
@@ -93,12 +118,11 @@ function paintPatternOverview(){
  host.replaceChildren(fragment);
 }
 function paintSteps(refreshOverview=true){
- if(refreshOverview)paintPatternOverview();
- else for(const button of document.querySelectorAll<HTMLButtonElement>('.pattern-lane-name'))button.classList.toggle('active',Number(button.dataset.pad)===state.selected);
+ if(refreshOverview)paintPatternOverview();else syncSelectedSteps();
  const wrap=$('#steps');wrap.replaceChildren();for(let col=0;col<8;col++){
  const step=col+page*8,velocity=state.pattern[state.selected]?.[step]??0;
  const btn=h('button',String(step+1).padStart(2,'0'),'step') as HTMLButtonElement;btn.type='button';btn.dataset.step=String(step);
- if(velocity>0)btn.classList.add('on');btn.addEventListener('click',()=>{toggle(state.pattern,state.selected,step);save();paintSteps()});wrap.append(btn);
+ if(velocity>0)btn.classList.add('on');btn.addEventListener('click',()=>{toggle(state.pattern,state.selected,step);syncPatternCells(state.selected,step);scheduleSave()});wrap.append(btn);
  }
  $('#pageA').classList.toggle('active',page===0);$('#pageB').classList.toggle('active',page===1);
  $('#stepLabel').textContent=`${page===0?'01–08':'09–16'} / 16`;
@@ -196,8 +220,8 @@ engine.updateMix();refreshKitButtons();
  $('#bpmRange').addEventListener('input',()=>changeTempo(Number(($<HTMLInputElement>('#bpmRange')).value)));
  let lastTap=0;const recentTaps:number[]=[];
  $('#tapTempo').addEventListener('click',()=>{const now=performance.now(),elapsed=now-lastTap;lastTap=now;if(elapsed>2000){recentTaps.length=0;setStatus('TAP AGAIN TO SET BPM');return;}if(elapsed<300||elapsed>1000)return;recentTaps.push(elapsed);if(recentTaps.length>4)recentTaps.shift();const sorted=[...recentTaps].sort((a,b)=>a-b);const median=sorted[Math.floor(sorted.length/2)]??elapsed;changeTempo(60000/median);setStatus(`BPM ${state.tempo}`)});
- document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&engine.state==='PLAY'&&engine.ctx?.state==='suspended')setStatus('TAP PLAY TO RESTORE AUDIO')});
- window.addEventListener('pagehide',()=>{save();for(const url of takeUrls)URL.revokeObjectURL(url);takeUrls=[]});
+ document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushSave();else if(engine.state==='PLAY'&&engine.ctx?.state==='suspended')setStatus('TAP PLAY TO RESTORE AUDIO')});
+ window.addEventListener('pagehide',()=>{flushSave();for(const url of takeUrls)URL.revokeObjectURL(url);takeUrls=[]});
  $('#play').addEventListener('click',()=>void safe(async()=>{if(engine.state==='PLAY'&&engine.ctx?.state==='suspended')await engine.unlock();else if(engine.state==='PLAY')engine.pause();else await engine.start();updateTransport()}));
  $('#record').addEventListener('click',()=>void safe(async()=>{await engine.toggleRecord();updateTransport()}));
  $('#stop').addEventListener('click',()=>{engine.stop();updateTransport()});
@@ -257,7 +281,7 @@ engine.updateMix();refreshKitButtons();
    for(const el of document.querySelectorAll('.pattern-cell'))el.classList.toggle('playhead',Number((el as HTMLElement).dataset.step)===step);
    const total=60/state.tempo/4*16;const elapsed=(step*60/state.tempo/4);$('#transportTime').textContent=`${String(Math.floor(elapsed/60)).padStart(2,'0')}:${String(Math.floor(elapsed%60)).padStart(2,'0')} / ${String(Math.floor(total/60)).padStart(2,'0')}:${String(Math.ceil(total%60)).padStart(2,'0')}`;
   })};
- engine.events.onClip=()=>{scheduleSave();requestAnimationFrame(()=>paintSteps())};engine.events.onSamples=paintPads;engine.events.onState=v=>{setStatus(v);if(v.startsWith('SAMPLE SAVED')||v.startsWith('SAMPLE ERROR')){renderCapture();paintPads();}};
+ engine.events.onClip=(pad)=>{scheduleSave();for(let step=0;step<STEPS;step++)syncPatternCells(pad,step)};engine.events.onSamples=paintPads;engine.events.onState=v=>{setStatus(v);if(v.startsWith('SAMPLE SAVED')||v.startsWith('SAMPLE ERROR')){renderCapture();paintPads();}};
  paintPads();paintSteps();setPane('main');updateTransport();renderCapture();
  if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
 };
