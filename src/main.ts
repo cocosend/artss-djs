@@ -14,6 +14,27 @@ const localStatus=(value:string):string=>{
  for(const [en,ru] of [['SAMPLE SAVED','СЭМПЛ СОХРАНЁН'],['SAMPLE REC','ЗАПИСЬ СЭМПЛА'],['SAMPLE ERROR','ОШИБКА СЭМПЛА'],['ORIGINAL RESTORED','ОРИГИНАЛ ВОССТАНОВЛЕН'],['LOADING CUSTOM AUDIO','ЗАГРУЗКА ЗВУКА'],['REPLACED ','ЗАМЕНЁН '],['RESTORE AVAILABLE','МОЖНО ВОССТАНОВИТЬ'],['RANDOM IDEA READY','СЛУЧАЙНЫЙ РИТМ ГОТОВ'],['AUTO GROOVE READY','РИТМ СОЗДАН'],['GROOVE RESTORED','РИТМ ВОССТАНОВЛЕН'],['RENDERING WAV','СОЗДАНИЕ WAV'],['WAV EXPORTED','WAV СОХРАНЁН'],['PAD BANK ','БАНК ПЭДОВ '],['PAD ','ПЭД ']] as const)value=value.replace(en,ru);
  return value;
 };
+const languageKey='artss-nexus-language';
+type Language='ru'|'en';
+let language:Language=(()=>{try{return localStorage.getItem(languageKey)==='en'?'en':'ru'}catch{return 'ru'}})();
+const englishLabels:Record<string,string>={
+ 'ПУСК':'PLAY','ПАУЗА':'PAUSE','СТОП':'STOP','ЗАПИСЬ':'REC','СТОП ЗАПИСИ':'STOP REC','ГОТОВО':'READY','ИГРАЕТ':'PLAYING','ОСТАНОВЛЕНО':'STOPPED','ЗАПИСЬ ПЭДОВ':'PAD RECORDING','ЛУП СОХРАНЁН':'LOOP SAVED','ДРАМ-ПЭДЫ':'DRUM PADS','ШАГОВЫЙ СЕКВЕНСОР':'STEP SEQUENCER','ЗВУКИ':'SOUNDS','ПРЕСЕТЫ':'PRESETS','ПРОЕКТ':'PROJECT','СОЗДАТЬ':'CREATE','ИГРАТЬ':'PERFORM','МИКС':'MIX','СОЗДАТЬ РИТМ':'AUTO GROOVE','АВТОРИТМ':'AUTO RHYTHM','СЛУЧАЙНЫЙ':'RANDOM','РИТМ':'GROOVE','ЗАДАТЬ ТЕМП':'TAP TEMPO','СЦЕНА':'SCENE','СТИЛЬ':'STYLE','НИЗ':'LOW','СЕР':'MID','ВЕРХ':'HIGH','СИГНАЛ':'SIGNAL','ПЭДЫ':'PADS','ЗВУКИ ПЭДОВ':'PAD SOUNDS','НАСТРОЙКИ':'SETTINGS','МИКШЕР И FX':'MIX & FX','ЗАПИСАТЬ СЭМПЛ':'RECORD SAMPLE','ОТКРЫТЬ ЗАПИСЬ':'OPEN RECORDER','ЗАПИСАТЬ АУДИО':'RECORD AUDIO','НАЧАТЬ':'START','ЗАВЕРШИТЬ ДУБЛЬ':'FINISH TAKE','ЭКСПОРТ WAV':'EXPORT WAV','ДОБАВИТЬ СЭМПЛ':'ADD SAMPLE','ИСТОЧНИК':'SOURCE','ЗВУК ПЭДОВ':'PAD MIX','СВОЙ':'CUSTOM','ОРИГИНАЛ':'ORIGINAL','БОЧКА':'KICK','САБ':'SUB','ХЛОПОК':'CLAP','ХЭТ':'HAT','ОТКР. ХЭТ':'OPEN HAT','ПЕРК':'PERC','ЭЙСИД':'ACID','УДАР':'HIT','ГРУВ':'GROOVE','ВСТУПЛЕНИЕ':'INTRO','РАЗГОН':'BUILD','ДРОП':'DROP','БРЕЙК':'BREAK','АНДЕГРАУНД':'UNDERGROUND','ЖЁСТКОЕ ТЕХНО':'HARD TECHNO','ТЁМНОЕ ТЕХНО':'DARK TECHNO','РЕЙВ':'RAVE','ФОНК':'PHONK','ИНДАСТРИАЛ':'INDUSTRIAL','ГИПНОТИК':'HYPNOTIC','ПИК-ТАЙМ':'PEAK TIME','БРЕЙКС':'BREAKS','МИНИМАЛ':'MINIMAL','ЭЛЕКТРО':'ELECTRO'};
+const translateText=(input:string)=>{if(language==='ru')return input;return input.replace(/[А-ЯЁ][А-ЯЁ.\s-]*/g,segment=>{const key=segment.trim();const translated=englishLabels[key];return translated?segment.replace(key,translated):segment})};
+const originalText=new WeakMap<Text,string>();
+const originalAttributes=new WeakMap<Element,Map<string,string>>();
+const applyLanguage=()=>{
+ document.documentElement.lang=language;
+ const toggle=document.querySelector<HTMLButtonElement>('#languageToggle');
+ if(toggle){toggle.innerHTML=language==='ru'?'<b>RU</b><span>/</span>EN':'RU<span>/</span><b>EN</b>';toggle.setAttribute('aria-pressed',String(language==='en'));}
+ const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
+ let node:Node|null;
+ while((node=walker.nextNode())){if(node.parentElement?.closest('script,style,#languageToggle'))continue;const t=node as Text;let source=originalText.get(t);if(source===undefined){source=t.nodeValue??'';if(language==='en'&&/[А-ЯЁ]/.test(source))source=source;originalText.set(t,source)}const translated=translateText(source);if(t.nodeValue!==translated)t.nodeValue=translated;}
+ document.querySelectorAll<HTMLElement>('[aria-label],[title],[placeholder]').forEach(el=>{let cache=originalAttributes.get(el);if(!cache){cache=new Map();originalAttributes.set(el,cache)}for(const attr of ['aria-label','title','placeholder']){const value=el.getAttribute(attr);if(value===null)continue;if(!cache.has(attr))cache.set(attr,value);const translated=translateText(cache.get(attr)??value);if(value!==translated)el.setAttribute(attr,translated)}});
+};
+document.querySelector('#languageToggle')?.addEventListener('click',()=>{language=language==='ru'?'en':'ru';try{localStorage.setItem(languageKey,language)}catch{}applyLanguage()});
+const languageObserver=new MutationObserver(()=>{if(language==='en')applyLanguage()});
+languageObserver.observe(document.body,{childList:true,subtree:true});
+queueMicrotask(applyLanguage);
 type Pane='main'|'sounds'|'library'|'takes'|'mix'|'profile';
 let page=0,importSlot:number|undefined,pane:Pane='main',busy=false;
 const KIT_KEY='artss-nexus-pattern-banks-v23',clonePattern=(v:number[][])=>v.map(row=>row.slice());
