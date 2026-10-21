@@ -11,7 +11,7 @@
  <link rel="icon" href="/icon.svg" type="image/svg+xml">
  <link rel="manifest" href="/manifest.webmanifest">
  <link rel="stylesheet" href="/studio27.css">
- <title>ARTSS NEXUS 27.2 — REFERENCE STUDIO</title>
+ <title>ARTSS NEXUS 28.0 — DJ AUTO MIX</title>
 </head>
 <body>
 <div class="app nexus-app">
@@ -65,6 +65,15 @@
   <button type="button" class="auto" id="autoGroove"><span class="galaxy" aria-hidden="true">✦</span><span class="auto-lines"><strong>СОЗДАТЬ РИТМ</strong><small>АВТОРИТМ</small></span><span class="auto-arrow">›</span></button>
   <button type="button" class="side-action" id="editGroove"><span class="action-glyph">≋</span><span>ИЗМЕНИТЬ<br>РИТМ</span></button>
  </section>
+ <details id="trackAutoMix" class="auto-track-panel">
+  <summary><span class="auto-track-glyph">♫</span><span><strong>АВТОСВОДКА ТРЕКОВ</strong><small>ТЕМП · УРОВЕНЬ · ПЕРЕХОД</small></span><span class="auto-track-chevron">⌄</span></summary>
+  <div class="auto-track-controls">
+   <label for="autoMixFiles">ВЫБЕРИ 2–3 СВОИХ АУДИОТРЕКА</label>
+   <input id="autoMixFiles" type="file" accept="audio/*,.wav,.mp3,.m4a,.aac,.flac,.ogg" multiple aria-label="Аудиотреки для автоматической сводки">
+   <div class="auto-track-buttons"><button type="button" id="startTrackMix" disabled>▶ СВЕСТИ ТРЕКИ</button><button type="button" id="stopTrackMix" disabled>■ ОСТАНОВИТЬ</button></div>
+   <p id="trackMixStatus" role="status">Анализ BPM, выравнивание уровней и переход по музыкальной фразе.</p>
+  </div>
+ </details>
  <div class="utility-actions"><button id="autoMixToggle" class="auto-mix-toggle" type="button" aria-pressed="false">АВТОМИКС · ВЫКЛ</button><label for="density">ПЛОТНОСТЬ <input id="density" type="range" min="25" max="100" value="70" aria-label="Плотность ритма"></label><button id="undoGroove" class="undo" hidden>↶ ОТМЕНИТЬ</button></div>
  <main id="mainPanel">
   <div class="section-heading pad-head"><div class="headline"><span class="heading-icon">▦</span><h2>ДРАМ-ПЭДЫ</h2></div><div id="kitBanks" class="kit-banks" role="group" aria-label="Банки паттернов"><button type="button" data-kit="0" class="active">A</button><button type="button" data-kit="1">B</button><button type="button" data-kit="2">C</button><button type="button" data-kit="3">D</button></div></div>
