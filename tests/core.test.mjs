@@ -152,7 +152,8 @@ test('local track mixing goes through existing limiter with no separate deck',as
  assert.match(player,/connectMusicSource\(mix\)/);
  assert.match(player,/setValueCurveAtTime/);
  assert.match(player,/planTransition/);
- assert.match(engine,/const target=this.bus.input;node.connect\(target\)/);
+ assert.match(engine,/const target=this.bus.input,duck=this.ctx.createGain\(\)/);
+ assert.match(engine,/duck.connect\(target\)/);
  assert.match(html,/id="trackAutoMix"/);
  assert.ok(!html.includes('id="deckB"'));
 });
