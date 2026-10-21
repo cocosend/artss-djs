@@ -1,4 +1,4 @@
-import {SampleRecorder,type CaptureSource} from './sample-recorder.js';
+import {SampleRecorder,preferPcmRecording,type CaptureSource} from './sample-recorder.js';
 import {STEPS,STYLES,type Session,note} from './model.js';
 import {placeSample} from './arranger.js';
 import {SoundBank,type Sound} from './sounds.js';
@@ -163,11 +163,13 @@ export class Engine{
   if(this.sampling)throw Error('Запись уже идёт');
   await this.unlock();
   if(source==='live'&&!this.running)await this.start();
-  const capture=this.ensureCapture();
+  const directPcm=source==='live'&&!!this.ctx?.audioWorklet&&preferPcmRecording(navigator.userAgent,typeof MediaRecorder!=='undefined');
+  const capture=source==='live'&&!directPcm?this.ensureCapture():null;
   const target={pad,style:this.getSession().style};
-  await this.sampleRecorder.start(source,capture.stream,this.ctx!,
+  await this.sampleRecorder.start(source,capture?.stream??null,this.ctx!,
    ()=>{void this.endSampleCapture().catch(e=>this.events.onState?.(e instanceof Error?'SAMPLE ERROR · '+e.message:'SAMPLE ERROR'));},
-   error=>{this.sampleTarget=null;this.events.onState?.('SAMPLE ERROR · '+error.message);});
+   error=>{this.sampleTarget=null;this.events.onState?.('SAMPLE ERROR · '+error.message);},
+   directPcm?this.bus!.master:null);
   this.sampleTarget=target;
   this.events.onState?.(`SAMPLE REC · ${target.pad+1}`);
  }
