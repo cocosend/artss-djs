@@ -36,6 +36,8 @@ export class SampleRecorder {
   private capturingPCM = false;
   private sourceNode: MediaStreamAudioSourceNode | null = null;
   private processor: ScriptProcessorNode | null = null;
+  private worklet: AudioWorkletNode | null = null;
+  private workletInput: AudioNode | null = null;
   private sink: GainNode | null = null;
   private pcm: Float32Array[] = [];
   private frames=0;
@@ -43,9 +45,9 @@ export class SampleRecorder {
 
   get active(): boolean {return this.capturingPCM || this.recorder?.state === 'recording';}
 
-  async start(source: CaptureSource, liveStream: MediaStream, context: AudioContext, onLimit: () => void, onFailure: (error: Error) => void = () => {}): Promise<void> {
+  async start(source: CaptureSource, liveStream: MediaStream | null, context: AudioContext, onLimit: () => void, onFailure: (error: Error) => void = () => {}, directInput: AudioNode | null = null): Promise<void> {
     if (this.active || this.stopPromise) throw Error('Запись сэмпла уже идёт');
-    let stream: MediaStream;
+    let stream: MediaStream | null=liveStream;
     if (source === 'mic') {
       if (!navigator.mediaDevices?.getUserMedia) throw Error('Микрофон недоступен');
       stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false},video:false});
@@ -53,24 +55,43 @@ export class SampleRecorder {
     } else stream = liveStream;
     try {
       if(preferPcmRecording(navigator.userAgent,typeof MediaRecorder !== 'undefined')) {
-        // Safari / WebKit builds without MediaRecorder still get uncompressed, 44/48kHz PCM.
-        this.sourceNode = context.createMediaStreamSource(stream);
-        this.processor = context.createScriptProcessor(2048,2,2);
-        this.sink = context.createGain();this.sink.gain.value=0;
         this.pcm=[];this.frames=0;this.sampleRate=context.sampleRate;
-        this.processor.onaudioprocess = event => {
-          if(!this.capturingPCM)return;
-          const block=event.inputBuffer,left=block.getChannelData(0);
-          const right=block.numberOfChannels>1?block.getChannelData(1):left;
-          const packet=new Float32Array(block.length*2);
-          for(let i=0;i<block.length;i++){packet[2*i]=left[i]??0;packet[2*i+1]=right[i]??0;}
-          this.pcm.push(packet);this.frames+=block.length;
-        };
-        this.capturingPCM=true;
-        this.sourceNode.connect(this.processor);this.processor.connect(this.sink);this.sink.connect(context.destination);
+        if(context.audioWorklet){
+          // WebKit's live MediaStream roundtrip can crash during short captures.
+          // Connect the post-limiter master directly to a capture-only worklet.
+          await context.audioWorklet.addModule('/app/pcm-capture.js');
+          this.worklet=new AudioWorkletNode(context,'artss-pcm-capture',{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[1]});
+          this.worklet.port.onmessage=event=>{
+            if(!this.capturingPCM||!(event.data instanceof ArrayBuffer))return;
+            const packet=new Float32Array(event.data);
+            if(packet.length<2||packet.length%2!==0)return;
+            this.pcm.push(packet);this.frames+=packet.length/2;
+          };
+          this.workletInput=directInput??(stream?context.createMediaStreamSource(stream):null);
+          if(!this.workletInput)throw Error('Источник аудиозаписи недоступен');
+          this.sink=context.createGain();this.sink.gain.value=0;
+          this.capturingPCM=true;
+          this.workletInput.connect(this.worklet);this.worklet.connect(this.sink).connect(context.destination);
+        }else{
+          if(!stream)throw Error('Аудиопоток для резервной записи недоступен');
+          this.sourceNode=context.createMediaStreamSource(stream);
+          this.processor=context.createScriptProcessor(2048,2,2);
+          this.sink=context.createGain();this.sink.gain.value=0;
+          this.processor.onaudioprocess=event=>{
+            if(!this.capturingPCM)return;
+            const block=event.inputBuffer,left=block.getChannelData(0);
+            const right=block.numberOfChannels>1?block.getChannelData(1):left;
+            const packet=new Float32Array(block.length*2);
+            for(let i=0;i<block.length;i++){packet[2*i]=left[i]??0;packet[2*i+1]=right[i]??0;}
+            this.pcm.push(packet);this.frames+=block.length;
+          };
+          this.capturingPCM=true;
+          this.sourceNode.connect(this.processor);this.processor.connect(this.sink).connect(context.destination);
+        }
       } else {
         const types = ['audio/mp4','audio/webm;codecs=opus','audio/webm'];
         const mime = types.find(type => MediaRecorder.isTypeSupported(type));
+        if(!stream)throw Error('Аудиопоток недоступен');
         const recorder = new MediaRecorder(stream, mime ? {mimeType:mime} : undefined);
         this.recorder = recorder;this.chunks=[];
         recorder.ondataavailable = event => {if(event.data.size > 0)this.chunks.push(event.data);};
@@ -111,8 +132,11 @@ export class SampleRecorder {
     this.timeout=null;
     this.capturingPCM=false;
     if(this.processor){this.processor.onaudioprocess=null;this.processor.disconnect();}
+    if(this.worklet){this.worklet.port.onmessage=null;this.worklet.disconnect();}
+    // For live recording the worklet input may be the shared master; only disconnect its worklet branch.
+    if(this.workletInput&&this.worklet)try{this.workletInput.disconnect(this.worklet)}catch{}
     this.sourceNode?.disconnect();this.sink?.disconnect();
-    this.processor=null;this.sourceNode=null;this.sink=null;
+    this.processor=null;this.worklet=null;this.workletInput=null;this.sourceNode=null;this.sink=null;
     this.ownedStream?.getTracks().forEach(track=>track.stop());this.ownedStream=null;
     this.recorder=null;this.stopPromise=null;this.chunks=[];this.pcm=[];this.frames=0;
     this.finish=null;this.fail=null;
