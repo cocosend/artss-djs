@@ -31,8 +31,8 @@ with sync_playwright() as playwright:
  assert page.locator('.pad[data-pad="4"]').is_visible()
  assert page.locator('.pad[data-pad="7"]').is_visible()
  assert page.locator('#kitBanks button').count()==4
-  assert page.locator('#sampleSource option[value="mic"]').count()==0
-  assert page.locator('html').get_attribute('lang')=='ru'
+ assert page.locator('#sampleSource option[value="mic"]').count()==0
+ assert page.locator('html').get_attribute('lang')=='ru'
  assert page.locator('[data-kit="0"]').is_visible()
  assert page.locator('link[rel="stylesheet"]').count()==1
  assert page.locator('link[rel="stylesheet"]').get_attribute('href')=='/studio27.css'
