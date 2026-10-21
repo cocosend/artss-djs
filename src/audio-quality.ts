@@ -6,7 +6,7 @@ export function crossfadeGains(position:number):readonly [number,number] {
 }
 /** Envelope peak limit before dynamics processing; avoids overdriving on imported samples. */
 export function voiceGain(velocity:number,level:number,sampleGain:number):number {
- return Math.min(.65,clamp(velocity,0,1)*clamp(level,0,1.2)*clamp(sampleGain,0,2.2)*.62);
+ return Math.min(.94,clamp(velocity,0,1)*clamp(level,0,1.2)*clamp(sampleGain,0,2.2)*.86);
 }
 /** True logarithmic control covering audible warmth through nearly open high end. */
 export function lowpassHz(open:number,sampleRate:number):number {
