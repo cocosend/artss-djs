@@ -2,6 +2,7 @@ import {defaultSession,importSession,PAD_NAMES,STYLES,SCENES,toggle,STEPS,saniti
 import {Engine} from './engine.js';
 import { composeGroove } from './arranger.js';
 import {knobDragValue} from './touch.js';
+import {AutoMixPlayer,type AutoMixState} from './automix-player.js';
 const $=<T extends HTMLElement=HTMLElement>(q:string)=>document.querySelector<T>(q)!;
 const getStorage=():Session=>{for(const key of ['artss-live-session-v19','artss-live-session-v18']){try{const v=localStorage.getItem(key);if(v)return importSession(v)}catch{}}return defaultSession()};
 const state=getStorage();const engine=new Engine(()=>state);
@@ -188,6 +189,20 @@ const paintLibrary=()=>{const host=$('#libraryStyles');const frag=document.creat
 };
 const init=()=>{
 engine.updateMix();refreshKitButtons();
+// Automatic DJ transitions process real user-owned music files, not sequencer presets.
+const trackStatus=$('#trackMixStatus'),mixStart=$<HTMLButtonElement>('#startTrackMix'),mixStop=$<HTMLButtonElement>('#stopTrackMix');
+const mixPlayer=new AutoMixPlayer(engine,(current:AutoMixState,message:string)=>{
+ const localized=language==='en'?message.replace('Анализ темпа и музыкальных фраз','Analyzing tempo and phrasing').replace('Автосводка остановлена','Automix stopped').replace('Автосводка','Automix'):message;
+ trackStatus.textContent=localized;
+ mixStart.disabled=current!=='ready';mixStop.disabled=current!=='playing';
+});
+$('#autoMixFiles').addEventListener('change',()=>void safe(async()=>{
+ const input=$<HTMLInputElement>('#autoMixFiles');if(!input.files?.length)return;
+ mixStart.disabled=true;await mixPlayer.load(input.files);
+}));
+mixStart.addEventListener('click',()=>void safe(async()=>{await mixPlayer.start();updateTransport()}));
+mixStop.addEventListener('click',()=>{mixPlayer.stop();updateTransport()});
+
  $('#filter').addEventListener('input',()=>{state.filter=Number(($<HTMLInputElement>('#filter')).value)/100;$('#filterValue').textContent=state.filter>.97?'ОТКРЫТ':`${Math.round(state.filter*100)}%`;engine.updateMix();scheduleSave()});
  ($('#filter') as HTMLInputElement).value=String(Math.round(state.filter*100));$('#filterValue').textContent=state.filter>.97?'ОТКРЫТ':`${Math.round(state.filter*100)}%`;
  $('#echo').addEventListener('input',()=>{state.echo=Number(($<HTMLInputElement>('#echo')).value)/100;$('#echoValue').textContent=`${Math.round(state.echo*100)}%`;engine.updateMix();scheduleSave()});
@@ -256,10 +271,10 @@ engine.updateMix();refreshKitButtons();
  let lastTap=0;const recentTaps:number[]=[];
  $('#tapTempo').addEventListener('click',()=>{const now=performance.now(),elapsed=now-lastTap;lastTap=now;if(elapsed>2000){recentTaps.length=0;setStatus('TAP AGAIN TO SET BPM');return;}if(elapsed<300||elapsed>1000)return;recentTaps.push(elapsed);if(recentTaps.length>4)recentTaps.shift();const sorted=[...recentTaps].sort((a,b)=>a-b);const median=sorted[Math.floor(sorted.length/2)]??elapsed;changeTempo(60000/median);setStatus(`BPM ${state.tempo}`)});
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushSave();else if(engine.state==='PLAY'&&engine.ctx?.state==='suspended')setStatus('TAP PLAY TO RESTORE AUDIO')});
- window.addEventListener('pagehide',()=>{flushSave();for(const url of takeUrls)URL.revokeObjectURL(url);takeUrls=[]});
- $('#play').addEventListener('click',()=>void safe(async()=>{if(engine.state==='PLAY'&&engine.ctx?.state==='suspended')await engine.unlock();else if(engine.state==='PLAY')engine.pause();else await engine.start();updateTransport()}));
- $('#record').addEventListener('click',()=>void safe(async()=>{await engine.toggleRecord();updateTransport()}));
- $('#stop').addEventListener('click',()=>{engine.stop();updateTransport()});
+ window.addEventListener('pagehide',()=>{flushSave();mixPlayer.dispose();for(const url of takeUrls)URL.revokeObjectURL(url);takeUrls=[]});
+ $('#play').addEventListener('click',()=>void safe(async()=>{if(mixPlayer.state==='playing')mixPlayer.stop();if(engine.state==='PLAY'&&engine.ctx?.state==='suspended')await engine.unlock();else if(engine.state==='PLAY')engine.pause();else await engine.start();updateTransport()}));
+ $('#record').addEventListener('click',()=>void safe(async()=>{if(mixPlayer.state==='playing')mixPlayer.stop();await engine.toggleRecord();updateTransport()}));
+ $('#stop').addEventListener('click',()=>{mixPlayer.stop();engine.stop();updateTransport()});
  const autoMixButton=$<HTMLButtonElement>('#autoMixToggle');
  autoMixButton.addEventListener('click',()=>{engine.setAutoMix(!engine.autoMixEnabled);autoMixButton.setAttribute('aria-pressed',String(engine.autoMixEnabled));autoMixButton.classList.toggle('active',engine.autoMixEnabled);autoMixButton.textContent=engine.autoMixEnabled?'АВТОМИКС · ВКЛ':'АВТОМИКС · ВЫКЛ';setStatus(engine.autoMixEnabled?'АВТОМИКС ВКЛ':'АВТОМИКС ВЫКЛ')});
  const cross=$<HTMLInputElement>('#crossfade');cross.value=String(Math.round(state.crossfader*100));cross.addEventListener('input',()=>{if(engine.autoMixEnabled){engine.setAutoMix(false);autoMixButton.classList.remove('active');autoMixButton.setAttribute('aria-pressed','false');autoMixButton.textContent='АВТОМИКС · ВЫКЛ';}state.crossfader=Number(cross.value)/100;engine.updateMix();scheduleSave()});
