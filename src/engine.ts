@@ -85,7 +85,12 @@ export class Engine{
   // Decoding is demand-driven: a pad never waits for all eight WAV decoders.
   if(!this.clock&&this.fallback===null){
    this.fallback=window.setInterval(()=>this.pump(),25); // reliable on the very first gesture
-   void this.enableWorklet(this.ctx);
+   // WebKit/iOS AudioWorklet can terminate during short pad recording in automated
+   // WebKit. A 25 ms lookahead pump avoids a second rendering thread on Safari.
+   // Chrome/Android retain low-cost AudioWorklet clocking.
+   const agent=typeof navigator!=='undefined'?navigator.userAgent:'';
+   if(!/AppleWebKit/i.test(agent)||/Chrome|Chromium|Edg|OPR|Android/i.test(agent))
+    void this.enableWorklet(this.ctx);
   }
   this.events.onState?.('AUDIO READY');
  }
