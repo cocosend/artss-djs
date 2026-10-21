@@ -223,6 +223,20 @@ engine.updateMix();refreshKitButtons();
  $('#bank').addEventListener('change',()=>{state.style=Number(($<HTMLSelectElement>('#bank')).value);state.tempo=STYLES[state.style]?.bpm??136;showTrack();engine.updateMix();save();paintPads();paintSteps();updateSampleTarget()});
  showTrack();
  let generation=0,previousPattern:number[][]|null=null;
+  const renderAutoMix=()=>{
+   const button=$<HTMLButtonElement>('#autoMix'),enabled=engine.autoMixing;
+   button.classList.toggle('on',enabled);button.setAttribute('aria-pressed',String(enabled));
+   $('#autoMixCaption').textContent=enabled?engine.autoMixCaption:t('ВЫКЛ','OFF');
+  };
+  $('#autoMix').addEventListener('click',()=>{
+   if(engine.autoMixing)engine.setAutoMix(false);
+   else{
+    if(engine.recording){setStatus('AUTO MIX OFF');return;}
+    kits.patterns[kits.active]=clonePattern(state.pattern);
+    engine.setAutoMix(true,kits.patterns,kits.active);
+   }
+   renderAutoMix();setStatus(engine.autoMixing?'AUTO MIX ENABLED':'AUTO MIX OFF');
+  });
  const generateGroove=(random=false)=>{previousPattern=clonePattern(state.pattern);generation++;const energy=Number(($<HTMLInputElement>('#density')).value)/100;const variation=random?Math.floor(Math.random()*10000)+1:generation;state.pattern=composeGroove(state.style,random ? 0.35+Math.random()*.65 : energy,variation);save();paintSteps();$('#undoGroove').hidden=false;setStatus(random?'RANDOM IDEA READY':'AUTO GROOVE READY')};
  $('#autoGroove').addEventListener('click',()=>generateGroove());
  $('#randomGroove').addEventListener('click',()=>generateGroove(true));
@@ -230,7 +244,8 @@ engine.updateMix();refreshKitButtons();
  $('#seqEdit').addEventListener('click',()=>{const advanced=$<HTMLDetailsElement>('#advancedEditor');advanced.open=!advanced.open;if(advanced.open)advanced.scrollIntoView({block:'nearest',behavior:'smooth'})});
  for(const btn of document.querySelectorAll<HTMLButtonElement>('[data-kit]'))btn.addEventListener('click',()=>{
   const to=Number(btn.dataset.kit);if(to===kits.active||!Number.isInteger(to)||to<0||to>3)return;
-  kits.patterns[kits.active]=clonePattern(state.pattern);kits.active=to;state.pattern=clonePattern(kits.patterns[to]??state.pattern);save();refreshKitButtons();paintSteps();setStatus(`PAD BANK ${'ABCD'[to]}`);
+  if(engine.autoMixing){engine.setAutoMix(false);renderAutoMix();}
+   kits.patterns[kits.active]=clonePattern(state.pattern);kits.active=to;state.pattern=clonePattern(kits.patterns[to]??state.pattern);save();refreshKitButtons();paintSteps();setStatus(`PAD BANK ${'ABCD'[to]}`);
  });
  $('#undoGroove').addEventListener('click',()=>{if(!previousPattern)return;state.pattern=previousPattern;previousPattern=null;save();paintSteps();$('#undoGroove').hidden=true;setStatus('GROOVE RESTORED')});
  $('#scene').addEventListener('change',()=>{state.scene=Number(($<HTMLSelectElement>('#scene')).value);showTrack();save()});
@@ -242,7 +257,7 @@ engine.updateMix();refreshKitButtons();
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushSave();else if(engine.state==='PLAY'&&engine.ctx?.state==='suspended')setStatus('TAP PLAY TO RESTORE AUDIO')});
  window.addEventListener('pagehide',()=>{flushSave();for(const url of takeUrls)URL.revokeObjectURL(url);takeUrls=[]});
  $('#play').addEventListener('click',()=>void safe(async()=>{if(engine.state==='PLAY'&&engine.ctx?.state==='suspended')await engine.unlock();else if(engine.state==='PLAY')engine.pause();else await engine.start();updateTransport()}));
- $('#record').addEventListener('click',()=>void safe(async()=>{await engine.toggleRecord();updateTransport()}));
+ $('#record').addEventListener('click',()=>void safe(async()=>{if(engine.autoMixing){engine.setAutoMix(false);renderAutoMix();}await engine.toggleRecord();updateTransport()}));
  $('#stop').addEventListener('click',()=>{engine.stop();updateTransport()});
  const cross=$<HTMLInputElement>('#crossfade');cross.value=String(Math.round(state.crossfader*100));cross.addEventListener('input',()=>{state.crossfader=Number(cross.value)/100;engine.updateMix();scheduleSave()});
  for(const field of ['eqLow','eqMid','eqHigh'] as const){
@@ -319,7 +334,7 @@ engine.updateMix();refreshKitButtons();
  let pendingStep:number|null=null,lastStep:number|null=null,stepFrame=0;
  engine.events.onStep=step=>{
   if(document.visibilityState!=='visible'||pane!=='main')return;
-  pendingStep=step;if(stepFrame)return;
+  pendingStep=step;if(engine.autoMixing){const label=engine.autoMixCaption;if($('#autoMixCaption').textContent!==label)$('#autoMixCaption').textContent=label;}if(stepFrame)return;
   stepFrame=requestAnimationFrame(()=>{stepFrame=0;const current=engine.currentStep;pendingStep=null;if(current===null||current===lastStep)return;
    if(lastStep!==null)for(const el of document.querySelectorAll<HTMLElement>(`[data-step="${lastStep}"].playhead`))el.classList.remove('playhead');
    for(const el of document.querySelectorAll<HTMLElement>(`#steps .step[data-step="${current}"],#patternOverview .pattern-cell[data-step="${current}"]`))el.classList.add('playhead');
@@ -329,7 +344,25 @@ engine.updateMix();refreshKitButtons();
   });
  };
  engine.events.onClip=(pad)=>{scheduleSave();for(let step=0;step<STEPS;step++)syncPatternCells(pad,step)};engine.events.onSamples=paintPads;engine.events.onState=v=>{setStatus(v);if(v.startsWith('SAMPLE SAVED')||v.startsWith('SAMPLE ERROR')){renderCapture();paintPads();}};
- paintPads();paintSteps();setPane('main');updateTransport();renderCapture();
+ const refreshLanguage=()=>{
+  translateStatic($<HTMLElement>('.nexus-app'));
+  for(const button of document.querySelectorAll<HTMLButtonElement>('[data-language]')){
+   const on=button.dataset.language===language();button.classList.toggle('selected',on);button.setAttribute('aria-pressed',String(on));
+  }
+  for(const [i,option] of Array.from($<HTMLSelectElement>('#bank').options).entries())option.textContent=styleLabel(i);
+  for(const [i,option] of Array.from($<HTMLSelectElement>('#scene').options).entries())option.textContent=sceneLabel(i);
+  for(const [i,option] of Array.from($<HTMLSelectElement>('#replaceTarget').options).entries())option.textContent=`${String(i+1).padStart(2,'0')} · ${padLabel(i)}`;
+  $('#filterValue').textContent=state.filter>.97?t('ОТКРЫТ','OPEN'):`${Math.round(state.filter*100)}%`;
+  $('#take').textContent=$('#take').classList.contains('on')?t('■ ЗАВЕРШИТЬ ДУБЛЬ','■ FINISH TAKE'):t('● ЗАПИСАТЬ АУДИО','● RECORD AUDIO');
+  showTrack();paintPads();paintSteps();paintMix();paintLibrary();updateSampleTarget();renderCapture();updateTransport();renderAutoMix();setStatus(lastStatus);
+  if(pane==='profile')$('#deviceStatus').textContent=t(`Сессия хранится на устройстве · ${engine.takes.length} дублей · ${STYLES.length} стилей`,`Session on device · ${engine.takes.length} takes · ${STYLES.length} styles`);
+ };
+ for(const button of document.querySelectorAll<HTMLButtonElement>('[data-language]'))button.addEventListener('click',()=>{
+  const chosen:Language=button.dataset.language==='en'?'en':'ru';
+  if(chosen===language())return;
+  setLanguage(chosen);refreshLanguage();
+ });
+ paintPads();paintSteps();setPane('main');updateTransport();renderCapture();refreshLanguage();
  if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
 };
 function updateTransport(){const play=$('#play');play.querySelector('.deck-label')!.textContent=engine.state==='PLAY'?t('ПАУЗА','PAUSE'):t('ПУСК','PLAY');play.querySelector('.deck-play-icon')!.textContent=engine.state==='PLAY'?'Ⅱ':'▶';play.classList.toggle('on',engine.state==='PLAY');$('#record').classList.toggle('on',engine.recording);$('#record').querySelector('.deck-label')!.textContent=engine.recording?t('СТОП ЗАПИСИ','STOP REC'):t('ЗАПИСЬ','REC');$('#runState').textContent=localStatus(engine.state);if(engine.state==='STOP')$('#transportTime').textContent='00:00 / ЦИКЛ';}
