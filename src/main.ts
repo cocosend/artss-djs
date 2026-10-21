@@ -25,7 +25,7 @@ const originalAttributes=new WeakMap<Element,Map<string,string>>();
 const applyLanguage=()=>{
  document.documentElement.lang=language;
  const toggle=document.querySelector<HTMLButtonElement>('#languageToggle');
- if(toggle){toggle.innerHTML=language==='ru'?'<b>RU</b><span>/</span>EN':'RU<span>/</span><b>EN</b>';toggle.setAttribute('aria-pressed',String(language==='en'));}
+ if(toggle){const markup=language==='ru'?'<b>RU</b><span>/</span>EN':'RU<span>/</span><b>EN</b>';if(toggle.innerHTML!==markup)toggle.innerHTML=markup;toggle.setAttribute('aria-pressed',String(language==='en'));}
  const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
  let node:Node|null;
  while((node=walker.nextNode())){if(node.parentElement?.closest('script,style,#languageToggle'))continue;const t=node as Text;let source=originalText.get(t);if(source===undefined){source=t.nodeValue??'';if(language==='en'&&/[А-ЯЁ]/.test(source))source=source;originalText.set(t,source)}const translated=translateText(source);if(t.nodeValue!==translated)t.nodeValue=translated;}
