@@ -139,3 +139,14 @@ test('auto mixing stays phase-locked, preserves data and bounds gains',async()=>
  assert.equal(a[0][0],1);assert.equal(b[2][0],.7);
  for(let count=0;count<20;count++)assert.ok(simultaneousTrim(count)>.6&&simultaneousTrim(count)<=1);
 });
+
+test('persistent language and automix controls never replace the DJ workspace',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const i18n=readFileSync('src/i18n.ts','utf8'),html=readFileSync('index.html','utf8'),main=readFileSync('src/main.ts','utf8');
+ assert.match(i18n,/artss-nexus-language-v1/);
+ assert.match(i18n,/createTreeWalker/);
+ assert.match(html,/data-language="ru"/);
+ assert.match(html,/data-language="en"/);
+ assert.match(main,/engine.setAutoMix\(true,kits.patterns,kits.active\)/);
+ assert.match(main,/setLanguage\(chosen\)/);
+});
