@@ -26,7 +26,7 @@ with sync_playwright() as playwright:
  if os.getenv('ARTSS_LOCAL_PREVIEW')=='1':
   context.route('https://artss.test/**',serve_static)
   URL='https://artss.test/'
- page.goto(URL,wait_until='networkidle');assert 'NEXUS 27' in page.title(),page.title()
+ page.goto(URL,wait_until='networkidle');assert 'NEXUS 28' in page.title(),page.title()
  assert page.locator('.pad').count()==8
  assert page.locator('.pad[data-pad="4"]').is_visible()
  assert page.locator('.pad[data-pad="7"]').is_visible()
