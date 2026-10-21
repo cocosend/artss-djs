@@ -20,7 +20,7 @@ test('EQ fields are safe and backwards compatible',()=>{const a=sanitizeSession(
 
 test('equal-power mix stays bounded and transitions smoothly',()=>{
  const left=crossfadeGains(0),center=crossfadeGains(.5),right=crossfadeGains(1);
- assert.ok(left[0]>.8&&left[1]<1e-10);assert.ok(right[1]>.8&&right[0]<1e-10);
+ assert.ok(left[0]>=.8-1e-10&&left[1]<1e-10);assert.ok(right[1]>=.8-1e-10&&right[0]<1e-10);
  assert.ok(Math.abs(center[0]-center[1])<1e-9);
  for(let i=0;i<=100;i++){const g=crossfadeGains(i/100);assert.ok(g.every(n=>Number.isFinite(n)&&n>=0&&n<=.8));assert.ok(Math.abs(g[0]**2+g[1]**2-.8**2)<1e-10)}
 });
