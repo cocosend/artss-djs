@@ -2,7 +2,7 @@ import {SampleRecorder,preferPcmRecording,type CaptureSource} from './sample-rec
 import {STEPS,STYLES,type Session,note} from './model.js';
 import {placeSample} from './arranger.js';
 import {SoundBank,type Sound} from './sounds.js';
-import {AUDIO_HEADROOM,crossfadeGains,voiceGain,lowpassHz,recordingExtension} from './audio-quality.js';
+import {AUDIO_HEADROOM,crossfadeGains,voiceGain,lowpassHz,recordingExtension,autoMixPosition} from './audio-quality.js';
 export type EngineEvents={onStep?:(step:number)=>void;onState?:(state:string)=>void;onMeter?:(value:number)=>void;onClip?:(pad:number)=>void;onSamples?:()=>void};
 const clamp=(x:number,lo:number,hi:number)=>Math.min(hi,Math.max(lo,x));
 const sampleRate=44100;
@@ -54,12 +54,15 @@ export class Engine{
  private active=new Set<{stop:()=>void;until:number}>();
  private generation=0;private scheduledTempo=136;private recorder:MediaRecorder|null=null;private capture:MediaStreamAudioDestinationNode|null=null;
  private recorded:Blob[]=[];private currentChunks:Blob[]=[];
- private gain=1;private sampleRecorder=new SampleRecorder();private sampleTarget:{pad:number;style:number}|null=null;events:EngineEvents={};
+ private gain=1;private autoMix=false;private sampleRecorder=new SampleRecorder();private sampleTarget:{pad:number;style:number}|null=null;events:EngineEvents={};
  constructor(readonly getSession:()=>Session){if(typeof indexedDB!=='undefined')void this.restoreTakes();}
  get state(){return this.running?'PLAY':this.stopAt?'PAUSE':'STOP';}
  get recording(){return this.recordArmed;}
  get sampling(){return this.sampleRecorder.active;}
- updateMix(){this.bus?.update(this.getSession());}
+ updateMix(){if(!this.autoMix)this.bus?.update(this.getSession());else this.updateAutoMix();}
+ get autoMixEnabled(){return this.autoMix;}
+ setAutoMix(enabled:boolean){this.autoMix=enabled;if(enabled)this.updateAutoMix();else this.bus?.update(this.getSession());}
+ private updateAutoMix(){if(!this.bus||!this.ctx)return;const beat=this.running?(this.ctx.currentTime-this.origin)*this.getSession().tempo/60:0;const [a,b]=crossfadeGains(autoMixPosition(beat));const t=this.ctx.currentTime;this.bus.a.gain.setTargetAtTime(a,t,.035);this.bus.b.gain.setTargetAtTime(b,t,.035);}
  get takes(){return this.recorded.slice();}
  get time(){return this.ctx?.currentTime??0;}
  private meterData=new Uint8Array(256);
@@ -105,6 +108,7 @@ export class Engine{
  private silence(){for(const v of this.active){try{v.stop();}catch{}}this.active.clear();}
  private pump(){if(!this.ctx||!this.running||!this.bus)return;
   const now=this.ctx.currentTime;const tempo=this.getSession().tempo;const d=60/tempo/4;
+  if(this.autoMix)this.updateAutoMix();
   if(this.scheduledTempo!==tempo){this.origin=this.nextTime-this.nextStep*d;this.scheduledTempo=tempo;}
   // Safari background suspension: fast-forward stale transport steps instead of bursting delayed notes.
   if(this.nextTime<now-.035){const skip=Math.max(1,Math.ceil((now-this.nextTime-.008)/d));this.nextStep+=skip;this.nextTime+=skip*d;}

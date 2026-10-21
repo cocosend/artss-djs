@@ -124,3 +124,5 @@ test('pad-only recording never requests microphone permission',async()=>{
  assert.ok(engine.includes('this.recordArmed=!this.recordArmed'));
  assert.ok(engine.includes('if(this.recordArmed&&this.running)'));
 });
+
+test('auto mix positions are smooth and bounded across 8-bar phrase',async()=>{const {autoMixPosition}=await import('../app/audio-quality.js');assert.equal(autoMixPosition(0),0);assert.equal(autoMixPosition(16),1);assert.equal(autoMixPosition(32),0);for(let beat=0;beat<32;beat+=.02){const a=autoMixPosition(beat),b=autoMixPosition(beat+.02);assert.ok(a>=0&&a<=1&&Math.abs(a-b)<.03)}});

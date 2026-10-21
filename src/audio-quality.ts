@@ -6,14 +6,17 @@ export function crossfadeGains(position:number):readonly [number,number] {
 }
 /** Envelope peak limit before dynamics processing; avoids overdriving on imported samples. */
 export function voiceGain(velocity:number,level:number,sampleGain:number):number {
- return Math.min(.94,clamp(velocity,0,1)*clamp(level,0,1.2)*clamp(sampleGain,0,2.2)*.86);
+ return Math.min(.65,clamp(velocity,0,1)*clamp(level,0,1.2)*clamp(sampleGain,0,2.2)*.62);
 }
 /** True logarithmic control covering audible warmth through nearly open high end. */
 export function lowpassHz(open:number,sampleRate:number):number {
  const value=clamp(open,0,1),nyquist=Math.max(4000,clamp(sampleRate,8000,192000)*.45);
  return Math.min(nyquist,40*Math.pow(nyquist/40,value));
 }
-export const AUDIO_HEADROOM={master:.87,wet:.28,feedback:.2,echoSend:.28} as const;
+export const AUDIO_HEADROOM={master:.74,wet:.18,feedback:.16,echoSend:.17} as const;
+/** Eight-bar equal-power automation with cosine ease and a full bar for each transition. */
+export function autoMixPosition(beat:number):number{if(!Number.isFinite(beat))return .5;const bar=((beat/4)%8+8)%8;const smooth=(v:number)=>.5-.5*Math.cos(Math.PI*Math.max(0,Math.min(1,v)));if(bar<3)return 0;if(bar<4)return smooth(bar-3);if(bar<7)return 1;return 1-smooth(bar-7);}
+
 
 /** Preserve the container announced by Safari/Chrome media capture, including PCM fallbacks. */
 export function recordingExtension(mime:string):'wav'|'m4a'|'webm' {

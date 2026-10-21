@@ -260,7 +260,9 @@ engine.updateMix();refreshKitButtons();
  $('#play').addEventListener('click',()=>void safe(async()=>{if(engine.state==='PLAY'&&engine.ctx?.state==='suspended')await engine.unlock();else if(engine.state==='PLAY')engine.pause();else await engine.start();updateTransport()}));
  $('#record').addEventListener('click',()=>void safe(async()=>{await engine.toggleRecord();updateTransport()}));
  $('#stop').addEventListener('click',()=>{engine.stop();updateTransport()});
- const cross=$<HTMLInputElement>('#crossfade');cross.value=String(Math.round(state.crossfader*100));cross.addEventListener('input',()=>{state.crossfader=Number(cross.value)/100;engine.updateMix();scheduleSave()});
+ const autoMixButton=$<HTMLButtonElement>('#autoMixToggle');
+ autoMixButton.addEventListener('click',()=>{engine.setAutoMix(!engine.autoMixEnabled);autoMixButton.setAttribute('aria-pressed',String(engine.autoMixEnabled));autoMixButton.classList.toggle('active',engine.autoMixEnabled);autoMixButton.textContent=engine.autoMixEnabled?'АВТОМИКС · ВКЛ':'АВТОМИКС · ВЫКЛ';setStatus(engine.autoMixEnabled?'АВТОМИКС ВКЛ':'АВТОМИКС ВЫКЛ')});
+ const cross=$<HTMLInputElement>('#crossfade');cross.value=String(Math.round(state.crossfader*100));cross.addEventListener('input',()=>{if(engine.autoMixEnabled){engine.setAutoMix(false);autoMixButton.classList.remove('active');autoMixButton.setAttribute('aria-pressed','false');autoMixButton.textContent='АВТОМИКС · ВЫКЛ';}state.crossfader=Number(cross.value)/100;engine.updateMix();scheduleSave()});
  for(const field of ['eqLow','eqMid','eqHigh'] as const){
   const input=$<HTMLInputElement>('#'+field);input.value=String(state[field]);
   const renderKnob=()=>{input.parentElement?.style.setProperty('--knob-angle',`${-135+(Number(input.value)+12)*270/24}deg`);
