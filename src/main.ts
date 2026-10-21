@@ -32,7 +32,8 @@ const applyLanguage=()=>{
  document.querySelectorAll<HTMLElement>('[aria-label],[title],[placeholder]').forEach(el=>{let cache=originalAttributes.get(el);if(!cache){cache=new Map();originalAttributes.set(el,cache)}for(const attr of ['aria-label','title','placeholder']){const value=el.getAttribute(attr);if(value===null)continue;if(!cache.has(attr))cache.set(attr,value);const translated=translateText(cache.get(attr)??value);if(value!==translated)el.setAttribute(attr,translated)}});
 };
 document.querySelector('#languageToggle')?.addEventListener('click',()=>{language=language==='ru'?'en':'ru';try{localStorage.setItem(languageKey,language)}catch{}applyLanguage()});
-const languageObserver=new MutationObserver(()=>{if(language==='en')applyLanguage()});
+let languageRefreshPending=false;
+const languageObserver=new MutationObserver(()=>{if(language==='en'&&!languageRefreshPending){languageRefreshPending=true;queueMicrotask(()=>{languageRefreshPending=false;applyLanguage()})}});
 languageObserver.observe(document.body,{childList:true,subtree:true});
 queueMicrotask(applyLanguage);
 type Pane='main'|'sounds'|'library'|'takes'|'mix'|'profile';
