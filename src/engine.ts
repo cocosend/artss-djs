@@ -59,6 +59,14 @@ export class Engine{
  get state(){return this.running?'PLAY':this.stopAt?'PAUSE':'STOP';}
  get recording(){return this.recordArmed;}
  get sampling(){return this.sampleRecorder.active;}
+ /** Route licensed local music tracks through the same EQ, compressor, limiter and master as pads. */
+ connectMusicSource(source:AudioNode):()=>void{
+  const bus=this.bus,ctx=this.ctx;
+  if(!bus||!ctx||source.context!==ctx)throw Error('Аудиовыход микшера недоступен');
+  source.connect(bus.input);
+  let disconnected=false;
+  return ()=>{if(disconnected)return;disconnected=true;try{source.disconnect(bus.input)}catch{}};
+ }
  updateMix(){this.bus?.update(this.getSession());if(this.autoMix)this.updateAutoMix();}
  /** Connect local music files before master EQ, protection and stereo meter. */
  connectMusicSource(node:AudioNode):()=>void {
