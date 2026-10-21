@@ -31,6 +31,8 @@ with sync_playwright() as playwright:
  assert page.locator('.pad[data-pad="4"]').is_visible()
  assert page.locator('.pad[data-pad="7"]').is_visible()
  assert page.locator('#kitBanks button').count()==4
+  assert page.locator('#sampleSource option[value="mic"]').count()==0
+  assert page.locator('html').get_attribute('lang')=='ru'
  assert page.locator('[data-kit="0"]').is_visible()
  assert page.locator('link[rel="stylesheet"]').count()==1
  assert page.locator('link[rel="stylesheet"]').get_attribute('href')=='/studio27.css'
@@ -82,11 +84,11 @@ with sync_playwright() as playwright:
  assert page.locator('body').evaluate('(el)=>el.scrollWidth <= innerWidth+2')
  # First gesture unlocks AudioContext; transport must not throw, and pad will respond.
  page.locator('#record').tap();page.wait_for_timeout(400)
- assert page.locator('#record').inner_text().find('OFF')>=0,page.locator('#record').inner_text()
+ assert page.locator('#record').inner_text().find('СТОП ЗАПИСИ')>=0,page.locator('#record').inner_text()
  page.locator('.pad[data-pad="5"]').tap();page.wait_for_timeout(240)
  data=page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19"))')
  assert sum(1 for x in data['pattern'][5] if x>0)>=1,data['pattern'][5]
- page.locator('#record').tap();assert 'REC' in page.locator('#record').inner_text()
+ page.locator('#record').tap();assert 'ЗАПИСЬ' in page.locator('#record').inner_text()
  page.locator('#play').tap();page.locator('#play').tap();page.wait_for_timeout(100)
  page.locator('#stop').tap()
  page.locator('#advancedEditor summary').tap()
@@ -154,18 +156,18 @@ with sync_playwright() as playwright:
  assert page.locator('#restoreSound').is_disabled()
  page.locator('#sampleInput').set_input_files({'name':'ignored.wav','mimeType':'audio/wav','buffer':wav.getvalue()})
  page.wait_for_timeout(150)
- assert 'ORIGINAL' in page.locator('#soundInfo').inner_text()
+ assert 'ОРИГИНАЛ' in page.locator('#soundInfo').inner_text()
  page.locator('#replaceSound').tap()
  page.locator('#sampleInput').set_input_files({'name':'own-drum.wav','mimeType':'audio/wav','buffer':wav.getvalue()})
  page.wait_for_timeout(1000)
- assert 'REPLACED' in page.locator('#status').inner_text(),page.locator('#status').inner_text()
- assert 'CUSTOM' in page.locator('#soundInfo').inner_text()
+ assert 'ЗАМЕНЁН' in page.locator('#status').inner_text(),page.locator('#status').inner_text()
+ assert 'СВОЙ' in page.locator('#soundInfo').inner_text()
  page.locator('#bank').select_option('2')
- assert 'ORIGINAL' in page.locator('#soundInfo').inner_text()
+ assert 'ОРИГИНАЛ' in page.locator('#soundInfo').inner_text()
  page.locator('#bank').select_option('0')
- assert 'CUSTOM' in page.locator('#soundInfo').inner_text()
+ assert 'СВОЙ' in page.locator('#soundInfo').inner_text()
  page.locator('#restoreSound').tap()
- page.wait_for_function("document.querySelector('#soundInfo').textContent.includes('ORIGINAL')")
+ page.wait_for_function("document.querySelector('#soundInfo').textContent.includes('ОРИГИНАЛ')")
  assert page.locator('.pad[data-pad="0"] .pad-own').inner_text()==''
  page.reload(wait_until='networkidle')
  page.locator('#quickUpload').tap()
@@ -186,8 +188,8 @@ with sync_playwright() as playwright:
  page.wait_for_timeout(650)
  page.locator('#sampleStop').tap()
  page.wait_for_function("document.querySelector('#sampleStart').disabled === false",timeout=15000)
- assert 'SAMPLE SAVED' in page.locator('#status').inner_text(),page.locator('#status').inner_text()
- assert page.locator('.pad[data-pad="1"] .pad-own').inner_text()=='OWN'
+ assert 'СЭМПЛ СОХРАНЁН' in page.locator('#status').inner_text(),page.locator('#status').inner_text()
+ assert page.locator('.pad[data-pad="1"] .pad-own').inner_text()=='СВОЙ'
  stored=page.evaluate("""() => new Promise((resolve,reject)=>{
   const open=indexedDB.open('artss-live-user-samples',1);
   open.onerror=()=>reject('Could not open user samples');
@@ -200,11 +202,11 @@ with sync_playwright() as playwright:
  if browser_type=='webkit':assert stored['name'].endswith('.wav'),('Safari must capture lossless WAV',stored)
  page.reload(wait_until='networkidle')
  page.locator('.pad[data-pad="1"]').tap()
- page.wait_for_function("document.querySelector('.pad[data-pad=\"1\"] .pad-own').textContent === 'OWN'",timeout=10000)
+ page.wait_for_function("document.querySelector('.pad[data-pad=\"1\"] .pad-own').textContent === 'СВОЙ'",timeout=10000)
  page.locator('#bank').select_option('2')
- assert page.locator('.pad[data-pad="1"] .pad-own').inner_text()!='OWN', 'Style 2 unexpectedly shares custom sample'
+ assert page.locator('.pad[data-pad="1"] .pad-own').inner_text()!='СВОЙ', 'Style 2 unexpectedly shares custom sample'
  page.locator('#bank').select_option('0')
- assert page.locator('.pad[data-pad="1"] .pad-own').inner_text()=='OWN', 'Preset sample missing when returning to style 0'
+ assert page.locator('.pad[data-pad="1"] .pad-own').inner_text()=='СВОЙ', 'Preset sample missing when returning to style 0'
  # Additional responsive widths
  for width in [320,375,390,430]:
   page.set_viewport_size({'width':width,'height':844})

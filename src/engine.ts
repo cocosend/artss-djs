@@ -17,7 +17,7 @@ function wavExport(buffer:AudioBuffer):Blob {
 function createBus(ctx:BaseAudioContext,destination:AudioNode,settings:Session){
  const a=ctx.createGain(),b=ctx.createGain(),input=ctx.createGain();
  // DC/subsonic energy eats headroom and is inaudible on mobile speakers.
- const dc=ctx.createBiquadFilter();dc.type='highpass';dc.frequency.value=23;dc.Q.value=.707;
+ const dc=ctx.createBiquadFilter();dc.type='highpass';dc.frequency.value=20;dc.Q.value=.707;
  const filter=ctx.createBiquadFilter();filter.type='lowpass';filter.Q.value=.58;
  const eqLow=ctx.createBiquadFilter();eqLow.type='lowshelf';eqLow.frequency.value=110;
  const eqMid=ctx.createBiquadFilter();eqMid.type='peaking';eqMid.frequency.value=1100;eqMid.Q.value=.82;
@@ -25,8 +25,8 @@ function createBus(ctx:BaseAudioContext,destination:AudioNode,settings:Session){
  const dry=ctx.createGain();dry.gain.value=1;
  const echoSend=ctx.createGain(),echo=ctx.createDelay(1),feedback=ctx.createGain(),returnGain=ctx.createGain();
  echo.delayTime.value=.23;feedback.gain.value=AUDIO_HEADROOM.feedback;returnGain.gain.value=AUDIO_HEADROOM.wet;
- const compressor=ctx.createDynamicsCompressor();compressor.threshold.value=-10;compressor.ratio.value=3;compressor.knee.value=10;compressor.attack.value=.006;compressor.release.value=.14;
- const limiter=ctx.createDynamicsCompressor();limiter.threshold.value=-2.8;limiter.ratio.value=18;limiter.knee.value=1.2;limiter.attack.value=.002;limiter.release.value=.085;
+ const compressor=ctx.createDynamicsCompressor();compressor.threshold.value=-8;compressor.ratio.value=2;compressor.knee.value=9;compressor.attack.value=.012;compressor.release.value=.18;
+ const limiter=ctx.createDynamicsCompressor();limiter.threshold.value=-2.4;limiter.ratio.value=18;limiter.knee.value=1.2;limiter.attack.value=.002;limiter.release.value=.085;
  const master=ctx.createGain();master.gain.value=AUDIO_HEADROOM.master;
  const meter=ctx.createAnalyser();meter.fftSize=256;meter.smoothingTimeConstant=.2;
  a.connect(input);b.connect(input);input.connect(dc).connect(filter).connect(eqLow).connect(eqMid).connect(eqHigh);

@@ -1,5 +1,5 @@
 /** Single-use sample capture. Prefer MediaRecorder; capture lossless WAV when unavailable (Safari/WebKit). */
-export type CaptureSource = 'live' | 'mic';
+export type CaptureSource = 'live';
 
 /** Safari and all iOS browsers share WebKit's fragile short MediaRecorder pipeline. Use lossless PCM. */
 export function preferPcmRecording(userAgent:string,mediaRecorderAvailable:boolean):boolean{
@@ -27,7 +27,7 @@ export const pcmWav = (chunks: Float32Array[], frameCount: number, sampleRate: n
 
 export class SampleRecorder {
   private recorder: MediaRecorder | null = null;
-  private ownedStream: MediaStream | null = null;
+
   private chunks: Blob[] = [];
   private stopPromise: Promise<Blob> | null = null;
   private timeout: number | null = null;
@@ -47,12 +47,8 @@ export class SampleRecorder {
 
   async start(source: CaptureSource, liveStream: MediaStream | null, context: AudioContext, onLimit: () => void, onFailure: (error: Error) => void = () => {}, directInput: AudioNode | null = null): Promise<void> {
     if (this.active || this.stopPromise) throw Error('Запись сэмпла уже идёт');
-    let stream: MediaStream | null=liveStream;
-    if (source === 'mic') {
-      if (!navigator.mediaDevices?.getUserMedia) throw Error('Микрофон недоступен');
-      stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false},video:false});
-      this.ownedStream = stream;
-    } else stream = liveStream;
+    if(source!=='live')throw Error('Доступна только запись внутреннего микса');
+     const stream=liveStream;
     try {
       if(preferPcmRecording(navigator.userAgent,typeof MediaRecorder !== 'undefined')) {
         this.pcm=[];this.frames=0;this.sampleRate=context.sampleRate;
@@ -137,7 +133,7 @@ export class SampleRecorder {
     if(this.workletInput&&this.worklet)try{this.workletInput.disconnect(this.worklet)}catch{}
     this.sourceNode?.disconnect();this.sink?.disconnect();
     this.processor=null;this.worklet=null;this.workletInput=null;this.sourceNode=null;this.sink=null;
-    this.ownedStream?.getTracks().forEach(track=>track.stop());this.ownedStream=null;
+
     this.recorder=null;this.stopPromise=null;this.chunks=[];this.pcm=[];this.frames=0;
     this.finish=null;this.fail=null;
   }

@@ -5,6 +5,15 @@ import {knobDragValue} from './touch.js';
 const $=<T extends HTMLElement=HTMLElement>(q:string)=>document.querySelector<T>(q)!;
 const getStorage=():Session=>{for(const key of ['artss-live-session-v19','artss-live-session-v18']){try{const v=localStorage.getItem(key);if(v)return importSession(v)}catch{}}return defaultSession()};
 const state=getStorage();const engine=new Engine(()=>state);
+const STYLE_LABELS=['АНДЕГРАУНД','ЖЁСТКОЕ ТЕХНО','ЭЙСИД','ТЁМНОЕ ТЕХНО','РЕЙВ','ФОНК','ИНДАСТРИАЛ','ГИПНОТИК','ПИК-ТАЙМ','БРЕЙКС','МИНИМАЛ','ЭЛЕКТРО'] as const;
+const SCENE_LABELS=['ГРУВ','ВСТУПЛЕНИЕ','РАЗГОН','ДРОП','БРЕЙК'] as const;
+const styleLabel=(i:number)=>STYLE_LABELS[i]??'СТИЛЬ',sceneLabel=(i:number)=>SCENE_LABELS[i]??'РИТМ';
+const localStatus=(value:string):string=>{
+ const map:Record<string,string>={'PLAY':'ИГРАЕТ','PAUSE':'ПАУЗА','STOP':'ОСТАНОВЛЕНО','AUDIO READY':'ЗВУК ГОТОВ','REC ON':'ЗАПИСЬ ПЭДОВ','REC OFF':'ЛУП СОХРАНЁН','TAKE SAVED':'ДУБЛЬ СОХРАНЁН','TAKE RECORDING':'ЗАПИСЬ АУДИО','STORAGE FULL':'ПАМЯТЬ ЗАПОЛНЕНА','ERROR':'ОШИБКА','TAP AGAIN TO SET BPM':'НАЖМИ ЕЩЁ РАЗ ДЛЯ ТЕМПА','TAP PLAY TO RESTORE AUDIO':'НАЖМИ ПУСК ДЛЯ ВОЗОБНОВЛЕНИЯ ЗВУКА'};
+ if(map[value])return map[value];
+ for(const [en,ru] of [['SAMPLE SAVED','СЭМПЛ СОХРАНЁН'],['SAMPLE REC','ЗАПИСЬ СЭМПЛА'],['SAMPLE ERROR','ОШИБКА СЭМПЛА'],['ORIGINAL RESTORED','ОРИГИНАЛ ВОССТАНОВЛЕН'],['LOADING CUSTOM AUDIO','ЗАГРУЗКА ЗВУКА'],['REPLACED ','ЗАМЕНЁН '],['RESTORE AVAILABLE','МОЖНО ВОССТАНОВИТЬ'],['RANDOM IDEA READY','СЛУЧАЙНЫЙ РИТМ ГОТОВ'],['AUTO GROOVE READY','РИТМ СОЗДАН'],['GROOVE RESTORED','РИТМ ВОССТАНОВЛЕН'],['RENDERING WAV','СОЗДАНИЕ WAV'],['WAV EXPORTED','WAV СОХРАНЁН'],['PAD BANK ','БАНК ПЭДОВ '],['PAD ','ПЭД ']] as const)value=value.replace(en,ru);
+ return value;
+};
 type Pane='main'|'sounds'|'library'|'takes'|'mix'|'profile';
 let page=0,importSlot:number|undefined,pane:Pane='main',busy=false;
 const KIT_KEY='artss-nexus-pattern-banks-v23',clonePattern=(v:number[][])=>v.map(row=>row.slice());
@@ -26,12 +35,12 @@ const save=()=>{try{localStorage.setItem('artss-live-session-v19',JSON.stringify
 let pendingSave:ReturnType<typeof setTimeout>|null=null;
 const scheduleSave=()=>{if(pendingSave!==null)clearTimeout(pendingSave);pendingSave=setTimeout(()=>{pendingSave=null;save()},250)};
 const flushSave=()=>{if(pendingSave!==null){clearTimeout(pendingSave);pendingSave=null;save()}};
-const setStatus=(v:string)=>{$('#status').textContent=v;$('#status').classList.toggle('live',v.includes('REC')||v==='PLAY')};
+const setStatus=(v:string)=>{$('#status').textContent=localStatus(v);$('#status').classList.toggle('live',v.includes('REC')||v==='PLAY')};
 const h=(name:string,text:string,cls='')=>{const el=document.createElement(name);el.className=cls;el.textContent=text;return el;};
 function paintPads(){const wrap=$('#pads');wrap.replaceChildren();for(let i=0;i<8;i++){const name=PAD_NAMES[i]??'PAD';
  const p=h('button','','pad') as HTMLButtonElement;p.type='button';p.style.setProperty('--tone',['#fd3f59','#7df7e4','#f7faff','#79f6e1','#effbff','#aabacc','#f46b91','#6adfd5'][i]??'#f7faff');p.setAttribute('aria-label',`Играть ${name}`);p.dataset.pad=String(i);
  const top=h('span',`${String(i+1).padStart(2,'0')}`,'pad-number'),short=h('span',name,'pad-name');
- const dot=h('span',engine.bank.customInfo(i,state.style)?'OWN':'','pad-own');
+ const dot=h('span',engine.bank.customInfo(i,state.style)?'СВОЙ':'','pad-own');
  const glyphPaths=[
   '<circle cx="12" cy="12" r="7"/><path d="M7 6 4 3M17 6l3-3M6 19l-2 2m14-2 2 2"/>',
   '<path d="M2 13h3l2-6 4 11 4-13 3 8h4"/>',
@@ -68,9 +77,9 @@ function paintPads(){const wrap=$('#pads');wrap.replaceChildren();for(let i=0;i<
  $('#selectedPad').textContent=PAD_NAMES[state.selected]??'KICK';updateSampleTarget();
 }
 function updateSampleTarget(){
- $('#sampleRecordHint').textContent=`PAD ${String(state.selected+1).padStart(2,'0')} · ${STYLES[state.style]?.name??'PRESET'}`;
+ $('#sampleRecordHint').textContent=`PAD ${String(state.selected+1).padStart(2,'0')} · ${styleLabel(state.style)}`;
  const pad=Number($<HTMLSelectElement>('#replaceTarget').value);const custom=engine.bank.customInfo(pad,state.style);
- $('#soundInfo').textContent=custom?`CUSTOM · ${custom}`:`ORIGINAL · ${PAD_NAMES[pad]}`;
+ $('#soundInfo').textContent=custom?`СВОЙ · ${custom}`:`ОРИГИНАЛ · ${PAD_NAMES[pad]}`;
  $<HTMLButtonElement>('#restoreSound').disabled=!custom;
 }
 /** O(8) class sync. Never rebuild pad/step nodes while a finger is triggering audio. */
@@ -152,13 +161,13 @@ function paintTakes(){for(const url of takeUrls)URL.revokeObjectURL(url);takeUrl
 }
 async function safe(task:()=>Promise<void>){if(busy)return;busy=true;try{await task()}catch(e){setStatus(e instanceof Error?e.message:'ERROR')}finally{busy=false;}}
 const paintLibrary=()=>{const host=$('#libraryStyles');const frag=document.createDocumentFragment();
- STYLES.forEach((style,i)=>{const btn=h('button',style.name,'library-style') as HTMLButtonElement;btn.classList.toggle('on',i===state.style);btn.addEventListener('click',()=>{($<HTMLSelectElement>('#bank')).value=String(i);$('#bank').dispatchEvent(new Event('change'));setPane('main')});frag.append(btn)});
+ STYLES.forEach((style,i)=>{const btn=h('button',styleLabel(i),'library-style') as HTMLButtonElement;btn.classList.toggle('on',i===state.style);btn.addEventListener('click',()=>{($<HTMLSelectElement>('#bank')).value=String(i);$('#bank').dispatchEvent(new Event('change'));setPane('main')});frag.append(btn)});
  host.replaceChildren(frag);
 };
 const init=()=>{
 engine.updateMix();refreshKitButtons();
- $('#filter').addEventListener('input',()=>{state.filter=Number(($<HTMLInputElement>('#filter')).value)/100;$('#filterValue').textContent=state.filter>.97?'OPEN':`${Math.round(state.filter*100)}%`;engine.updateMix();scheduleSave()});
- ($('#filter') as HTMLInputElement).value=String(Math.round(state.filter*100));$('#filterValue').textContent=state.filter>.97?'OPEN':`${Math.round(state.filter*100)}%`;
+ $('#filter').addEventListener('input',()=>{state.filter=Number(($<HTMLInputElement>('#filter')).value)/100;$('#filterValue').textContent=state.filter>.97?'ОТКРЫТ':`${Math.round(state.filter*100)}%`;engine.updateMix();scheduleSave()});
+ ($('#filter') as HTMLInputElement).value=String(Math.round(state.filter*100));$('#filterValue').textContent=state.filter>.97?'ОТКРЫТ':`${Math.round(state.filter*100)}%`;
  $('#echo').addEventListener('input',()=>{state.echo=Number(($<HTMLInputElement>('#echo')).value)/100;$('#echoValue').textContent=`${Math.round(state.echo*100)}%`;engine.updateMix();scheduleSave()});
  ($('#echo') as HTMLInputElement).value=String(Math.round(state.echo*100));$('#echoValue').textContent=`${Math.round(state.echo*100)}%`;
  const canvas=$<HTMLCanvasElement>('#waveform'),pen=canvas.getContext('2d',{alpha:false});
@@ -185,17 +194,20 @@ engine.updateMix();refreshKitButtons();
   }
   pen.stroke();pen.strokeStyle='#ff2736';pen.lineWidth=2.5;pen.beginPath();pen.moveTo(width*.52,2);pen.lineTo(width*.52,height-2);pen.stroke();
  };
- let signalClock=0;const vu=()=>{if(document.visibilityState!=='visible'||pane!=='main')return;
-  const now=performance.now(),v=engine.meterLevel;
-  $('#outputMeter').style.width=`${Math.round(Math.min(100,v*100))}%`;
-  $('#pulseDot').classList.toggle('on',engine.state==='PLAY');
-  if(now-signalClock>180){signalClock=now;drawSignal();}
- };drawSignal();window.setInterval(vu,110);
- $('#bank').replaceChildren(...STYLES.map((s,i)=>{const o=h('option',s.name) as HTMLOptionElement;o.value=String(i);return o}));
+ let visualAt=0,meterAt=0,meterPercent=-1;
+  const vu=(now:number)=>{requestAnimationFrame(vu);
+   if(document.visibilityState!=='visible'||pane!=='main')return;
+   if(now-meterAt>=55){meterAt=now;const value=Math.round(Math.min(100,engine.meterLevel*100));
+    if(value!==meterPercent){meterPercent=value;$('#outputMeter').style.width=value+'%';}
+    $('#pulseDot').classList.toggle('on',engine.state==='PLAY');
+   }
+   if(now-visualAt>=42){visualAt=now;drawSignal();}
+  };drawSignal();requestAnimationFrame(vu);
+ $('#bank').replaceChildren(...STYLES.map((s,i)=>{const o=h('option',styleLabel(i)) as HTMLOptionElement;o.value=String(i);return o}));
  ($('#bank') as HTMLSelectElement).value=String(state.style);
- $('#scene').replaceChildren(...SCENES.map((s,i)=>{const o=h('option',s) as HTMLOptionElement;o.value=String(i);return o}));
+ $('#scene').replaceChildren(...SCENES.map((s,i)=>{const o=h('option',sceneLabel(i)) as HTMLOptionElement;o.value=String(i);return o}));
  ($('#scene') as HTMLSelectElement).value=String(state.scene);$('#bpm').textContent=String(state.tempo);
- const showTrack=()=>{$('#trackName').textContent=`${STYLES[state.style]?.name??'WAREHOUSE'} · ${SCENES[state.scene]??'GROOVE'}`;($('#bpmRange') as HTMLInputElement).value=String(state.tempo);$('#bpm').textContent=String(state.tempo);
+ const showTrack=()=>{$('#trackName').textContent=`${styleLabel(state.style)} · ${sceneLabel(state.scene)}`;($('#bpmRange') as HTMLInputElement).value=String(state.tempo);$('#bpm').textContent=String(state.tempo);
   for(const [id,index] of [['styleLights',state.style],['sceneLights',state.scene]] as const){const nodes=document.querySelectorAll('#'+id+' i');nodes.forEach((el,i)=>el.classList.toggle('active',i===index%nodes.length));}};
  const changeTempo=(tempo:number)=>{state.tempo=Math.max(80,Math.min(175,Math.round(tempo)));showTrack();engine.updateMix();scheduleSave()};
  const changeStyle=(offset:number)=>{const el=$<HTMLSelectElement>('#bank');el.value=String((state.style+offset+STYLES.length)%STYLES.length);el.dispatchEvent(new Event('change'))};
@@ -268,10 +280,10 @@ engine.updateMix();refreshKitButtons();
   const start=$<HTMLButtonElement>('#sampleStart'),stop=$<HTMLButtonElement>('#sampleStop');
   start.disabled=active;stop.disabled=!active;start.classList.toggle('on',active);
   ($('#sampleSource') as HTMLSelectElement).disabled=active;
-  start.textContent=active?'● RECORDING':'● START';
+  start.textContent=active?'● ЗАПИСЬ':'● НАЧАТЬ';
  };
  $('#sampleStart').addEventListener('click',()=>void safe(async()=>{
-  const source=$<HTMLSelectElement>('#sampleSource').value==='mic'?'mic':'live';
+  const source='live' as const;
   await engine.beginSampleCapture(source,state.selected);renderCapture();setStatus(`SAMPLE REC · PAD ${state.selected+1}`);
  }));
  $('#sampleStop').addEventListener('click',()=>void safe(async()=>{
@@ -294,7 +306,7 @@ engine.updateMix();refreshKitButtons();
    paintPads();updateSampleTarget();
   }finally{input.value='';importSlot=undefined;}
  }));
- $('#take').addEventListener('click',()=>void safe(async()=>{if(($('#take') as HTMLButtonElement).classList.contains('on')){engine.endTake();$('#take').classList.remove('on');$('#take').textContent='● RECORD AUDIO';window.setTimeout(paintTakes,400)}else{await engine.beginTake();$('#take').classList.add('on');$('#take').textContent='■ FINISH TAKE'}}));
+ $('#take').addEventListener('click',()=>void safe(async()=>{if(($('#take') as HTMLButtonElement).classList.contains('on')){engine.endTake();$('#take').classList.remove('on');$('#take').textContent='● ЗАПИСАТЬ АУДИО';window.setTimeout(paintTakes,400)}else{await engine.beginTake();$('#take').classList.add('on');$('#take').textContent='■ ЗАВЕРШИТЬ ДУБЛЬ'}}));
  $('#export').addEventListener('click',()=>void safe(async()=>{setStatus('RENDERING WAV');const blob=await engine.exportWav();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='ARTSS-NEXUS-LIVE.wav';a.click();window.setTimeout(()=>URL.revokeObjectURL(url),30000);setStatus('WAV EXPORTED')}));
  $('#reset').addEventListener('click',()=>{if(!confirm('Очистить записанные шаги?'))return;state.pattern=Array.from({length:8},()=>Array(16).fill(0));save();paintSteps()});
  for(const el of document.querySelectorAll('[data-pane]'))el.addEventListener('click',()=>{closeDrawer();setPane((el as HTMLElement).dataset.pane as Pane)});
@@ -302,7 +314,7 @@ engine.updateMix();refreshKitButtons();
  engine.events.onStep=step=>{
   if(document.visibilityState!=='visible'||pane!=='main')return;
   pendingStep=step;if(stepFrame)return;
-  stepFrame=requestAnimationFrame(()=>{stepFrame=0;const current=pendingStep;pendingStep=null;if(current===null)return;
+  stepFrame=requestAnimationFrame(()=>{stepFrame=0;const current=engine.currentStep;pendingStep=null;if(current===null||current===lastStep)return;
    if(lastStep!==null)for(const el of document.querySelectorAll<HTMLElement>(`[data-step="${lastStep}"].playhead`))el.classList.remove('playhead');
    for(const el of document.querySelectorAll<HTMLElement>(`#steps .step[data-step="${current}"],#patternOverview .pattern-cell[data-step="${current}"]`))el.classList.add('playhead');
    lastStep=current;
@@ -314,5 +326,5 @@ engine.updateMix();refreshKitButtons();
  paintPads();paintSteps();setPane('main');updateTransport();renderCapture();
  if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
 };
-function updateTransport(){const play=$('#play');play.querySelector('.deck-label')!.textContent=engine.state==='PLAY'?'PAUSE':'PLAY';play.querySelector('.deck-play-icon')!.textContent=engine.state==='PLAY'?'Ⅱ':'▶';play.classList.toggle('on',engine.state==='PLAY');$('#record').classList.toggle('on',engine.recording);$('#record').querySelector('.deck-label')!.textContent=engine.recording?'REC OFF':'LIVE REC';$('#runState').textContent=engine.state;if(engine.state==='STOP')$('#transportTime').textContent='00:00 / LOOP';}
+function updateTransport(){const play=$('#play');play.querySelector('.deck-label')!.textContent=engine.state==='PLAY'?'ПАУЗА':'ПУСК';play.querySelector('.deck-play-icon')!.textContent=engine.state==='PLAY'?'Ⅱ':'▶';play.classList.toggle('on',engine.state==='PLAY');$('#record').classList.toggle('on',engine.recording);$('#record').querySelector('.deck-label')!.textContent=engine.recording?'СТОП ЗАПИСИ':'ЗАПИСЬ';$('#runState').textContent=localStatus(engine.state);if(engine.state==='STOP')$('#transportTime').textContent='00:00 / ЦИКЛ';}
 init();

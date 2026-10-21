@@ -1,4 +1,4 @@
-export const PAD_NAMES = ['KICK', 'SUB', 'CLAP', 'HAT', 'OPEN HAT', 'PERC', 'ACID', 'HIT'] as const;
+export const PAD_NAMES = ['БОЧКА', 'САБ', 'ХЛОПОК', 'ХЭТ', 'ОТКР. ХЭТ', 'ПЕРК', 'ЭЙСИД', 'УДАР'] as const;
 export const PAD_COUNT=8, STEPS=16;
 export type PadIndex = 0|1|2|3|4|5|6|7;
 export type Pattern = number[][];

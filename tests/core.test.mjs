@@ -113,3 +113,14 @@ test('Safari live sample capture bypasses MediaStream roundtrip and outputs work
  assert.match(worklet,/registerProcessor\('artss-pcm-capture',PcmCapture\)/);
  assert.match(sw,/app\/pcm-capture\.js/);
 });
+
+test('pad-only recording never requests microphone permission',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const sample=readFileSync('src/sample-recorder.ts','utf8');
+ const engine=readFileSync('src/engine.ts','utf8');
+ const html=readFileSync('index.html','utf8');
+ assert.ok(!sample.includes('getUserMedia')&&!sample.includes('ownedStream'));
+ assert.ok(!html.includes('value="mic"'));
+ assert.ok(engine.includes('this.recordArmed=!this.recordArmed'));
+ assert.ok(engine.includes('if(this.recordArmed&&this.running)'));
+});
