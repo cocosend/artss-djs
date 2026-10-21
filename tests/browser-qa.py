@@ -33,6 +33,16 @@ with sync_playwright() as playwright:
  assert page.locator('#kitBanks button').count()==4
  assert page.locator('#sampleSource option[value="mic"]').count()==0
  assert page.locator('html').get_attribute('lang')=='ru'
+ # RU/EN must switch instantly without self-triggering endless MutationObserver updates.
+ assert page.locator('#languageToggle').is_visible()
+ page.locator('#languageToggle').tap()
+ page.wait_for_function("document.documentElement.lang==='en' && document.querySelector('#play').textContent.includes('PLAY')",timeout=4000)
+ assert page.locator('#languageToggle').get_attribute('aria-pressed')=='true'
+ page.reload(wait_until='networkidle')
+ page.wait_for_function("document.documentElement.lang==='en' && document.querySelector('#play').textContent.includes('PLAY')",timeout=4000)
+ page.locator('#languageToggle').tap()
+ page.wait_for_function("document.documentElement.lang==='ru' && document.querySelector('#play').textContent.includes('ПУСК')",timeout=4000)
+ assert page.locator('#languageToggle').get_attribute('aria-pressed')=='false'
  assert page.locator('[data-kit="0"]').is_visible()
  assert page.locator('link[rel="stylesheet"]').count()==1
  assert page.locator('link[rel="stylesheet"]').get_attribute('href')=='/studio27.css'
@@ -73,6 +83,11 @@ with sync_playwright() as playwright:
  assert page.locator('.pattern-cell').count()==64
  assert page.locator('.channel').count()==0
  assert page.locator('#crossfade').count()==1
+ # Auto A/B fader can be enabled, and manual fader must take back control.
+ page.locator('#autoMixToggle').tap()
+ assert page.locator('#autoMixToggle').get_attribute('aria-pressed')=='true'
+ page.locator('#autoMixToggle').tap()
+ assert page.locator('#autoMixToggle').get_attribute('aria-pressed')=='false'
  page.locator('#tapTempo').tap()
  page.wait_for_timeout(450)
  page.locator('#tapTempo').tap()
