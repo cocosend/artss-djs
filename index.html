@@ -11,7 +11,7 @@
  <link rel="icon" href="/icon.svg" type="image/svg+xml">
  <link rel="manifest" href="/manifest.webmanifest">
  <link rel="stylesheet" href="/studio27.css">
- <title>ARTSS NEXUS 27.2 — REFERENCE STUDIO</title>
+ <title>ARTSS NEXUS 28.0 — STUDIO</title>
 </head>
 <body>
 <div class="app nexus-app">
@@ -19,6 +19,7 @@
   <button type="button" id="menuToggle" class="chrome-icon menu-toggle" aria-label="Открыть меню" aria-expanded="false"><span class="hamburger"><i></i><i></i><i></i></span></button>
   <div class="brand-stack"><b>NEXUS</b><span>DJ CREATOR</span></div>
   <div class="head-tools">
+   <div class="language-switch" role="group" aria-label="Язык интерфейса"><button type="button" data-language="ru" class="selected" aria-pressed="true">RU</button><button type="button" data-language="en" aria-pressed="false">EN</button></div>
    <button id="quickUpload" class="chrome-icon" type="button" aria-label="Импортировать сэмпл"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7 9m5-5 5 5M5 15c-3 0-3 5 1 5h12c4 0 4-6 0-6h-1"/></svg></button>
    <button id="quickSettings" class="chrome-icon" type="button" aria-label="Настройки"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 2-.6 2.3-2.1.9-2-.9L3 7l1.3 2.1-.2 2.2L2 13l1.4 3.1 2.4-.1 1.6 1.5.2 2.5L11 22l1.2-2.3 2.2-.4 2 1.1 2.8-2.5-.8-2.2.7-2 2.3-1.1-.2-3.3-2.4-.8-1.1-1.9.4-2.4L15.1 2l-1.8 1.5-2.1-.2z"/><circle cx="12" cy="12" r="3"/></svg></button>
   </div>
@@ -64,11 +65,11 @@
   <button type="button" class="auto" id="autoGroove"><span class="galaxy" aria-hidden="true">✦</span><span class="auto-lines"><strong>СОЗДАТЬ РИТМ</strong><small>АВТОРИТМ</small></span><span class="auto-arrow">›</span></button>
   <button type="button" class="side-action" id="editGroove"><span class="action-glyph">≋</span><span>ИЗМЕНИТЬ<br>РИТМ</span></button>
  </section>
- <div class="utility-actions"><label for="density">ПЛОТНОСТЬ <input id="density" type="range" min="25" max="100" value="70" aria-label="Плотность ритма"></label><button id="undoGroove" class="undo" hidden>↶ ОТМЕНИТЬ</button></div>
+ <div class="utility-actions"><label for="density">ПЛОТНОСТЬ <input id="density" type="range" min="25" max="100" value="70" aria-label="Плотность ритма"></label><button type="button" id="autoMix" class="auto-mix-toggle" aria-pressed="false" aria-label="Автомикс банков ритма"><span>АВТОМИКС</span><small id="autoMixCaption">ВЫКЛ</small></button><button id="undoGroove" class="undo" hidden>↶ ОТМЕНИТЬ</button></div>
  <main id="mainPanel">
   <div class="section-heading pad-head"><div class="headline"><span class="heading-icon">▦</span><h2>ДРАМ-ПЭДЫ</h2></div><div id="kitBanks" class="kit-banks" role="group" aria-label="Банки паттернов"><button type="button" data-kit="0" class="active">A</button><button type="button" data-kit="1">B</button><button type="button" data-kit="2">C</button><button type="button" data-kit="3">D</button></div></div>
   <div id="pads" class="pads" aria-label="Все восемь звуковых пэдов"></div>
-  <div class="section-heading seqheading"><div class="headline"><span class="heading-icon">▦</span><h2>ШАГОВЫЙ СЕКВЕНСОР</h2></div><button type="button" id="seqEdit" class="sequencer-edit" aria-label="Редактирование всех пэдов">DRUMS <span>⌄</span></button></div>
+  <div class="section-heading seqheading"><div class="headline"><span class="heading-icon">▦</span><h2>ШАГОВЫЙ СЕКВЕНСОР</h2></div><button type="button" id="seqEdit" class="sequencer-edit" aria-label="Редактирование всех пэдов">ПЭДЫ <span>⌄</span></button></div>
   <div id="patternOverview" class="pattern-overview" aria-label="Редактируемый 16-шаговый ритм"></div>
   <details id="advancedEditor" class="advanced-editor"><summary>РЕДАКТОР ПЭДА <em id="selectedPad">KICK</em><small id="stepLabel">01–08 / 16</small></summary>
    <div class="sequencer"><div id="steps" class="steps"></div><div class="pages"><button id="pageA" class="active" aria-label="Шаги с 1 по 8">1</button><button id="pageB" aria-label="Шаги с 9 по 16">2</button></div></div>
@@ -106,13 +107,13 @@
   <div class="fxbox"><label><span>МАСТЕР-ФИЛЬТР</span><strong id="filterValue">ОТКРЫТ</strong><input id="filter" type="range" min="0" max="100" value="100" aria-label="Мастер фильтр"></label><label><span>ЭХО</span><strong id="echoValue">12%</strong><input id="echo" type="range" min="0" max="100" value="12" aria-label="Эхо"></label></div>
   <div id="mixRows" class="mixrows"></div>
  </section></details>
- <details class="workspace-fan" id="takesFan"><summary><span class="fan-icon">◈</span><span class="fan-text"><strong>ЗАПИСЬORD</strong><small>ДУБЛИ · WAV · ВЫСТУПЛЕНИЕ</small></span><span class="fan-arrow">⌄</span></summary><section id="takesPanel"><div class="section-heading"><h2>ЗАПИСЬ ВЫСТУПЛЕНИЯ</h2><span class="hint">ЛОКАЛЬНЫЙ ПРОЕКТ</span></div>
+ <details class="workspace-fan" id="takesFan"><summary><span class="fan-icon">◈</span><span class="fan-text"><strong>ЗАПИСЬ</strong><small>ДУБЛИ · WAV · ВЫСТУПЛЕНИЕ</small></span><span class="fan-arrow">⌄</span></summary><section id="takesPanel"><div class="section-heading"><h2>ЗАПИСЬ ВЫСТУПЛЕНИЯ</h2><span class="hint">ЛОКАЛЬНЫЙ ПРОЕКТ</span></div>
   <button id="take" class="takebutton">● ЗАПИСАТЬ АУДИО</button><button id="export" class="secondary">↓ ЭКСПОРТ WAV · 4 ТАКТА</button><div id="takesList" class="takeslist"></div><button id="reset" class="danger">ОЧИСТИТЬ ТЕКУЩИЙ РИТМ</button>
  </section></details>
  <details class="workspace-fan" id="libraryFan"><summary><span class="fan-icon">◈</span><span class="fan-text"><strong>ПРЕСЕТЫ</strong><small>12 МУЗЫКАЛЬНЫХ СТИЛЕЙ</small></span><span class="fan-arrow">⌄</span></summary><section id="libraryPanel"><div class="section-heading"><h2>БИБЛИОТЕКА ЗВУКОВ</h2><span class="hint">12 СТИЛЕЙ · ЛОКАЛЬНЫЕ СЭМПЛЫ</span></div><div class="library-grid" id="libraryStyles"></div><button id="libraryImport" class="secondary" type="button">+ ИМПОРТ СЭМПЛА</button></section></details>
  <details class="workspace-fan" id="profileFan"><summary><span class="fan-icon">◈</span><span class="fan-text"><strong>ПРОЕКТ</strong><small>ЛИЧНЫЕ НАСТРОЙКИ</small></span><span class="fan-arrow">⌄</span></summary><section id="profilePanel"><div class="section-heading"><h2>ЛОКАЛЬНЫЙ ПРОЕКТ</h2><span class="hint">ЛИЧНАЯ СТУДИЯ НА УСТРОЙСТВЕ</span></div><div class="profile-card"><strong>ARTSS NEXUS</strong><p>Все ритмы, сэмплы и записи остаются на устройстве. Регистрация не нужна.</p><div id="deviceStatus"></div><button id="goToRecording" class="secondary">ОТКРЫТЬ ЗАПИСЬ</button></div></section></details>
  </section>
- <nav class="bottomnav" aria-label="Навигация"><button data-pane="main" class="active"><span>⌂</span>СОЗДАТЬ</button><button data-pane="library"><span>♫</span>ЗВУКИ</button><button data-pane="takes"><span>◎</span>ИГРАТЬ</button><button data-pane="mix"><span>≋</span>MIX</button><button data-pane="profile"><span>♙</span>ПРОЕКТ</button></nav>
+ <nav class="bottomnav" aria-label="Навигация"><button data-pane="main" class="active"><span>⌂</span>СОЗДАТЬ</button><button data-pane="library"><span>♫</span>ЗВУКИ</button><button data-pane="takes"><span>◎</span>ИГРАТЬ</button><button data-pane="mix"><span>≋</span>МИКС</button><button data-pane="profile"><span>♙</span>ПРОЕКТ</button></nav>
 </div>
 <input id="sampleInput" type="file" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.flac" multiple hidden>
 <script type="module" src="/app/main.js"></script>
