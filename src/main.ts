@@ -346,6 +346,7 @@ engine.updateMix();refreshKitButtons();
  engine.events.onClip=(pad)=>{scheduleSave();for(let step=0;step<STEPS;step++)syncPatternCells(pad,step)};engine.events.onSamples=paintPads;engine.events.onState=v=>{setStatus(v);if(v.startsWith('SAMPLE SAVED')||v.startsWith('SAMPLE ERROR')){renderCapture();paintPads();}};
  const refreshLanguage=()=>{
   translateStatic($<HTMLElement>('.nexus-app'));
+  $('#autoMix').querySelector('span')!.textContent=t('АВТОМИКС','AUTO MIX');
   for(const button of document.querySelectorAll<HTMLButtonElement>('[data-language]')){
    const on=button.dataset.language===language();button.classList.toggle('selected',on);button.setAttribute('aria-pressed',String(on));
   }
