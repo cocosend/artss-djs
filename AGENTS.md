@@ -43,3 +43,5 @@ Engineering priorities: **sound integrity → correctness/data preservation → 
 - One CSS cascade only; preserve 8 pads/4x2, A-D bank strip, five tabs and headroom/compressor behavior.
 
 - For short Safari/iOS PCM recordings, record post-limiter master directly through `/app/pcm-capture.js` AudioWorklet instead of routing live WebAudio through MediaStreamDestination -> MediaStreamSource -> ScriptProcessor. AudioWorklet remains allocated only while capturing; preserve playback connections on cleanup. The fallback ScriptProcessor remains for platforms without AudioWorklet.
+
+- Regression QA must assert long-press on a performance pad cannot accidentally switch to sample replacement, and computed touch-action for pads and EQ prevents scroll hijacking.

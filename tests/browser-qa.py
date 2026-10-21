@@ -65,6 +65,8 @@ with sync_playwright() as playwright:
  page.evaluate("""()=>document.querySelector('.pad[data-pad="3"]').dispatchEvent(new PointerEvent('pointercancel',{pointerId:777,pointerType:'touch',bubbles:true}))""")
  page.wait_for_timeout(100)
  assert not page.locator('.pad[data-pad="3"]').evaluate("el=>el.classList.contains('pressed')"),'Pointer cancel left pad stuck'
+ assert page.locator('.pad[data-pad="3"]').evaluate("""el=>!el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))"""),'Long press unexpectedly opens sample replacement'
+ assert page.locator('#pads .pad').first.evaluate("el=>getComputedStyle(el).touchAction")=='none'
  assert page.locator('.pattern-lane').count()==4
  assert page.locator('.pattern-cell').count()==64
  assert page.locator('.channel').count()==0
