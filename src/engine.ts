@@ -89,17 +89,17 @@ export class Engine{
  private async enableWorklet(ctx:AudioContext):Promise<void>{
   try{if(!ctx.audioWorklet)return;await ctx.audioWorklet.addModule('/app/clock.js');if(this.ctx!==ctx)return;
    const worklet=new AudioWorkletNode(ctx,'artss-pulse',{numberOfOutputs:1,outputChannelCount:[1]});
-   const silent=ctx.createGain();silent.gain.value=0;worklet.connect(silent).connect(ctx.destination);worklet.port.onmessage=()=>this.pump();this.clock=worklet;
+   const silent=ctx.createGain();silent.gain.value=0;worklet.connect(silent).connect(ctx.destination);worklet.port.onmessage=()=>this.pump();this.clock=worklet;worklet.port.postMessage(this.running?'start':'pause');
    if(this.fallback!==null){window.clearInterval(this.fallback);this.fallback=null;}
   }catch{}
  }
  async start(){const generation=this.generation;await this.unlock();if(this.running||this.generation!==generation)return;await this.bank.warm(this.ctx!);if(this.running||this.generation!==generation)return;const d=60/this.getSession().tempo/4;
   if(this.stopAt>0){const progress=this.stopAt-this.origin;this.origin=this.time-progress;this.nextStep=Math.max(0,Math.ceil((this.time-this.origin)/d));this.nextTime=this.origin+this.nextStep*d;}
   else{this.origin=this.time+.05;this.nextStep=0;this.nextTime=this.origin;}
-  this.scheduledTempo=this.getSession().tempo;this.running=true;this.stopAt=0;this.generation++;this.pump();this.events.onState?.('PLAY');
+  this.scheduledTempo=this.getSession().tempo;this.running=true;this.stopAt=0;this.generation++;this.clock?.port.postMessage('start');this.pump();this.events.onState?.('PLAY');
  }
- pause(){if(!this.running)return;this.running=false;this.stopAt=this.time;this.generation++;this.silence();this.events.onState?.('PAUSE');}
- stop(){this.running=false;this.stopAt=0;this.recordArmed=false;this.nextStep=0;this.nextTime=0;this.generation++;this.silence();this.events.onState?.('STOP');}
+ pause(){if(!this.running)return;this.running=false;this.stopAt=this.time;this.generation++;this.clock?.port.postMessage('pause');this.silence();this.events.onState?.('PAUSE');}
+ stop(){this.running=false;this.stopAt=0;this.recordArmed=false;this.nextStep=0;this.nextTime=0;this.generation++;this.clock?.port.postMessage('pause');this.silence();this.events.onState?.('STOP');}
  async toggleRecord(){await this.unlock();if(!this.running)await this.start();if(!this.running)return this.recordArmed;this.recordArmed=!this.recordArmed;this.events.onState?.(this.recordArmed?'REC ON':'REC OFF');return this.recordArmed;}
  async hit(pad:number,velocity=1){if(!Number.isInteger(pad)||pad<0||pad>7||this.getSession().muted[pad])return;
   // Do not await resume or worklet setup once AudioContext is already running. Trigger voice on pointerdown.

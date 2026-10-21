@@ -158,3 +158,11 @@ test('local track mixing goes through existing limiter with no separate deck',as
  assert.match(html,/id="trackAutoMix"/);
  assert.ok(!html.includes('id="deckB"'));
 });
+
+test('audio worklet pulse stops sending messages while no pad loop is playing',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const clock=readFileSync('src/clock.ts','utf8'),engine=readFileSync('src/engine.ts','utf8');
+ assert.match(clock,/if\(!this.active\)return true/);
+ assert.match(engine,/this.clock\?\.port.postMessage\('start'\)/);
+ assert.match(engine,/this.clock\?\.port.postMessage\('pause'\)/);
+});
