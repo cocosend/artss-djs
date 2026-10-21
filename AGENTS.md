@@ -41,3 +41,5 @@ Engineering priorities: **sound integrity → correctness/data preservation → 
 - Pad selection changes classes, not audio engine, pad DOM nodes, or sequencer structure; tapping existing step controls persists via bounded 250 ms debounce with pagehide/background flush.
 - LOW/MID/HIGH accept vertical touch movement at 7 CSS px/dB, native keyboard access remains, and all frequency changes reach AudioParam before persistence.
 - One CSS cascade only; preserve 8 pads/4x2, A-D bank strip, five tabs and headroom/compressor behavior.
+
+- For short Safari/iOS PCM recordings, record post-limiter master directly through `/app/pcm-capture.js` AudioWorklet instead of routing live WebAudio through MediaStreamDestination -> MediaStreamSource -> ScriptProcessor. AudioWorklet remains allocated only while capturing; preserve playback connections on cleanup. The fallback ScriptProcessor remains for platforms without AudioWorklet.

@@ -99,3 +99,17 @@ test('EQ drag has stable pixel sensitivity, no jumps on touch and safe bounds',(
  assert.equal(knobDragValue(NaN,0),0);
  assert.equal(knobDragValue(3,NaN),3);
 });
+
+test('Safari live sample capture bypasses MediaStream roundtrip and outputs worklet PCM',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const engine=readFileSync('src/engine.ts','utf8');
+ const recorder=readFileSync('src/sample-recorder.ts','utf8');
+ const worklet=readFileSync('src/pcm-capture.ts','utf8');
+ const sw=readFileSync('sw.js','utf8');
+ assert.match(engine,/directPcm\?this.bus!\.master:null/);
+ assert.match(engine,/source==='live'&&!directPcm\?this.ensureCapture\(\):null/);
+ assert.match(recorder,/audioWorklet\.addModule\('\/app\/pcm-capture\.js'\)/);
+ assert.match(recorder,/this\.workletInput\.disconnect\(this\.worklet\)/);
+ assert.match(worklet,/registerProcessor\('artss-pcm-capture',PcmCapture\)/);
+ assert.match(sw,/app\/pcm-capture\.js/);
+});
