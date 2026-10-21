@@ -605,3 +605,41 @@ body{background:radial-gradient(ellipse 82% 25% at 80% -10%,#422066 0%,transpare
 .nexus-app .head-tools{position:relative;z-index:5;display:flex;align-items:center;flex:none;gap:clamp(3px,.85vw,7px);margin-left:auto}
 .nexus-app .head-tools .language-toggle{position:relative;z-index:6;flex:none;pointer-events:auto;touch-action:manipulation}
 @media(max-width:390px){.nexus-app .brand-stack b{letter-spacing:.17em;text-indent:0;font-size:clamp(14px,4.1vw,17px)}.nexus-app .brand-stack span{letter-spacing:.07em;font-size:8px}.nexus-app .head-tools .chrome-icon{width:30px;min-width:30px;height:30px}}
+
+/* NEXUS LUX: deep-black instrument, amethyst metal, turquoise light, pearl-white ink.
+   Tactile polish without perpetual animations, filters or extra stylesheets. */
+.nexus-app{--lux-black:#010106;--lux-violet:#7738f6;--lux-purple:#371274;--lux-turquoise:#3affdd;--lux-pearl:#faffff;background:linear-gradient(165deg,#03020a 0%,#000004 35%,#07031a 72%,#010105 100%)!important;color:var(--lux-pearl);color-scheme:dark}
+body{background:#010105!important}
+.nexus-app .nexus-header{background:linear-gradient(155deg,#0b0718 0%,#010106 45%,#0b0720 100%)!important;border-bottom:1px solid #7136c7!important;box-shadow:inset 0 1px #c0a5ff48,0 1px 0 #1fffff25!important}
+.nexus-app .brand-stack b{background:linear-gradient(160deg,#fff 7%,#f6efff 34%,#b5a3ed 64%,#fff 85%)!important;background-clip:text!important;-webkit-background-clip:text!important;color:transparent!important;text-shadow:none!important;filter:none!important;font-weight:1000;letter-spacing:.12em}
+.nexus-app .brand-stack span{color:#3affdf!important;text-shadow:0 1px #0b6662!important}
+.nexus-app .hero-deck,.nexus-app .main-mixer,.nexus-app .control-deck{background:linear-gradient(155deg,#1d1038 0%,#070610 21%,#010105 65%,#170929 100%)!important;border:1px solid #6039a0!important;box-shadow:inset 0 1px #ffffff3a,inset 0 -1px #2cf8dc35,0 2px 10px #000c!important}
+.nexus-app .deck-disc{background:linear-gradient(142deg,#f6f1ff 0%,#817c97 4%,#231c39 11%,#06050c 25%,#0c0821 71%,#5630a5 91%,#f6ebff 100%)!important;border:2px solid #8572b2!important;box-shadow:inset 0 2px 3px #c4bded72,inset 0 -4px 7px #000,0 3px 6px #000d!important}
+.nexus-app .deck-play .deck-disc{border-color:#51ffe4!important}
+.nexus-app .deck-record .deck-disc{border-color:#ff4774!important}
+.nexus-app .deck-play-icon{color:#d3fff7!important}
+.nexus-app .deck-rec-icon{box-shadow:0 0 0 2px #ef4476c7,0 0 11px #fa295d73!important}
+.nexus-app .hero-wave{background:linear-gradient(145deg,#070a12,#010107 68%,#100820)!important;border:1px solid #3e2b6a!important;box-shadow:inset 0 1px #c9b2f932,inset 0 -1px #45eada35!important}
+.nexus-app .trackline,.nexus-app .wave-foot{color:#f9f8ff!important}
+.nexus-app #waveform{background:radial-gradient(ellipse at 60% 50%,#0b1830,#010106 75%)!important;image-rendering:auto}
+.nexus-app #pads .pad{background:linear-gradient(150deg,#422080 0%,#160e2c 7%,#06060f 24%,#020207 64%,#210e3f 93%,#6741a1 100%)!important;border-color:#734fb2!important;box-shadow:inset 0 1px #e3d5ff9e,inset 0 -2px #120924,0 3px 5px #000e!important;transition:transform 80ms cubic-bezier(.2,.8,.2,1),border-color 100ms ease!important}
+.nexus-app #pads .pad:before{border-color:#bd9fff45!important;background:linear-gradient(175deg,#f8f7ff18,transparent 32%)}
+.nexus-app #pads .pad.selected{border-color:#56ffe7!important;box-shadow:inset 0 1px #dfffff,0 0 0 1px #43fce08c,0 2px 7px #000!important}
+.nexus-app #pads .pad.pressed{background:linear-gradient(155deg,#5b2db1,#1c0f35 18%,#06060c 72%,#12423c)!important;transform:translate3d(0,1px,0) scale(.971)!important;border-color:#a9fff3!important;box-shadow:inset 0 1px #edfffd,0 0 0 1px #4afee6,0 3px 5px #000!important;filter:none!important}
+.nexus-app #pads .pad-name{color:#fdfaff!important;font-size:clamp(9px,2.58vw,11px);font-weight:850}
+.nexus-app .pad-glyph{color:#fffaff!important}
+.nexus-app #kitBanks button.active,.nexus-app #steps .step.on{background:linear-gradient(135deg,#a7fff1,#42d7c6)!important;color:#061516!important}
+.nexus-app .pattern-overview,.nexus-app .workspace-fan{background:linear-gradient(155deg,#160c2c,#020207 48%,#0b071b)!important;border-color:#534085!important;box-shadow:inset 0 1px #e0caff27!important}
+.nexus-app .pattern-cell.on{background:linear-gradient(145deg,#925cfb,#3d18ae)!important;border-color:#bc9bff!important;box-shadow:inset 0 1px #e4cdff8c!important}
+.nexus-app .pattern-cell.playhead{outline:1px solid #60ffdc!important;outline-offset:0}
+.nexus-app .knob-visual{border-color:#9a88cc!important;background:linear-gradient(143deg,#fff 0%,#7772a5 8%,#161229 24%,#06050b 72%,#51427c 91%,#f2eafa 100%)!important;box-shadow:inset 0 1px #ffffff88,0 2px 5px #000d!important}
+.nexus-app .bottomnav{background:linear-gradient(180deg,#0d0620,#010105)!important;border-top-color:#7434bd!important;box-shadow:inset 0 1px #c69cff3c!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+.nexus-app .bottomnav button.active{color:#72ffe6!important;background:linear-gradient(180deg,#481c8459,#04030a4d)!important}
+.nexus-app .auto-track-panel{background:linear-gradient(145deg,#251044,#080611 42%,#020206 65%,#22103c)!important;border-color:#8354d6!important;box-shadow:inset 0 1px #f3dfff65,0 2px 8px #000c!important}
+.nexus-app .auto-track-glyph{background:linear-gradient(135deg,#702be7,#061922)!important;border-color:#78fbe8!important;color:#fff!important}
+.nexus-app .auto-pad-sync{display:flex!important;align-items:center;gap:9px;font-size:10px;color:#e9fefa!important;font-weight:800;letter-spacing:.02em;cursor:pointer;min-height:37px}
+.nexus-app .auto-pad-sync input{width:19px;height:19px;accent-color:#32e7d3;flex:none;touch-action:manipulation}
+.nexus-app .language-toggle{border-color:#b09be0!important;background:linear-gradient(140deg,#34205e,#0b0816)!important;color:#cfdbfa!important;box-shadow:inset 0 1px #ffffff40!important}
+.nexus-app :is(button,input,select,summary):focus-visible{outline:2px solid #6affea!important;outline-offset:2px}
+.nexus-app :is(.pad,.deck-disc,.pattern-cell,.knob-visual){-webkit-tap-highlight-color:transparent}
+@media(prefers-reduced-motion:reduce){.nexus-app #pads .pad,.nexus-app .deck-disc{transition:none!important}}

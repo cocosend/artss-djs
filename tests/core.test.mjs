@@ -164,3 +164,15 @@ test('audio worklet pulse stops sending messages while no pad loop is playing',a
  assert.match(engine,/this.clock\?\.port.postMessage\('start'\)/);
  assert.match(engine,/this.clock\?\.port.postMessage\('pause'\)/);
 });
+
+test('DJ music clock locks first beat to live pad bar without pausing sequencer',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const engine=readFileSync('src/engine.ts','utf8'),player=readFileSync('src/automix-player.ts','utf8');
+ assert.match(engine,/getMusicSyncPoint\(\)/);
+ assert.match(engine,/this\.nextStep%STEPS/);
+ assert.match(engine,/this\.musicDucker/);
+ assert.match(player,/async start\(joinPads=true\)/);
+ assert.match(player,/getMusicSyncPoint\(\)/);
+ assert.doesNotMatch(player,/this\.engine\.pause\(\)/);
+ assert.match(player,/setPadOverlay\(playing:boolean\)/);
+});

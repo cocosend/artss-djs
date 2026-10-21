@@ -138,7 +138,8 @@ with sync_playwright() as playwright:
  page.locator('[data-kit="0"]').tap()
  page.locator('.pattern-cell[data-pad="0"][data-step="0"]').tap()
  page.locator('.pattern-cell[data-pad="0"][data-step="0"]').tap()
- page.locator('#eqLow').fill('4')
+ # WebKit may not dispatch input for a synthetic range.fill; fire the same real input handler explicitly.
+ page.locator('#eqLow').evaluate("(el)=>{el.value='4';el.dispatchEvent(new Event('input',{bubbles:true}))}")
  page.wait_for_function("JSON.parse(localStorage.getItem('artss-live-session-v19')).eqLow===4")
  # Drag the EQ dial vertically 35 CSS pixels: should boost exactly +5 dB.
  new_value=page.evaluate("""()=>{
@@ -242,8 +243,13 @@ with sync_playwright() as playwright:
   {'name':'second-125.wav','mimeType':'audio/wav','buffer':music_track(125)}
  ])
  page.wait_for_function("!document.querySelector('#startTrackMix').disabled",timeout=20000)
+ assert page.locator('#autoMixPadSync').is_checked(),'Pad sync should be enabled for DJ performance'
  page.locator('#startTrackMix').tap()
- page.wait_for_function("!document.querySelector('#stopTrackMix').disabled",timeout=10000)
+ page.wait_for_function("!document.querySelector('#stopTrackMix').disabled",timeout=20000)
+ assert page.locator('#runState').inner_text()=='ИГРАЕТ','DJ automix stopped or failed to start the pad loop'
+ assert int(page.locator('#bpm').inner_text())>0,'Pad tempo not available after track sync'
+ page.locator('.pad[data-pad="2"]').tap()
+ assert not page.locator('#stopTrackMix').is_disabled(),'Touching drum pad stopped DJ track mix'
  assert 'Автосводка' in page.locator('#trackMixStatus').inner_text()
  page.locator('#stopTrackMix').tap()
  assert page.locator('#stopTrackMix').is_disabled()

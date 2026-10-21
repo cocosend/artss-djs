@@ -70,6 +70,7 @@
   <div class="auto-track-controls">
    <label for="autoMixFiles">ВЫБЕРИ 2–3 СВОИХ АУДИОТРЕКА</label>
    <input id="autoMixFiles" type="file" accept="audio/*,.wav,.mp3,.m4a,.aac,.flac,.ogg" multiple aria-label="Аудиотреки для автоматической сводки">
+   <label class="auto-pad-sync"><input id="autoMixPadSync" type="checkbox" checked><span>СИНХРОНИЗИРОВАТЬ С ПЭДАМИ · BPM И ТАКТ</span></label>
    <div class="auto-track-buttons"><button type="button" id="startTrackMix" disabled>▶ СВЕСТИ ТРЕКИ</button><button type="button" id="stopTrackMix" disabled>■ ОСТАНОВИТЬ</button></div>
    <p id="trackMixStatus" role="status">Анализ BPM, выравнивание уровней и переход по музыкальной фразе.</p>
   </div>

@@ -54,7 +54,7 @@ export class Engine{
  private active=new Set<{stop:()=>void;until:number}>();
  private generation=0;private scheduledTempo=136;private recorder:MediaRecorder|null=null;private capture:MediaStreamAudioDestinationNode|null=null;
  private recorded:Blob[]=[];private currentChunks:Blob[]=[];
- private gain=1;private autoMix=false;private sampleRecorder=new SampleRecorder();
+ private gain=1;private autoMix=false;private musicDucker:GainNode|null=null;private sampleRecorder=new SampleRecorder();
  private offlineSampleActive=false;private offlineSampleAt=0;private offlineSampleTimer:number|null=null;
  private offlineSampleHits:Array<{pad:number;at:number;velocity:number;style:number;level:number}>=[];
  private sampleTarget:{pad:number;style:number}|null=null;events:EngineEvents={};
@@ -66,8 +66,12 @@ export class Engine{
  /** Connect local music files before master EQ, protection and stereo meter. */
  connectMusicSource(node:AudioNode):()=>void {
   if(!this.ctx||!this.bus||this.ctx.state!=='running')throw Error('Аудиодвижок недоступен');
-  const target=this.bus.input;node.connect(target);
-  return ()=>{try{node.disconnect(target)}catch{}};
+  const target=this.bus.input,duck=this.ctx.createGain();
+  duck.gain.value=1;node.connect(duck);duck.connect(target);
+  this.musicDucker=duck;
+  return ()=>{try{node.disconnect(duck);duck.disconnect()}catch{}
+   if(this.musicDucker===duck)this.musicDucker=null;
+  };
  }
  get autoMixEnabled(){return this.autoMix;}
  setAutoMix(enabled:boolean){this.autoMix=enabled;if(enabled)this.updateAutoMix();else this.bus?.update(this.getSession());}
@@ -78,6 +82,16 @@ export class Engine{
  get meterLevel(){if(!this.bus)return 0;this.bus.meter.getByteTimeDomainData(this.meterData);let energy=0;for(let i=0;i<this.meterData.length;i++){const v=(this.meterData[i]!-128)/128;energy+=v*v;}return Math.min(1,Math.sqrt(energy/this.meterData.length)*2.8);}
  readWaveform(output:Uint8Array):boolean{if(!this.bus||!this.ctx||this.ctx.state!=='running')return false;this.bus.meter.getByteTimeDomainData(output);return true;}
  get currentStep(){if(!this.ctx||!this.running)return 0;const d=60/this.getSession().tempo/4;return ((Math.floor((this.time-this.origin)/d+1e-4)%STEPS)+STEPS)%STEPS;}
+ /** Phase-lock music playback to the NEXT actual 16-step pad downbeat (AudioContext clock). */
+ getMusicSyncPoint():{time:number;tempo:number;playing:boolean}{
+  const tempo=this.getSession().tempo,now=this.ctx?.currentTime??0,d=60/tempo/4;
+  if(!this.running||!this.ctx)return {time:now+.09,tempo,playing:false};
+  this.pump(); // Rephase the sequencer first if BPM changed this gesture.
+  const delta=(STEPS-this.nextStep%STEPS)%STEPS;
+  let at=this.nextTime+delta*d;
+  while(at<now+.09)at+=STEPS*d;
+  return {time:at,tempo,playing:true};
+ }
  async unlock():Promise<void>{
   if(!this.ctx){const C=window.AudioContext||(window as Window & {webkitAudioContext?:typeof AudioContext}).webkitAudioContext;if(!C)throw Error('Web Audio недоступен');this.ctx=new C({latencyHint:'interactive'});void this.bank.restore(this.ctx).then(()=>this.events.onSamples?.()).catch(()=>{});this.bus=createBus(this.ctx,this.ctx.destination,this.getSession());}
   if(this.ctx.state!=='running')await this.ctx.resume();
@@ -139,6 +153,12 @@ export class Engine{
  }
  private voice(ctx:BaseAudioContext,bus:AudioNode,pad:number,when:number,velocity:number,style:number,level:number){
   const live=ctx===this.ctx;
+  if(live&&this.musicDucker&&(pad===0||pad===1||pad===2)){
+   // Mild, sample-accurate musical ducking; leave the original drum transient untouched.
+   const g=this.musicDucker.gain,t=Math.max(ctx.currentTime,when);
+   g.cancelScheduledValues(t);g.setTargetAtTime(pad===2?.90:.81,t,.012);
+   g.setTargetAtTime(1,t+.10,.12);
+  }
   if(live&&this.active.size>=28){const oldest=this.active.values().next().value;if(oldest){oldest.stop();this.active.delete(oldest);}}
   const sample=this.bank.resolve(pad,style);if(!sample)return;
   if(live&&this.offlineSampleActive){const at=when-this.offlineSampleAt;

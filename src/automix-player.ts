@@ -10,6 +10,10 @@ export class AutoMixPlayer {
  private generation=0;private status:AutoMixState='idle';private ticker:number|null=null;private timeline:Timeline[]=[];
  constructor(private engine:Engine,private onStatus:(state:AutoMixState,message:string)=>void){}
  get state(){return this.status}
+ /** Music makes space for active drum pads, without muting or stopping the DJ track. */
+ setPadOverlay(playing:boolean){if(!this.mixOutput||!this.engine.ctx)return;
+  this.mixOutput.gain.setTargetAtTime(playing?.55:.76,this.engine.ctx.currentTime,.08);
+ }
  get loaded(){return this.tracks.map(t=>({name:t.name,bpm:t.analysis.bpm,confidence:t.analysis.confidence,rms:t.analysis.rms}))}
  private update(state:AutoMixState,message:string){this.status=state;this.onStatus(state,message)}
  async load(files:FileList|File[]):Promise<void>{
@@ -33,16 +37,22 @@ export class AutoMixPlayer {
    this.tracks=decoded;this.update('ready',decoded.map(t=>t.name.slice(0,22)+' · '+t.analysis.bpm+' BPM').join(' → '));
   }catch(error){if(epoch===this.generation){this.tracks=[];this.update('error',error instanceof Error?error.message:'Ошибка анализа')}throw error}
  }
- async start():Promise<void>{
+ async start(joinPads=true):Promise<void>{
   if(this.status==='loading')throw Error('Подожди завершения анализа');
   if(this.tracks.length<2)throw Error('Загрузи минимум два аудиотрека');
   this.stop(false);const epoch=++this.generation;
   await this.engine.unlock();if(epoch!==this.generation)return;
-  if(this.engine.state==='PLAY')this.engine.pause();
+  if(joinPads&&this.engine.state!=='PLAY')await this.engine.start();
+  if(epoch!==this.generation)return;
   const ctx=this.engine.ctx;if(!ctx)throw Error('Аудиодвижок недоступен');
-  const mix=ctx.createGain();mix.gain.value=.87;this.mixOutput=mix;this.detach=this.engine.connectMusicSource(mix);
-  const now=ctx.currentTime+.08,sequence:Timeline[]=[];
-  sequence.push({track:this.tracks[0]!,time:now,offset:0,rate:1,fadeStart:0,fadeDuration:0});
+  const sync=joinPads?this.engine.getMusicSyncPoint():{time:ctx.currentTime+.09,tempo:this.tracks[0]!.analysis.bpm,playing:false};
+  const mix=ctx.createGain();mix.gain.value=sync.playing?.55:.76;
+  this.mixOutput=mix;this.detach=this.engine.connectMusicSource(mix);
+  const first=this.tracks[0]!,initialRate=sync.playing&&first.analysis.confidence>=.17
+   ?Math.min(1.06,Math.max(.94,sync.tempo/first.analysis.bpm)):1;
+  const firstOffset=sync.playing?Math.min(first.analysis.firstBeat,Math.max(0,first.buffer.duration-2)):0;
+  const sequence:Timeline[]=[];
+  sequence.push({track:first,time:sync.time,offset:firstOffset,rate:initialRate,fadeStart:0,fadeDuration:0});
   for(let i=1;i<this.tracks.length;i++){
    const prev=sequence[i-1]!,next=this.tracks[i]!;
    const plan=planTransition({...prev.track.analysis,bpm:prev.track.analysis.bpm*prev.rate},next.analysis);

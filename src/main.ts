@@ -199,7 +199,13 @@ $('#autoMixFiles').addEventListener('change',()=>void safe(async()=>{
  const input=$<HTMLInputElement>('#autoMixFiles');if(!input.files?.length)return;
  mixStart.disabled=true;await mixPlayer.load(input.files);
 }));
-mixStart.addEventListener('click',()=>void safe(async()=>{await mixPlayer.start();updateTransport()}));
+mixStart.addEventListener('click',()=>void safe(async()=>{
+ const sync=$<HTMLInputElement>('#autoMixPadSync').checked;
+ if(sync){const first=mixPlayer.loaded[0];
+  if(first&&first.confidence>=.17){state.tempo=first.bpm;showTrack();engine.updateMix();scheduleSave();}
+ }
+ await mixPlayer.start(sync);mixPlayer.setPadOverlay(engine.state==='PLAY');updateTransport();
+}));
 mixStop.addEventListener('click',()=>{mixPlayer.stop();updateTransport()});
 
  $('#filter').addEventListener('input',()=>{state.filter=Number(($<HTMLInputElement>('#filter')).value)/100;$('#filterValue').textContent=state.filter>.97?'ОТКРЫТ':`${Math.round(state.filter*100)}%`;engine.updateMix();scheduleSave()});
@@ -271,8 +277,8 @@ mixStop.addEventListener('click',()=>{mixPlayer.stop();updateTransport()});
  $('#tapTempo').addEventListener('click',()=>{const now=performance.now(),elapsed=now-lastTap;lastTap=now;if(elapsed>2000){recentTaps.length=0;setStatus('TAP AGAIN TO SET BPM');return;}if(elapsed<300||elapsed>1000)return;recentTaps.push(elapsed);if(recentTaps.length>4)recentTaps.shift();const sorted=[...recentTaps].sort((a,b)=>a-b);const median=sorted[Math.floor(sorted.length/2)]??elapsed;changeTempo(60000/median);setStatus(`BPM ${state.tempo}`)});
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushSave();else if(engine.state==='PLAY'&&engine.ctx?.state==='suspended')setStatus('TAP PLAY TO RESTORE AUDIO')});
  window.addEventListener('pagehide',()=>{flushSave();mixPlayer.dispose();for(const url of takeUrls)URL.revokeObjectURL(url);takeUrls=[]});
- $('#play').addEventListener('click',()=>void safe(async()=>{if(mixPlayer.state==='playing')mixPlayer.stop();if(engine.state==='PLAY'&&engine.ctx?.state==='suspended')await engine.unlock();else if(engine.state==='PLAY')engine.pause();else await engine.start();updateTransport()}));
- $('#record').addEventListener('click',()=>void safe(async()=>{if(mixPlayer.state==='playing')mixPlayer.stop();await engine.toggleRecord();updateTransport()}));
+ $('#play').addEventListener('click',()=>void safe(async()=>{if(engine.state==='PLAY'&&engine.ctx?.state==='suspended')await engine.unlock();else if(engine.state==='PLAY')engine.pause();else await engine.start();mixPlayer.setPadOverlay(engine.state==='PLAY');updateTransport()}));
+ $('#record').addEventListener('click',()=>void safe(async()=>{await engine.toggleRecord();mixPlayer.setPadOverlay(engine.state==='PLAY');updateTransport()}));
  $('#stop').addEventListener('click',()=>{mixPlayer.stop();engine.stop();updateTransport()});
  const autoMixButton=$<HTMLButtonElement>('#autoMixToggle');
  autoMixButton.addEventListener('click',()=>{engine.setAutoMix(!engine.autoMixEnabled);autoMixButton.setAttribute('aria-pressed',String(engine.autoMixEnabled));autoMixButton.classList.toggle('active',engine.autoMixEnabled);autoMixButton.textContent=engine.autoMixEnabled?'АВТОМИКС · ВКЛ':'АВТОМИКС · ВЫКЛ';setStatus(engine.autoMixEnabled?'АВТОМИКС ВКЛ':'АВТОМИКС ВЫКЛ')});

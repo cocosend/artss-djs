@@ -53,3 +53,8 @@ Engineering priorities: **sound integrity → correctness/data preservation → 
 
 ## v28 WebKit reliability gate
 - Explicit user priority: record on-pad events in the sequencer and keep looping. The legacy live-mix sample capture UI was removed because WebKit repeatedly crashed during its test; retain manual licensed-audio import and WAV export. Never reactivate live capture without physical-device regression testing and an independent crash fix.
+
+## Integrated DJ mode and LUX finish
+- The local-track DJ AutoMix can combine with the live 16-step pad session (checkbox enabled by default). Match pad BPM to detected track BPM on explicit Start, quantize the first music downbeat to the sequencer's future 16-step bar, permit live drum hits and ongoing overdub while tracks transition. Turning off the checkbox allows isolated track DJ listening.
+- Mixer audio feeds existing master EQ/limiter. During simultaneous pad+music playback keep music gain moderate and duck short kick/clap transients by about 1–2 dB, without changing source pad timbres or adding a duplicate mixer.
+- User-authorized palette: deepest black, saturated amethyst purple, high-contrast turquoise, pearl-white gloss, red record accent. Avoid perpetual animated blur and pixel-heavy filters. Maintain 8 pads/4x2, A–D pattern banks, 5 navigation tabs.
