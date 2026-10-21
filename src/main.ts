@@ -100,7 +100,6 @@ function paintPads(){const wrap=$('#pads');wrap.replaceChildren();for(let i=0;i<
  $('#selectedPad').textContent=PAD_NAMES[state.selected]??'KICK';updateSampleTarget();
 }
 function updateSampleTarget(){
- $('#sampleRecordHint').textContent=`PAD ${String(state.selected+1).padStart(2,'0')} · ${styleLabel(state.style)}`;
  const pad=Number($<HTMLSelectElement>('#replaceTarget').value);const custom=engine.bank.customInfo(pad,state.style);
  $('#soundInfo').textContent=custom?`СВОЙ · ${custom}`:`ОРИГИНАЛ · ${PAD_NAMES[pad]}`;
  $<HTMLButtonElement>('#restoreSound').disabled=!custom;
@@ -308,28 +307,12 @@ mixStop.addEventListener('click',()=>{mixPlayer.stop();updateTransport()});
  $('#quickSettings').addEventListener('click',()=>setPane('profile'));
  $('#drawerImport').addEventListener('click',()=>{closeDrawer();setPane('sounds')});
  $('#drawerRecord').addEventListener('click',()=>{closeDrawer();setPane('takes')});
- $('#drawerSample').addEventListener('click',()=>{closeDrawer();setPane('main');const panel=$<HTMLDetailsElement>('.sample-recorder');panel.open=true;panel.scrollIntoView({block:'nearest',behavior:'smooth'});});
  $('#drawerSettings').addEventListener('click',()=>{closeDrawer();setPane('profile')});
  $('#drawerFX').addEventListener('click',()=>{closeDrawer();setPane('mix')});
  $('#drawerPresets').addEventListener('click',()=>{closeDrawer();setPane('library')});
  $('#libraryImport').addEventListener('click',()=>setPane('sounds'));
  $('#goToRecording').addEventListener('click',()=>setPane('takes'));
  $('#pageA').addEventListener('click',()=>{page=0;paintSteps()});$('#pageB').addEventListener('click',()=>{page=1;paintSteps()});
- const renderCapture=()=>{const active=engine.sampling;
-  const start=$<HTMLButtonElement>('#sampleStart'),stop=$<HTMLButtonElement>('#sampleStop');
-  start.disabled=active;stop.disabled=!active;start.classList.toggle('on',active);
-  ($('#sampleSource') as HTMLSelectElement).disabled=active;
-  start.textContent=active?'● ЗАПИСЬ':'● НАЧАТЬ';
- };
- $('#sampleStart').addEventListener('click',()=>void safe(async()=>{
-  const source='live' as const;
-  await engine.beginSampleCapture(source,state.selected);renderCapture();setStatus(`SAMPLE REC · PAD ${state.selected+1}`);
- }));
- $('#sampleStop').addEventListener('click',()=>void safe(async()=>{
-  try{const result=await engine.endSampleCapture();save();paintSteps();setStatus(`SAMPLE SAVED · PAD ${result.pad+1}`);paintPads();}
-  finally{renderCapture();}
- }));
- $('#addSound').addEventListener('click',()=>setPane('sounds'));
  $('#replaceTarget').addEventListener('change',updateSampleTarget);
  $('#replaceSound').addEventListener('click',()=>{importSlot=Number($<HTMLSelectElement>('#replaceTarget').value);$('#sampleInput').click()});
  $('#restoreSound').addEventListener('click',()=>void safe(async()=>{
@@ -361,8 +344,8 @@ mixStop.addEventListener('click',()=>{mixPlayer.stop();updateTransport()});
    $('#transportTime').textContent=`${String(Math.floor(elapsed/60)).padStart(2,'0')}:${String(Math.floor(elapsed%60)).padStart(2,'0')} / ${String(Math.floor(total/60)).padStart(2,'0')}:${String(Math.ceil(total%60)).padStart(2,'0')}`;
   });
  };
- engine.events.onClip=(pad)=>{scheduleSave();for(let step=0;step<STEPS;step++)syncPatternCells(pad,step)};engine.events.onSamples=paintPads;engine.events.onState=v=>{setStatus(v);if(v.startsWith('SAMPLE SAVED')||v.startsWith('SAMPLE ERROR')){renderCapture();paintPads();}};
- paintPads();paintSteps();setPane('main');updateTransport();renderCapture();
+ engine.events.onClip=(pad)=>{scheduleSave();for(let step=0;step<STEPS;step++)syncPatternCells(pad,step)};engine.events.onSamples=paintPads;engine.events.onState=v=>{setStatus(v);};
+ paintPads();paintSteps();setPane('main');updateTransport();
  if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
 };
 function updateTransport(){const play=$('#play');play.querySelector('.deck-label')!.textContent=engine.state==='PLAY'?'ПАУЗА':'ПУСК';play.querySelector('.deck-play-icon')!.textContent=engine.state==='PLAY'?'Ⅱ':'▶';play.classList.toggle('on',engine.state==='PLAY');$('#record').classList.toggle('on',engine.recording);$('#record').querySelector('.deck-label')!.textContent=engine.recording?'СТОП ЗАПИСИ':'ЗАПИСЬ';$('#runState').textContent=localStatus(engine.state);if(engine.state==='STOP')$('#transportTime').textContent='00:00 / ЦИКЛ';}

@@ -50,3 +50,6 @@ Engineering priorities: **sound integrity → correctness/data preservation → 
 - Real audio-track automix is available from the collapsed АВТОСВОДКА ТРЕКОВ panel: 2–3 user-owned files, transient BPM and beat offsets, peak-limited RMS normalization, beat-aligned 4-bar equal-power crossfade with sub-bass handoff, routed through the existing master EQ and limiter. This is a deterministic DJ assistant, not a trained neural model or third-party DRM stream extractor.
 - The old button АВТОМИКС in pad mode controls automatic A/B pad-group balance only, and must not be described as track automix.
 - Keep eight pads and manual pad REC looping intact. No second deck UI. iPhone decoding is bounded to three files and twelve minutes combined.
+
+## v28 WebKit reliability gate
+- Explicit user priority: record on-pad events in the sequencer and keep looping. The legacy live-mix sample capture UI was removed because WebKit repeatedly crashed during its test; retain manual licensed-audio import and WAV export. Never reactivate live capture without physical-device regression testing and an independent crash fix.

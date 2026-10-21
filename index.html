@@ -29,7 +29,7 @@
   <p>Один движок · одна студия</p>
   <button id="drawerImport" type="button">+ УПРАВЛЕНИЕ ЗВУКАМИ</button>
   <button id="drawerRecord" type="button">● ЗАПИСЬ</button>
-  <button id="drawerSample" type="button">◉ ЗАПИСАТЬ СЭМПЛ</button>
+  
   <button id="drawerSettings" type="button">⚙ НАСТРОЙКИ</button>
   <button id="drawerFX" type="button">≋ МИКШЕР И FX</button>
   <button id="drawerPresets" type="button">♫ СТИЛИ</button>
@@ -92,15 +92,7 @@
    </div>
    <div class="cross-unit"><div><span>A</span><span>B</span></div><input id="crossfade" type="range" min="0" max="100" value="50" aria-label="Баланс групп A и B"></div>
   </section>
-  <details class="sample-recorder" aria-label="Запись собственного сэмпла">
-   <summary class="sample-rec-head"><strong>+ ЗАПИСЬ / ИМПОРТ СЭМПЛА</strong><span id="sampleRecordHint">ЦЕЛЬ · ПЭД 01</span></summary>
-   <div class="sample-rec-controls">
-    <label class="sample-input-source"><span>ИСТОЧНИК</span><select id="sampleSource" aria-label="Источник записи сэмпла"><option value="live">ЗВУК ПЭДОВ</option></select></label>
-    <button type="button" id="sampleStart">● НАЧАТЬ</button>
-    <button type="button" id="sampleStop" disabled>■ СТОП</button>
-   </div>
-   <button id="addSound" type="button" class="upload"><span class="up-icon">+</span><span><b>ДОБАВИТЬ СЭМПЛ</b><small>Импорт WAV · MP3 · AAC</small></span><span class="uplarr">↗</span></button>
-  </details>
+
  </main>
  <section class="fan-workspace" id="fanWorkspace" aria-label="Инструменты студии">
  <details class="workspace-fan" id="soundsFan"><summary><span class="fan-icon">◈</span><span class="fan-text"><strong>ЗВУКИ</strong><small>8 ПЭДОВ · ЗАМЕНА / ВОССТАНОВЛЕНИЕ</small></span><span class="fan-arrow">⌄</span></summary><section id="soundsPanel" class="sound-library">

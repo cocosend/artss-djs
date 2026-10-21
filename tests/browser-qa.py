@@ -193,40 +193,9 @@ with sync_playwright() as playwright:
  page.locator('#quickUpload').tap()
  assert page.locator('#restoreSound').is_disabled()
  page.locator('[data-pane="main"]').tap()
- # Capture 500 ms of the live mixer as an independent pad sample, save under current style.
- page.locator('#menuToggle').tap()
- page.locator('#drawerSample').tap()
- assert page.locator('.sample-recorder').get_attribute('open') is not None
- assert page.locator('#sampleSource').is_visible()
- page.locator('#sampleSource').select_option('live')
- page.locator('.pad[data-pad="1"]').tap()
- page.locator('#sampleStart').tap()
- page.wait_for_timeout(2500)
- assert page.locator('#sampleStop').count()==1, ('Recording controls unexpectedly lost',page.url,page.title())
- assert not page.locator('#sampleStop').is_disabled(), page.evaluate('''({status:document.querySelector('#status').textContent,mediaRecorder:typeof MediaRecorder,mp4:typeof MediaRecorder==='undefined'?null:MediaRecorder.isTypeSupported('audio/mp4'),webm:typeof MediaRecorder==='undefined'?null:MediaRecorder.isTypeSupported('audio/webm'),startDisabled:document.querySelector('#sampleStart').disabled,stopDisabled:document.querySelector('#sampleStop').disabled})''')
- page.locator('.pad[data-pad="1"]').tap()
- page.wait_for_timeout(650)
- page.locator('#sampleStop').tap()
- page.wait_for_function("document.querySelector('#sampleStart').disabled === false",timeout=15000)
- assert 'СЭМПЛ СОХРАНЁН' in page.locator('#status').inner_text(),page.locator('#status').inner_text()
- assert page.locator('.pad[data-pad="1"] .pad-own').inner_text()=='СВОЙ'
- stored=page.evaluate("""() => new Promise((resolve,reject)=>{
-  const open=indexedDB.open('artss-live-user-samples',1);
-  open.onerror=()=>reject('Could not open user samples');
-  open.onsuccess=()=>{const db=open.result;const request=db.transaction('pads','readonly').objectStore('pads').get('0:1');
-   request.onerror=()=>reject('Could not fetch sample');
-   request.onsuccess=()=>{const data=request.result;resolve({name:data?.name,bytes:data?.data?.byteLength??0})};};
- })""")
- assert stored['bytes']>2048,stored
- assert stored['name'].endswith(('.m4a','.webm','.wav')),stored
- if browser_type=='webkit':assert stored['name'].endswith('.wav'),('Safari must capture lossless WAV',stored)
- page.reload(wait_until='networkidle')
- page.locator('.pad[data-pad="1"]').tap()
- page.wait_for_function("document.querySelector('.pad[data-pad=\"1\"] .pad-own').textContent === 'СВОЙ'",timeout=10000)
- page.locator('#bank').select_option('2')
- assert page.locator('.pad[data-pad="1"] .pad-own').inner_text()!='СВОЙ', 'Style 2 unexpectedly shares custom sample'
- page.locator('#bank').select_option('0')
- assert page.locator('.pad[data-pad="1"] .pad-own').inner_text()=='СВОЙ', 'Preset sample missing when returning to style 0'
+ # No browser audio capture: REC writes pad events to the looping sequencer.
+ assert page.locator('#sampleStart').count()==0
+ assert page.locator('#drawerSample').count()==0
  # Additional responsive widths
  for width in [320,375,390,430]:
   page.set_viewport_size({'width':width,'height':844})
