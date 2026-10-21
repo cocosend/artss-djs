@@ -45,3 +45,8 @@ Engineering priorities: **sound integrity → correctness/data preservation → 
 - For short Safari/iOS PCM recordings, record post-limiter master directly through `/app/pcm-capture.js` AudioWorklet instead of routing live WebAudio through MediaStreamDestination -> MediaStreamSource -> ScriptProcessor. AudioWorklet remains allocated only while capturing; preserve playback connections on cleanup. The fallback ScriptProcessor remains for platforms without AudioWorklet.
 
 - Regression QA must assert long-press on a performance pad cannot accidentally switch to sample replacement, and computed touch-action for pads and EQ prevents scroll hijacking.
+
+## NEXUS 28 — bilingual + phrase mixing
+- RU/EN shares one app shell; language is saved separately so switching cannot reset session, banks, recordings, or custom samples.
+- AutoMix is a local, non-neural, beat-aligned transition across recorded banks A–D; do not claim full-song BPM/key matching or generative AI, do not add a second deck or automatically replace factory sounds.
+- Recording pad hits turns AutoMix off before overdub; audio master trims voice buildup but must not change user sample identity.

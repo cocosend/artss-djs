@@ -7,3 +7,5 @@ One existing Web Audio engine, two real mix buses (A drums/B synths), equal-powe
 The LIVE REC transport records pad presses into the 16-step loop independently from START/STOP SAMPLE, which captures a reusable audio snippet. MASTER TAKE records a full set. Old session localStorage and existing IndexedDB audio are preserved.
 
 Automated validation: TypeScript check, Node tests, Chromium + WebKit browser smoke (record→pad binding→reload→per-style isolation), production smoke, no file uploads to servers. Real iPhone latency and subjective professional audio quality require hardware testing. **Not a neural AI model or stem separation.**
+## NEXUS 28
+Compact persistent Russian/English control on the same DJ Creator. A real local Automix mode plays and transitions between the existing A-D drum banks at phrase boundaries, without changing user samples or creating a duplicate deck. It is deterministic DSP/pattern mixing, not neural AI or full-track analysis. Pad REC records notes into the saved continuous 16-step loop and disables Automix before recording.
