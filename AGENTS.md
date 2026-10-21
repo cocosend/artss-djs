@@ -33,3 +33,5 @@ Engineering priorities: **sound integrity → correctness/data preservation → 
 - Recorded PCM is WAV, not WebM: MIME, filename extension, header and stored IndexedDB name must agree.
 - Asynchronous IndexedDB restore cannot overwrite a user's newer imported sample during decode.
 - MediaRecorder failures must release microphone tracks and notify UI instead of leaving the recording button armed.
+
+- On Safari and iOS WebKit, short live/microphone sample recordings use the bounded PCM capture path, avoiding the flaky short MediaRecorder pipeline. Chromium retains MediaRecorder. Browser QA verifies actual WAV storage.

@@ -151,6 +151,7 @@ with sync_playwright() as playwright:
  page.locator('.pad[data-pad="1"]').tap()
  page.locator('#sampleStart').tap()
  page.wait_for_timeout(2500)
+ assert page.locator('#sampleStop').count()==1, ('Recording controls unexpectedly lost',page.url,page.title())
  assert not page.locator('#sampleStop').is_disabled(), page.evaluate('''({status:document.querySelector('#status').textContent,mediaRecorder:typeof MediaRecorder,mp4:typeof MediaRecorder==='undefined'?null:MediaRecorder.isTypeSupported('audio/mp4'),webm:typeof MediaRecorder==='undefined'?null:MediaRecorder.isTypeSupported('audio/webm'),startDisabled:document.querySelector('#sampleStart').disabled,stopDisabled:document.querySelector('#sampleStop').disabled})''')
  page.locator('.pad[data-pad="1"]').tap()
  page.wait_for_timeout(650)
@@ -167,6 +168,7 @@ with sync_playwright() as playwright:
  })""")
  assert stored['bytes']>2048,stored
  assert stored['name'].endswith(('.m4a','.webm','.wav')),stored
+ if browser_type=='webkit':assert stored['name'].endswith('.wav'),('Safari must capture lossless WAV',stored)
  page.reload(wait_until='networkidle')
  page.locator('.pad[data-pad="1"]').tap()
  page.wait_for_function("document.querySelector('.pad[data-pad=\"1\"] .pad-own').textContent === 'OWN'",timeout=10000)

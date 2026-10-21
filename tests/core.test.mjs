@@ -3,7 +3,7 @@ import {defaultSession,sanitizeSession,note,toggle,createPattern,STEPS,STYLES} f
 import {analyzeAudio,choosePad} from '../app/smart.js';
 import {composeGroove} from '../app/arranger.js';
 import {AUDIO_HEADROOM,crossfadeGains,voiceGain,lowpassHz,recordingExtension} from '../app/audio-quality.js';
-import {pcmWav} from '../app/sample-recorder.js';
+import {pcmWav,preferPcmRecording} from '../app/sample-recorder.js';
 test('8 pads, 16 steps and different style compositions',()=>{const a=defaultSession();assert.equal(a.pattern.length,8);for(const row of a.pattern)assert.equal(row.length,16);assert.ok(STYLES.length>=12);assert.notDeepEqual(createPattern(0),createPattern(5));});
 test('live overdub adds notes but never clears existing events',()=>{const p=createPattern();assert.equal(note(p,5,9,.85),true);assert.ok((p[5][9]??0)>.8);assert.equal(note(p,5,9,.25),true);assert.ok((p[5][9]??0)>.8);toggle(p,5,9);assert.equal(p[5][9],0);});
 test('older 32 step projects truncate safely to 16',()=>{const raw={version:16,bpm:143,bank:3,pattern:Array.from({length:16},()=>Array(32).fill(1)),levels:Array(8).fill(1.5)};const a=sanitizeSession(raw);assert.equal(a.pattern.length,8);assert.equal(a.pattern[0].length,16);assert.equal(a.tempo,143);assert.equal(a.style,3);assert.equal(a.levels[0],1.2);});
@@ -76,4 +76,14 @@ test('async IndexedDB sample restore must never overwrite a freshly imported pad
  const {readFileSync}=await import('node:fs');
  const text=readFileSync('src/sounds.ts','utf8');
  assert.match(text,/!this.deleted.has\(key\)&&!this.custom.has\(key\)/);
+});
+
+test('WebKit and all iOS browsers use reliable lossless PCM for short captures',()=>{
+ const safari='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Safari/605.1.15';
+ const iphone='Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/127.0 Mobile/15E148 Safari/604.1';
+ const chrome='Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Mobile Safari/537.36';
+ assert.equal(preferPcmRecording(safari,true),true);
+ assert.equal(preferPcmRecording(iphone,true),true);
+ assert.equal(preferPcmRecording(chrome,true),false);
+ assert.equal(preferPcmRecording(chrome,false),true);
 });
