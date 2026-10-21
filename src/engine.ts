@@ -54,11 +54,14 @@ export class Engine{
  private active=new Set<{stop:()=>void;until:number}>();
  private generation=0;private scheduledTempo=136;private recorder:MediaRecorder|null=null;private capture:MediaStreamAudioDestinationNode|null=null;
  private recorded:Blob[]=[];private currentChunks:Blob[]=[];
- private gain=1;private autoMix=false;private sampleRecorder=new SampleRecorder();private sampleTarget:{pad:number;style:number}|null=null;events:EngineEvents={};
+ private gain=1;private autoMix=false;private sampleRecorder=new SampleRecorder();
+ private offlineSampleActive=false;private offlineSampleAt=0;private offlineSampleTimer:number|null=null;
+ private offlineSampleHits:Array<{pad:number;at:number;velocity:number;style:number;level:number}>=[];
+ private sampleTarget:{pad:number;style:number}|null=null;events:EngineEvents={};
  constructor(readonly getSession:()=>Session){if(typeof indexedDB!=='undefined')void this.restoreTakes();}
  get state(){return this.running?'PLAY':this.stopAt?'PAUSE':'STOP';}
  get recording(){return this.recordArmed;}
- get sampling(){return this.sampleRecorder.active;}
+ get sampling(){return this.offlineSampleActive||this.sampleRecorder.active;}
  updateMix(){this.bus?.update(this.getSession());if(this.autoMix)this.updateAutoMix();}
  /** Connect local music files before master EQ, protection and stereo meter. */
  connectMusicSource(node:AudioNode):()=>void {
@@ -132,7 +135,11 @@ export class Engine{
  private voice(ctx:BaseAudioContext,bus:AudioNode,pad:number,when:number,velocity:number,style:number,level:number){
   const live=ctx===this.ctx;
   if(live&&this.active.size>=28){const oldest=this.active.values().next().value;if(oldest){oldest.stop();this.active.delete(oldest);}}
-  const sample=this.bank.resolve(pad,style);if(!sample)return;const amp=ctx.createGain();
+  const sample=this.bank.resolve(pad,style);if(!sample)return;
+  if(live&&this.offlineSampleActive){const at=when-this.offlineSampleAt;
+   if(at>=0&&at<12.25)this.offlineSampleHits.push({pad,at,velocity,style,level});
+  }
+  const amp=ctx.createGain();
   const low=ctx.createBiquadFilter(),high=ctx.createBiquadFilter();
   low.type='highpass';high.type='lowpass';
   low.frequency.value=sample?.lowCut??(pad===1?24:pad===6?55:pad===0?22:85);
@@ -173,13 +180,19 @@ export class Engine{
   if(this.sampling)throw Error('Запись уже идёт');
   await this.unlock();
   if(source==='live'&&!this.running)await this.start();
-  const directPcm=source==='live'&&!!this.ctx?.audioWorklet&&preferPcmRecording(navigator.userAgent,typeof MediaRecorder!=='undefined');
-  const capture=source==='live'&&!directPcm?this.ensureCapture():null;
   const target={pad,style:this.getSession().style};
-  await this.sampleRecorder.start(source,capture?.stream??null,this.ctx!,
+  // WebKit process crashes during continuous live PCM routing. Capture deterministic pad events
+  // and render them through the same master DSP offline when Stop is pressed. No microphone.
+  if(preferPcmRecording(navigator.userAgent,typeof MediaRecorder!=='undefined')){
+   this.offlineSampleHits=[];this.offlineSampleAt=this.ctx!.currentTime;this.offlineSampleActive=true;
+   this.sampleTarget=target;
+   this.offlineSampleTimer=window.setTimeout(()=>{void this.endSampleCapture().catch(e=>this.events.onState?.(e instanceof Error?'SAMPLE ERROR · '+e.message:'SAMPLE ERROR'))},12000);
+   this.events.onState?.(`SAMPLE REC · ${target.pad+1}`);return;
+  }
+  const capture=this.ensureCapture();
+  await this.sampleRecorder.start(source,capture.stream,this.ctx!,
    ()=>{void this.endSampleCapture().catch(e=>this.events.onState?.(e instanceof Error?'SAMPLE ERROR · '+e.message:'SAMPLE ERROR'));},
-   error=>{this.sampleTarget=null;this.events.onState?.('SAMPLE ERROR · '+error.message);},
-   directPcm?this.bus!.master:null);
+   error=>{this.sampleTarget=null;this.events.onState?.('SAMPLE ERROR · '+error.message);});
   this.sampleTarget=target;
   this.events.onState?.(`SAMPLE REC · ${target.pad+1}`);
  }
@@ -187,7 +200,23 @@ export class Engine{
   const target=this.sampleTarget;
   if(!target)throw Error('Запись сэмпла не запущена');
   this.sampleTarget=null;
-  const blob=await this.sampleRecorder.stop();
+  let blob:Blob;
+  if(this.offlineSampleActive){
+   this.offlineSampleActive=false;
+   if(this.offlineSampleTimer!==null){window.clearTimeout(this.offlineSampleTimer);this.offlineSampleTimer=null;}
+   const hits=this.offlineSampleHits;this.offlineSampleHits=[];
+   if(!hits.length)throw Error('Нажми пэд во время записи');
+   const duration=Math.min(12,Math.max(.1,(this.ctx?.currentTime??this.offlineSampleAt)-this.offlineSampleAt));
+   const length=Math.ceil((duration+.2)*sampleRate);
+   const offline=new OfflineAudioContext(2,length,sampleRate);
+   const mix=createBus(offline,offline.destination,this.getSession());
+   for(const hit of hits){
+    if(hit.at>=duration)continue;
+    const when=Math.max(.004,hit.at);
+    this.voice(offline,(hit.pad===1||hit.pad>=6)?mix.b:mix.a,hit.pad,when,hit.velocity,hit.style,hit.level);
+   }
+   blob=wavExport(await offline.startRendering());
+  }else blob=await this.sampleRecorder.stop();
   if(blob.size<2048)throw Error('Запись слишком короткая');
   if(!this.ctx)throw Error('Нет аудиоконтекста');
   const extension=recordingExtension(blob.type);
