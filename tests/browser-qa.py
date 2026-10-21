@@ -40,7 +40,7 @@ with sync_playwright() as playwright:
  assert 'DRUM PADS' in page.locator('.pad-head h2').inner_text()
  page.reload(wait_until='networkidle')
  assert page.locator('html').get_attribute('lang')=='en'
- assert page.locator('[data-language="ru"]').tap()
+ page.locator('[data-language="ru"]').tap()
  assert page.locator('html').get_attribute('lang')=='ru'
  assert page.locator('[data-kit="0"]').is_visible()
  assert page.locator('link[rel="stylesheet"]').count()==1
