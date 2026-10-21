@@ -59,7 +59,7 @@ export class Engine{
  get state(){return this.running?'PLAY':this.stopAt?'PAUSE':'STOP';}
  get recording(){return this.recordArmed;}
  get sampling(){return this.sampleRecorder.active;}
- updateMix(){if(!this.autoMix)this.bus?.update(this.getSession());else this.updateAutoMix();}
+ updateMix(){this.bus?.update(this.getSession());if(this.autoMix)this.updateAutoMix();}
  get autoMixEnabled(){return this.autoMix;}
  setAutoMix(enabled:boolean){this.autoMix=enabled;if(enabled)this.updateAutoMix();else this.bus?.update(this.getSession());}
  private updateAutoMix(){if(!this.bus||!this.ctx)return;const beat=this.running?(this.ctx.currentTime-this.origin)*this.getSession().tempo/60:0;const [a,b]=crossfadeGains(autoMixPosition(beat));const t=this.ctx.currentTime;this.bus.a.gain.setTargetAtTime(a,t,.035);this.bus.b.gain.setTargetAtTime(b,t,.035);}
