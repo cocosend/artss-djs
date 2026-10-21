@@ -113,7 +113,11 @@ with sync_playwright() as playwright:
  # First gesture unlocks AudioContext; transport must not throw, and pad will respond.
  page.locator('#record').tap();page.wait_for_timeout(400)
  assert page.locator('#record').inner_text().find('СТОП ЗАПИСИ')>=0,page.locator('#record').inner_text()
- page.locator('.pad[data-pad="5"]').tap();page.wait_for_timeout(240)
+ # Native touchscreen tap targets a real screen coordinate without Playwright's
+ # animation-stability wait; a user's finger does not wait for element settling.
+ pad5=page.locator('.pad[data-pad="5"]').bounding_box(timeout=10000);assert pad5, 'PAD 6 not rendered'
+ page.touchscreen.tap(pad5['x']+pad5['width']/2,pad5['y']+pad5['height']/2)
+ page.wait_for_timeout(240)
  data=page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19"))')
  assert sum(1 for x in data['pattern'][5] if x>0)>=1,data['pattern'][5]
  page.locator('#record').tap();assert 'ЗАПИСЬ' in page.locator('#record').inner_text()
