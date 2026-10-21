@@ -570,3 +570,8 @@ body{background:radial-gradient(ellipse 82% 25% at 80% -10%,#422066 0%,transpare
 .nexus-app .pad-name{font-kerning:normal;overflow-wrap:anywhere;font-size:clamp(9px,2.55vw,12px)}
 .nexus-app .knob-unit.adjusting .knob-visual{border-color:#9cfff1!important;box-shadow:0 0 0 2px #7affeb80,inset 0 1px 5px #0008!important}
 @media(prefers-reduced-motion:reduce){.nexus-app .pad,.nexus-app .pad.pressed,.nexus-app .deck-disc,.nexus-app .pad-glyph{transition:none!important}}
+
+/* Discreet premium RU / EN segmented toggle */
+.nexus-app .language-toggle{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-width:61px;height:29px;padding:0 7px;border:1px solid #606975;border-radius:9px;background:linear-gradient(160deg,#1c222e,#090c14);color:#9ba9b9;font-size:10px;font-weight:750;letter-spacing:.02em;white-space:nowrap;box-shadow:inset 0 1px #ffffff16;touch-action:manipulation}
+.nexus-app .language-toggle b{color:#f4f8ff;font-weight:950}.nexus-app .language-toggle span{color:#5e6877}.nexus-app .language-toggle:active{transform:scale(.97)}
+@media(max-width:365px){.nexus-app .language-toggle{min-width:54px;padding:0 5px;font-size:9px}}
