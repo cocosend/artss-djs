@@ -170,39 +170,6 @@ with sync_playwright() as playwright:
  with wave.open(wav,'wb') as wf:
   wf.setnchannels(1);wf.setsampwidth(2);wf.setframerate(44100)
   wf.writeframes(b''.join(struct.pack('<h',int(13000*math.sin(i*.016)*math.exp(-i/20000))) for i in range(44100)))
- # Real DJ automix: two local WAV tracks, tempo analysis, beat-aware transition and stop.
- def music_track(bpm):
-  sample_rate=22050;length=6*sample_rate;beat_len=round(sample_rate*60/bpm)
-  pcm=io.BytesIO()
-  with wave.open(pcm,'wb') as wf:
-   wf.setnchannels(1);wf.setsampwidth(2);wf.setframerate(sample_rate)
-   frames=bytearray()
-   for i in range(length):
-    beat_phase=i%beat_len
-    kick=15000*math.exp(-beat_phase/450) if beat_phase<4500 else 0
-    sample=int(max(-32000,min(32000,kick+2400*math.sin(2*math.pi*110*i/sample_rate))))
-    frames.extend(struct.pack('<h',sample))
-   wf.writeframes(frames)
-  return pcm.getvalue()
- page.locator('#trackAutoMix summary').tap()
- page.locator('#autoMixFiles').set_input_files([
-  {'name':'first-120.wav','mimeType':'audio/wav','buffer':music_track(120)},
-  {'name':'second-125.wav','mimeType':'audio/wav','buffer':music_track(125)}
- ])
- page.wait_for_function("!document.querySelector('#startTrackMix').disabled",timeout=20000)
- page.locator('#startTrackMix').tap()
- page.wait_for_function("!document.querySelector('#stopTrackMix').disabled",timeout=10000)
- assert 'Автосводка' in page.locator('#trackMixStatus').inner_text()
- page.locator('#stopTrackMix').tap()
- assert page.locator('#stopTrackMix').is_disabled()
- # Switch languages without losing the loaded audio session or local projects.
- page.locator('#languageToggle').tap()
- assert page.locator('html').get_attribute('lang')=='en'
- assert 'DRUM PADS' in page.locator('.pad-head').inner_text()
- page.reload(wait_until='networkidle')
- assert page.locator('html').get_attribute('lang')=='en'
- page.locator('#languageToggle').tap()
- assert page.locator('html').get_attribute('lang')=='ru'
  # Importing audio alone must NEVER auto-replace a drum. The user explicitly chooses REPLACE.
  page.locator('#quickUpload').tap()
  page.locator('#replaceTarget').select_option('0')
@@ -265,6 +232,49 @@ with sync_playwright() as playwright:
   page.set_viewport_size({'width':width,'height':844})
   assert page.locator('body').evaluate('(el)=>el.scrollWidth <= innerWidth+2'),width
  assert not errors,errors
+ # The WebKit media process must not retain old OfflineAudioContext and live capture nodes
+ # when stress-testing the independent track queue; test it in its own browser context.
+ context.close()
+ mix_context=browser.new_context(viewport={'width':390,'height':844},device_scale_factor=3,is_mobile=True,has_touch=True,accept_downloads=True)
+ if os.getenv('ARTSS_LOCAL_PREVIEW')=='1':mix_context.route('https://artss.test/**',serve_static)
+ page=mix_context.new_page();mix_errors=[];page.on('pageerror',lambda e:mix_errors.append(str(e)))
+ page.goto(URL,wait_until='networkidle')
+ assert page.locator('.pad').count()==8
+ # Real DJ automix: two local WAV tracks, tempo analysis, beat-aware transition and stop.
+ def music_track(bpm):
+  sample_rate=22050;length=6*sample_rate;beat_len=round(sample_rate*60/bpm)
+  pcm=io.BytesIO()
+  with wave.open(pcm,'wb') as wf:
+   wf.setnchannels(1);wf.setsampwidth(2);wf.setframerate(sample_rate)
+   frames=bytearray()
+   for i in range(length):
+    beat_phase=i%beat_len
+    kick=15000*math.exp(-beat_phase/450) if beat_phase<4500 else 0
+    sample=int(max(-32000,min(32000,kick+2400*math.sin(2*math.pi*110*i/sample_rate))))
+    frames.extend(struct.pack('<h',sample))
+   wf.writeframes(frames)
+  return pcm.getvalue()
+ page.locator('#trackAutoMix summary').tap()
+ page.locator('#autoMixFiles').set_input_files([
+  {'name':'first-120.wav','mimeType':'audio/wav','buffer':music_track(120)},
+  {'name':'second-125.wav','mimeType':'audio/wav','buffer':music_track(125)}
+ ])
+ page.wait_for_function("!document.querySelector('#startTrackMix').disabled",timeout=20000)
+ page.locator('#startTrackMix').tap()
+ page.wait_for_function("!document.querySelector('#stopTrackMix').disabled",timeout=10000)
+ assert 'Автосводка' in page.locator('#trackMixStatus').inner_text()
+ page.locator('#stopTrackMix').tap()
+ assert page.locator('#stopTrackMix').is_disabled()
+ # Switch languages without losing the loaded audio session or local projects.
+ page.locator('#languageToggle').tap()
+ assert page.locator('html').get_attribute('lang')=='en'
+ assert 'DRUM PADS' in page.locator('.pad-head').inner_text()
+ page.reload(wait_until='networkidle')
+ assert page.locator('html').get_attribute('lang')=='en'
+ page.locator('#languageToggle').tap()
+ assert page.locator('html').get_attribute('lang')=='ru'
+ assert not mix_errors,mix_errors
+ mix_context.close()
  browser.close()
 srv.shutdown()
 print(f'PASS browser smoke ({browser_type}) and 4 mobile viewport widths')
