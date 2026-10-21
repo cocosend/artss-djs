@@ -45,3 +45,16 @@ Engineering priorities: **sound integrity → correctness/data preservation → 
 - For short Safari/iOS PCM recordings, record post-limiter master directly through `/app/pcm-capture.js` AudioWorklet instead of routing live WebAudio through MediaStreamDestination -> MediaStreamSource -> ScriptProcessor. AudioWorklet remains allocated only while capturing; preserve playback connections on cleanup. The fallback ScriptProcessor remains for platforms without AudioWorklet.
 
 - Regression QA must assert long-press on a performance pad cannot accidentally switch to sample replacement, and computed touch-action for pads and EQ prevents scroll hijacking.
+
+## v28 local track DJ automix
+- Real audio-track automix is available from the collapsed АВТОСВОДКА ТРЕКОВ panel: 2–3 user-owned files, transient BPM and beat offsets, peak-limited RMS normalization, beat-aligned 4-bar equal-power crossfade with sub-bass handoff, routed through the existing master EQ and limiter. This is a deterministic DJ assistant, not a trained neural model or third-party DRM stream extractor.
+- The old button АВТОМИКС in pad mode controls automatic A/B pad-group balance only, and must not be described as track automix.
+- Keep eight pads and manual pad REC looping intact. No second deck UI. iPhone decoding is bounded to three files and twelve minutes combined.
+
+## v28 WebKit reliability gate
+- Explicit user priority: record on-pad events in the sequencer and keep looping. The legacy live-mix sample capture UI was removed because WebKit repeatedly crashed during its test; retain manual licensed-audio import and WAV export. Never reactivate live capture without physical-device regression testing and an independent crash fix.
+
+## Integrated DJ mode and LUX finish
+- The local-track DJ AutoMix can combine with the live 16-step pad session (checkbox enabled by default). Match pad BPM to detected track BPM on explicit Start, quantize the first music downbeat to the sequencer's future 16-step bar, permit live drum hits and ongoing overdub while tracks transition. Turning off the checkbox allows isolated track DJ listening.
+- Mixer audio feeds existing master EQ/limiter. During simultaneous pad+music playback keep music gain moderate and duck short kick/clap transients by about 1–2 dB, without changing source pad timbres or adding a duplicate mixer.
+- User-authorized palette: deepest black, saturated amethyst purple, high-contrast turquoise, pearl-white gloss, red record accent. Avoid perpetual animated blur and pixel-heavy filters. Maintain 8 pads/4x2, A–D pattern banks, 5 navigation tabs.

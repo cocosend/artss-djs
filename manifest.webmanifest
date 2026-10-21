@@ -1,13 +1,13 @@
 {
   "id": "/",
-  "name": "ARTSS NEXUS 27.2 DJ Creator",
+  "name": "ARTSS NEXUS 28 DJ",
   "short_name": "NEXUS",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#020208",
   "theme_color": "#020208",
-  "description": "Reference-layout performance studio with eight playable pads, stable samples, mixer, and WAV recording.",
+  "description": "DJ creator with local track BPM and smooth automix transitions, eight pads and RU/EN language selection.",
   "icons": [
     {
       "src": "/icon.svg",

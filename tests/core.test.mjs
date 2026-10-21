@@ -100,18 +100,16 @@ test('EQ drag has stable pixel sensitivity, no jumps on touch and safe bounds',(
  assert.equal(knobDragValue(3,NaN),3);
 });
 
-test('Safari live sample capture bypasses MediaStream roundtrip and outputs worklet PCM',async()=>{
+test('Safari pad sample capture renders offline from recorded events, without live PCM routing',async()=>{
  const {readFileSync}=await import('node:fs');
  const engine=readFileSync('src/engine.ts','utf8');
- const recorder=readFileSync('src/sample-recorder.ts','utf8');
- const worklet=readFileSync('src/pcm-capture.ts','utf8');
- const sw=readFileSync('sw.js','utf8');
- assert.match(engine,/directPcm\?this.bus!\.master:null/);
- assert.match(engine,/source==='live'&&!directPcm\?this.ensureCapture\(\):null/);
- assert.match(recorder,/audioWorklet\.addModule\('\/app\/pcm-capture\.js'\)/);
- assert.match(recorder,/this\.workletInput\.disconnect\(this\.worklet\)/);
- assert.match(worklet,/registerProcessor\('artss-pcm-capture',PcmCapture\)/);
- assert.match(sw,/app\/pcm-capture\.js/);
+ assert.match(engine,/offlineSampleHits\.push/);
+ assert.match(engine,/offlineSampleActive=true/);
+ assert.match(engine,/new OfflineAudioContext\(2,length,sampleRate\)/);
+ assert.match(engine,/blob=wavExport\(await offline\.startRendering\(\)\)/);
+ assert.match(engine,/if\(preferPcmRecording\(navigator\.userAgent/);
+ assert.match(engine,/if\(!hits\.length\)throw/);
+ assert.doesNotMatch(engine,/directPcm\?this\.bus!\.master:null/);
 });
 
 test('pad-only recording never requests microphone permission',async()=>{
@@ -123,4 +121,59 @@ test('pad-only recording never requests microphone permission',async()=>{
  assert.ok(!html.includes('value="mic"'));
  assert.ok(engine.includes('this.recordArmed=!this.recordArmed'));
  assert.ok(engine.includes('if(this.recordArmed&&this.running)'));
+});
+
+test('auto mix positions are smooth and bounded across 8-bar phrase',async()=>{const {autoMixPosition}=await import('../app/audio-quality.js');assert.equal(autoMixPosition(0),0);assert.equal(autoMixPosition(16),1);assert.equal(autoMixPosition(32),0);for(let beat=0;beat<32;beat+=.02){const a=autoMixPosition(beat),b=autoMixPosition(beat+.02);assert.ok(a>=0&&a<=1&&Math.abs(a-b)<.03)}});
+
+test('BPM estimator recognizes 120 BPM percussion onsets without forced resampling',async()=>{
+ const {estimateTempoFromPulses,normalizeGain,crossfadeCurve,planTransition}=await import('../app/automix.js');
+ const envelopes=new Float32Array(2400);
+ for(let beat=0;beat<46;beat++){const onset=10+beat*50;envelopes[onset]=1;envelopes[onset+1]=.4;}
+ const detected=estimateTempoFromPulses(envelopes,100);
+ assert.ok(Math.abs(detected.bpm-120)<=2,detected);
+ assert.ok(detected.confidence>0);
+ const normal=normalizeGain({rms:.24,peak:.9});
+ assert.ok(normal>.15&&normal<=.92,normal);
+ const fade=crossfadeCurve();
+ assert.ok(fade.incoming[0]<.001&&fade.outgoing[0]>.8);
+ assert.ok(fade.incoming.at(-1)>.8&&fade.outgoing.at(-1)<.001);
+ for(const x of fade.incoming)assert.ok(Number.isFinite(x)&&x<=1&&x>=0);
+ const a={bpm:120,confidence:.8,firstBeat:.1,rms:.15,peak:.8,duration:145};
+ const b={bpm:125,confidence:.7,firstBeat:.25,rms:.1,peak:.9,duration:145};
+ const plan=planTransition(a,b);
+ assert.ok(plan.matchable&&Math.abs(plan.playbackRate-.96)<.01,plan);
+ assert.ok(plan.startNext>0&&plan.fadeSeconds>0&&plan.offsetNext>=0,plan);
+});
+test('local track mixing goes through existing limiter with no separate deck',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const player=readFileSync('src/automix-player.ts','utf8');
+ const engine=readFileSync('src/engine.ts','utf8');
+ const html=readFileSync('index.html','utf8');
+ assert.match(player,/connectMusicSource\(mix\)/);
+ assert.match(player,/setValueCurveAtTime/);
+ assert.match(player,/planTransition/);
+ assert.match(engine,/const target=this.bus.input,duck=this.ctx.createGain\(\)/);
+ assert.match(engine,/duck.connect\(target\)/);
+ assert.match(html,/id="trackAutoMix"/);
+ assert.ok(!html.includes('id="deckB"'));
+});
+
+test('audio worklet pulse stops sending messages while no pad loop is playing',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const clock=readFileSync('src/clock.ts','utf8'),engine=readFileSync('src/engine.ts','utf8');
+ assert.match(clock,/if\(!this.active\)return true/);
+ assert.match(engine,/this.clock\?\.port.postMessage\('start'\)/);
+ assert.match(engine,/this.clock\?\.port.postMessage\('pause'\)/);
+});
+
+test('DJ music clock locks first beat to live pad bar without pausing sequencer',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const engine=readFileSync('src/engine.ts','utf8'),player=readFileSync('src/automix-player.ts','utf8');
+ assert.match(engine,/getMusicSyncPoint\(\)/);
+ assert.match(engine,/this\.nextStep%STEPS/);
+ assert.match(engine,/this\.musicDucker/);
+ assert.match(player,/async start\(joinPads=true\)/);
+ assert.match(player,/getMusicSyncPoint\(\)/);
+ assert.doesNotMatch(player,/this\.engine\.pause\(\)/);
+ assert.match(player,/setPadOverlay\(playing:boolean\)/);
 });

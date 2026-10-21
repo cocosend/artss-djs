@@ -2,7 +2,7 @@ import {SampleRecorder,preferPcmRecording,type CaptureSource} from './sample-rec
 import {STEPS,STYLES,type Session,note} from './model.js';
 import {placeSample} from './arranger.js';
 import {SoundBank,type Sound} from './sounds.js';
-import {AUDIO_HEADROOM,crossfadeGains,voiceGain,lowpassHz,recordingExtension} from './audio-quality.js';
+import {AUDIO_HEADROOM,crossfadeGains,voiceGain,lowpassHz,recordingExtension,autoMixPosition} from './audio-quality.js';
 export type EngineEvents={onStep?:(step:number)=>void;onState?:(state:string)=>void;onMeter?:(value:number)=>void;onClip?:(pad:number)=>void;onSamples?:()=>void};
 const clamp=(x:number,lo:number,hi:number)=>Math.min(hi,Math.max(lo,x));
 const sampleRate=44100;
@@ -54,18 +54,44 @@ export class Engine{
  private active=new Set<{stop:()=>void;until:number}>();
  private generation=0;private scheduledTempo=136;private recorder:MediaRecorder|null=null;private capture:MediaStreamAudioDestinationNode|null=null;
  private recorded:Blob[]=[];private currentChunks:Blob[]=[];
- private gain=1;private sampleRecorder=new SampleRecorder();private sampleTarget:{pad:number;style:number}|null=null;events:EngineEvents={};
+ private gain=1;private autoMix=false;private musicDucker:GainNode|null=null;private sampleRecorder=new SampleRecorder();
+ private offlineSampleActive=false;private offlineSampleAt=0;private offlineSampleTimer:number|null=null;
+ private offlineSampleHits:Array<{pad:number;at:number;velocity:number;style:number;level:number}>=[];
+ private sampleTarget:{pad:number;style:number}|null=null;events:EngineEvents={};
  constructor(readonly getSession:()=>Session){if(typeof indexedDB!=='undefined')void this.restoreTakes();}
  get state(){return this.running?'PLAY':this.stopAt?'PAUSE':'STOP';}
  get recording(){return this.recordArmed;}
- get sampling(){return this.sampleRecorder.active;}
- updateMix(){this.bus?.update(this.getSession());}
+ get sampling(){return this.offlineSampleActive||this.sampleRecorder.active;}
+ updateMix(){this.bus?.update(this.getSession());if(this.autoMix)this.updateAutoMix();}
+ /** Connect local music files before master EQ, protection and stereo meter. */
+ connectMusicSource(node:AudioNode):()=>void {
+  if(!this.ctx||!this.bus||this.ctx.state!=='running')throw Error('Аудиодвижок недоступен');
+  const target=this.bus.input,duck=this.ctx.createGain();
+  duck.gain.value=1;node.connect(duck);duck.connect(target);
+  this.musicDucker=duck;
+  return ()=>{try{node.disconnect(duck);duck.disconnect()}catch{}
+   if(this.musicDucker===duck)this.musicDucker=null;
+  };
+ }
+ get autoMixEnabled(){return this.autoMix;}
+ setAutoMix(enabled:boolean){this.autoMix=enabled;if(enabled)this.updateAutoMix();else this.bus?.update(this.getSession());}
+ private updateAutoMix(){if(!this.bus||!this.ctx)return;const beat=this.running?(this.ctx.currentTime-this.origin)*this.getSession().tempo/60:0;const [a,b]=crossfadeGains(autoMixPosition(beat));const t=this.ctx.currentTime;this.bus.a.gain.setTargetAtTime(a,t,.035);this.bus.b.gain.setTargetAtTime(b,t,.035);}
  get takes(){return this.recorded.slice();}
  get time(){return this.ctx?.currentTime??0;}
  private meterData=new Uint8Array(256);
  get meterLevel(){if(!this.bus)return 0;this.bus.meter.getByteTimeDomainData(this.meterData);let energy=0;for(let i=0;i<this.meterData.length;i++){const v=(this.meterData[i]!-128)/128;energy+=v*v;}return Math.min(1,Math.sqrt(energy/this.meterData.length)*2.8);}
  readWaveform(output:Uint8Array):boolean{if(!this.bus||!this.ctx||this.ctx.state!=='running')return false;this.bus.meter.getByteTimeDomainData(output);return true;}
  get currentStep(){if(!this.ctx||!this.running)return 0;const d=60/this.getSession().tempo/4;return ((Math.floor((this.time-this.origin)/d+1e-4)%STEPS)+STEPS)%STEPS;}
+ /** Phase-lock music playback to the NEXT actual 16-step pad downbeat (AudioContext clock). */
+ getMusicSyncPoint():{time:number;tempo:number;playing:boolean}{
+  const tempo=this.getSession().tempo,now=this.ctx?.currentTime??0,d=60/tempo/4;
+  if(!this.running||!this.ctx)return {time:now+.09,tempo,playing:false};
+  this.pump(); // Rephase the sequencer first if BPM changed this gesture.
+  const delta=(STEPS-this.nextStep%STEPS)%STEPS;
+  let at=this.nextTime+delta*d;
+  while(at<now+.09)at+=STEPS*d;
+  return {time:at,tempo,playing:true};
+ }
  async unlock():Promise<void>{
   if(!this.ctx){const C=window.AudioContext||(window as Window & {webkitAudioContext?:typeof AudioContext}).webkitAudioContext;if(!C)throw Error('Web Audio недоступен');this.ctx=new C({latencyHint:'interactive'});void this.bank.restore(this.ctx).then(()=>this.events.onSamples?.()).catch(()=>{});this.bus=createBus(this.ctx,this.ctx.destination,this.getSession());}
   if(this.ctx.state!=='running')await this.ctx.resume();
@@ -73,24 +99,29 @@ export class Engine{
   // Decoding is demand-driven: a pad never waits for all eight WAV decoders.
   if(!this.clock&&this.fallback===null){
    this.fallback=window.setInterval(()=>this.pump(),25); // reliable on the very first gesture
-   void this.enableWorklet(this.ctx);
+   // WebKit/iOS AudioWorklet can terminate during short pad recording in automated
+   // WebKit. A 25 ms lookahead pump avoids a second rendering thread on Safari.
+   // Chrome/Android retain low-cost AudioWorklet clocking.
+   const agent=typeof navigator!=='undefined'?navigator.userAgent:'';
+   if(!/AppleWebKit/i.test(agent)||/Chrome|Chromium|Edg|OPR|Android/i.test(agent))
+    void this.enableWorklet(this.ctx);
   }
   this.events.onState?.('AUDIO READY');
  }
  private async enableWorklet(ctx:AudioContext):Promise<void>{
   try{if(!ctx.audioWorklet)return;await ctx.audioWorklet.addModule('/app/clock.js');if(this.ctx!==ctx)return;
    const worklet=new AudioWorkletNode(ctx,'artss-pulse',{numberOfOutputs:1,outputChannelCount:[1]});
-   const silent=ctx.createGain();silent.gain.value=0;worklet.connect(silent).connect(ctx.destination);worklet.port.onmessage=()=>this.pump();this.clock=worklet;
+   const silent=ctx.createGain();silent.gain.value=0;worklet.connect(silent).connect(ctx.destination);worklet.port.onmessage=()=>this.pump();this.clock=worklet;worklet.port.postMessage(this.running?'start':'pause');
    if(this.fallback!==null){window.clearInterval(this.fallback);this.fallback=null;}
   }catch{}
  }
  async start(){const generation=this.generation;await this.unlock();if(this.running||this.generation!==generation)return;await this.bank.warm(this.ctx!);if(this.running||this.generation!==generation)return;const d=60/this.getSession().tempo/4;
   if(this.stopAt>0){const progress=this.stopAt-this.origin;this.origin=this.time-progress;this.nextStep=Math.max(0,Math.ceil((this.time-this.origin)/d));this.nextTime=this.origin+this.nextStep*d;}
   else{this.origin=this.time+.05;this.nextStep=0;this.nextTime=this.origin;}
-  this.scheduledTempo=this.getSession().tempo;this.running=true;this.stopAt=0;this.generation++;this.pump();this.events.onState?.('PLAY');
+  this.scheduledTempo=this.getSession().tempo;this.running=true;this.stopAt=0;this.generation++;this.clock?.port.postMessage('start');this.pump();this.events.onState?.('PLAY');
  }
- pause(){if(!this.running)return;this.running=false;this.stopAt=this.time;this.generation++;this.silence();this.events.onState?.('PAUSE');}
- stop(){this.running=false;this.stopAt=0;this.recordArmed=false;this.nextStep=0;this.nextTime=0;this.generation++;this.silence();this.events.onState?.('STOP');}
+ pause(){if(!this.running)return;this.running=false;this.stopAt=this.time;this.generation++;this.clock?.port.postMessage('pause');this.silence();this.events.onState?.('PAUSE');}
+ stop(){this.running=false;this.stopAt=0;this.recordArmed=false;this.nextStep=0;this.nextTime=0;this.generation++;this.clock?.port.postMessage('pause');this.silence();this.events.onState?.('STOP');}
  async toggleRecord(){await this.unlock();if(!this.running)await this.start();if(!this.running)return this.recordArmed;this.recordArmed=!this.recordArmed;this.events.onState?.(this.recordArmed?'REC ON':'REC OFF');return this.recordArmed;}
  async hit(pad:number,velocity=1){if(!Number.isInteger(pad)||pad<0||pad>7||this.getSession().muted[pad])return;
   // Do not await resume or worklet setup once AudioContext is already running. Trigger voice on pointerdown.
@@ -105,6 +136,7 @@ export class Engine{
  private silence(){for(const v of this.active){try{v.stop();}catch{}}this.active.clear();}
  private pump(){if(!this.ctx||!this.running||!this.bus)return;
   const now=this.ctx.currentTime;const tempo=this.getSession().tempo;const d=60/tempo/4;
+  if(this.autoMix)this.updateAutoMix();
   if(this.scheduledTempo!==tempo){this.origin=this.nextTime-this.nextStep*d;this.scheduledTempo=tempo;}
   // Safari background suspension: fast-forward stale transport steps instead of bursting delayed notes.
   if(this.nextTime<now-.035){const skip=Math.max(1,Math.ceil((now-this.nextTime-.008)/d));this.nextStep+=skip;this.nextTime+=skip*d;}
@@ -121,8 +153,18 @@ export class Engine{
  }
  private voice(ctx:BaseAudioContext,bus:AudioNode,pad:number,when:number,velocity:number,style:number,level:number){
   const live=ctx===this.ctx;
+  if(live&&this.musicDucker&&(pad===0||pad===1||pad===2)){
+   // Mild, sample-accurate musical ducking; leave the original drum transient untouched.
+   const g=this.musicDucker.gain,t=Math.max(ctx.currentTime,when);
+   g.cancelScheduledValues(t);g.setTargetAtTime(pad===2?.90:.81,t,.012);
+   g.setTargetAtTime(1,t+.10,.12);
+  }
   if(live&&this.active.size>=28){const oldest=this.active.values().next().value;if(oldest){oldest.stop();this.active.delete(oldest);}}
-  const sample=this.bank.resolve(pad,style);if(!sample)return;const amp=ctx.createGain();
+  const sample=this.bank.resolve(pad,style);if(!sample)return;
+  if(live&&this.offlineSampleActive){const at=when-this.offlineSampleAt;
+   if(at>=0&&at<12.25)this.offlineSampleHits.push({pad,at,velocity,style,level});
+  }
+  const amp=ctx.createGain();
   const low=ctx.createBiquadFilter(),high=ctx.createBiquadFilter();
   low.type='highpass';high.type='lowpass';
   low.frequency.value=sample?.lowCut??(pad===1?24:pad===6?55:pad===0?22:85);
@@ -163,13 +205,19 @@ export class Engine{
   if(this.sampling)throw Error('Запись уже идёт');
   await this.unlock();
   if(source==='live'&&!this.running)await this.start();
-  const directPcm=source==='live'&&!!this.ctx?.audioWorklet&&preferPcmRecording(navigator.userAgent,typeof MediaRecorder!=='undefined');
-  const capture=source==='live'&&!directPcm?this.ensureCapture():null;
   const target={pad,style:this.getSession().style};
-  await this.sampleRecorder.start(source,capture?.stream??null,this.ctx!,
+  // WebKit process crashes during continuous live PCM routing. Capture deterministic pad events
+  // and render them through the same master DSP offline when Stop is pressed. No microphone.
+  if(preferPcmRecording(navigator.userAgent,typeof MediaRecorder!=='undefined')){
+   this.offlineSampleHits=[];this.offlineSampleAt=this.ctx!.currentTime;this.offlineSampleActive=true;
+   this.sampleTarget=target;
+   this.offlineSampleTimer=window.setTimeout(()=>{void this.endSampleCapture().catch(e=>this.events.onState?.(e instanceof Error?'SAMPLE ERROR · '+e.message:'SAMPLE ERROR'))},12000);
+   this.events.onState?.(`SAMPLE REC · ${target.pad+1}`);return;
+  }
+  const capture=this.ensureCapture();
+  await this.sampleRecorder.start(source,capture.stream,this.ctx!,
    ()=>{void this.endSampleCapture().catch(e=>this.events.onState?.(e instanceof Error?'SAMPLE ERROR · '+e.message:'SAMPLE ERROR'));},
-   error=>{this.sampleTarget=null;this.events.onState?.('SAMPLE ERROR · '+error.message);},
-   directPcm?this.bus!.master:null);
+   error=>{this.sampleTarget=null;this.events.onState?.('SAMPLE ERROR · '+error.message);});
   this.sampleTarget=target;
   this.events.onState?.(`SAMPLE REC · ${target.pad+1}`);
  }
@@ -177,7 +225,23 @@ export class Engine{
   const target=this.sampleTarget;
   if(!target)throw Error('Запись сэмпла не запущена');
   this.sampleTarget=null;
-  const blob=await this.sampleRecorder.stop();
+  let blob:Blob;
+  if(this.offlineSampleActive){
+   this.offlineSampleActive=false;
+   if(this.offlineSampleTimer!==null){window.clearTimeout(this.offlineSampleTimer);this.offlineSampleTimer=null;}
+   const hits=this.offlineSampleHits;this.offlineSampleHits=[];
+   if(!hits.length)throw Error('Нажми пэд во время записи');
+   const duration=Math.min(12,Math.max(.1,(this.ctx?.currentTime??this.offlineSampleAt)-this.offlineSampleAt));
+   const length=Math.ceil((duration+.2)*sampleRate);
+   const offline=new OfflineAudioContext(2,length,sampleRate);
+   const mix=createBus(offline,offline.destination,this.getSession());
+   for(const hit of hits){
+    if(hit.at>=duration)continue;
+    const when=Math.max(.004,hit.at);
+    this.voice(offline,(hit.pad===1||hit.pad>=6)?mix.b:mix.a,hit.pad,when,hit.velocity,hit.style,hit.level);
+   }
+   blob=wavExport(await offline.startRendering());
+  }else blob=await this.sampleRecorder.stop();
   if(blob.size<2048)throw Error('Запись слишком короткая');
   if(!this.ctx)throw Error('Нет аудиоконтекста');
   const extension=recordingExtension(blob.type);

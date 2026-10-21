@@ -2,6 +2,7 @@ import {defaultSession,importSession,PAD_NAMES,STYLES,SCENES,toggle,STEPS,saniti
 import {Engine} from './engine.js';
 import { composeGroove } from './arranger.js';
 import {knobDragValue} from './touch.js';
+import {AutoMixPlayer,type AutoMixState} from './automix-player.js';
 const $=<T extends HTMLElement=HTMLElement>(q:string)=>document.querySelector<T>(q)!;
 const getStorage=():Session=>{for(const key of ['artss-live-session-v19','artss-live-session-v18']){try{const v=localStorage.getItem(key);if(v)return importSession(v)}catch{}}return defaultSession()};
 const state=getStorage();const engine=new Engine(()=>state);
@@ -14,6 +15,28 @@ const localStatus=(value:string):string=>{
  for(const [en,ru] of [['SAMPLE SAVED','СЭМПЛ СОХРАНЁН'],['SAMPLE REC','ЗАПИСЬ СЭМПЛА'],['SAMPLE ERROR','ОШИБКА СЭМПЛА'],['ORIGINAL RESTORED','ОРИГИНАЛ ВОССТАНОВЛЕН'],['LOADING CUSTOM AUDIO','ЗАГРУЗКА ЗВУКА'],['REPLACED ','ЗАМЕНЁН '],['RESTORE AVAILABLE','МОЖНО ВОССТАНОВИТЬ'],['RANDOM IDEA READY','СЛУЧАЙНЫЙ РИТМ ГОТОВ'],['AUTO GROOVE READY','РИТМ СОЗДАН'],['GROOVE RESTORED','РИТМ ВОССТАНОВЛЕН'],['RENDERING WAV','СОЗДАНИЕ WAV'],['WAV EXPORTED','WAV СОХРАНЁН'],['PAD BANK ','БАНК ПЭДОВ '],['PAD ','ПЭД ']] as const)value=value.replace(en,ru);
  return value;
 };
+const languageKey='artss-nexus-language';
+type Language='ru'|'en';
+let language:Language=(()=>{try{return localStorage.getItem(languageKey)==='en'?'en':'ru'}catch{return 'ru'}})();
+const englishLabels:Record<string,string>={
+ 'ПУСК':'PLAY','ПАУЗА':'PAUSE','СТОП':'STOP','ЗАПИСЬ':'REC','СТОП ЗАПИСИ':'STOP REC','ГОТОВО':'READY','ИГРАЕТ':'PLAYING','ОСТАНОВЛЕНО':'STOPPED','ЗАПИСЬ ПЭДОВ':'PAD RECORDING','ЛУП СОХРАНЁН':'LOOP SAVED','ДРАМ-ПЭДЫ':'DRUM PADS','ШАГОВЫЙ СЕКВЕНСОР':'STEP SEQUENCER','ЗВУКИ':'SOUNDS','ПРЕСЕТЫ':'PRESETS','ПРОЕКТ':'PROJECT','СОЗДАТЬ':'CREATE','ИГРАТЬ':'PERFORM','МИКС':'MIX','СОЗДАТЬ РИТМ':'AUTO GROOVE','АВТОРИТМ':'AUTO RHYTHM','СЛУЧАЙНЫЙ':'RANDOM','РИТМ':'GROOVE','ЗАДАТЬ ТЕМП':'TAP TEMPO','СЦЕНА':'SCENE','СТИЛЬ':'STYLE','НИЗ':'LOW','СЕР':'MID','ВЕРХ':'HIGH','СИГНАЛ':'SIGNAL','ПЭДЫ':'PADS','ЗВУКИ ПЭДОВ':'PAD SOUNDS','НАСТРОЙКИ':'SETTINGS','МИКШЕР И FX':'MIX & FX','ЗАПИСАТЬ СЭМПЛ':'RECORD SAMPLE','ОТКРЫТЬ ЗАПИСЬ':'OPEN RECORDER','ЗАПИСАТЬ АУДИО':'RECORD AUDIO','НАЧАТЬ':'START','ЗАВЕРШИТЬ ДУБЛЬ':'FINISH TAKE','ЭКСПОРТ WAV':'EXPORT WAV','ДОБАВИТЬ СЭМПЛ':'ADD SAMPLE','ИСТОЧНИК':'SOURCE','ЗВУК ПЭДОВ':'PAD MIX','СВОЙ':'CUSTOM','ОРИГИНАЛ':'ORIGINAL','БОЧКА':'KICK','САБ':'SUB','ХЛОПОК':'CLAP','ХЭТ':'HAT','ОТКР. ХЭТ':'OPEN HAT','ПЕРК':'PERC','ЭЙСИД':'ACID','УДАР':'HIT','ГРУВ':'GROOVE','ВСТУПЛЕНИЕ':'INTRO','РАЗГОН':'BUILD','ДРОП':'DROP','БРЕЙК':'BREAK','АНДЕГРАУНД':'UNDERGROUND','ЖЁСТКОЕ ТЕХНО':'HARD TECHNO','ТЁМНОЕ ТЕХНО':'DARK TECHNO','РЕЙВ':'RAVE','ФОНК':'PHONK','ИНДАСТРИАЛ':'INDUSTRIAL','ГИПНОТИК':'HYPNOTIC','ПИК-ТАЙМ':'PEAK TIME','БРЕЙКС':'BREAKS','МИНИМАЛ':'MINIMAL','ЭЛЕКТРО':'ELECTRO','АВТОСВОДКА ТРЕКОВ':'TRACK AUTOMIX','ТЕМП':'TEMPO','УРОВЕНЬ':'LEVEL','ПЕРЕХОД':'TRANSITION','ВЫБЕРИ 2–3 СВОИХ АУДИОТРЕКА':'SELECT 2–3 LOCAL AUDIO TRACKS','СВЕСТИ ТРЕКИ':'MIX TRACKS','ОСТАНОВИТЬ':'STOP','АВТОМИКС':'AUTO MIX','ВЫКЛ':'OFF','ВКЛ':'ON','ПЛОТНОСТЬ':'DENSITY','ЗВУК ГОТОВ':'AUDIO READY','БИБЛИОТЕКА ЗВУКОВ':'SOUND LIBRARY','ЗАПИСЬ ВЫСТУПЛЕНИЯ':'PERFORMANCE RECORDING','АУДИОТРЕКИ':'AUDIO TRACKS'};
+const translateText=(input:string)=>{if(language==='ru')return input;return input.replace(/[А-ЯЁ][А-ЯЁ.\s-]*/g,segment=>{const key=segment.trim();const translated=englishLabels[key];return translated?segment.replace(key,translated):segment})};
+const originalText=new WeakMap<Text,string>();
+const originalAttributes=new WeakMap<Element,Map<string,string>>();
+const applyLanguage=()=>{
+ document.documentElement.lang=language;
+ const toggle=document.querySelector<HTMLButtonElement>('#languageToggle');
+ if(toggle){const markup=language==='ru'?'<b>RU</b><span>/</span>EN':'RU<span>/</span><b>EN</b>';if(toggle.innerHTML!==markup)toggle.innerHTML=markup;toggle.setAttribute('aria-pressed',String(language==='en'));}
+ const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
+ let node:Node|null;
+ while((node=walker.nextNode())){if(node.parentElement?.closest('script,style,#languageToggle'))continue;const t=node as Text;let source=originalText.get(t);if(source===undefined){source=t.nodeValue??'';if(language==='en'&&/[А-ЯЁ]/.test(source))source=source;originalText.set(t,source)}const translated=translateText(source);if(t.nodeValue!==translated)t.nodeValue=translated;}
+ document.querySelectorAll<HTMLElement>('[aria-label],[title],[placeholder]').forEach(el=>{let cache=originalAttributes.get(el);if(!cache){cache=new Map();originalAttributes.set(el,cache)}for(const attr of ['aria-label','title','placeholder']){const value=el.getAttribute(attr);if(value===null)continue;if(!cache.has(attr))cache.set(attr,value);const translated=translateText(cache.get(attr)??value);if(value!==translated)el.setAttribute(attr,translated)}});
+};
+document.querySelector('#languageToggle')?.addEventListener('click',()=>{language=language==='ru'?'en':'ru';try{localStorage.setItem(languageKey,language)}catch{}applyLanguage()});
+let languageRefreshPending=false;
+const languageObserver=new MutationObserver(()=>{if(language==='en'&&!languageRefreshPending){languageRefreshPending=true;queueMicrotask(()=>{languageRefreshPending=false;applyLanguage()})}});
+languageObserver.observe(document.body,{childList:true,subtree:true});
+queueMicrotask(applyLanguage);
 type Pane='main'|'sounds'|'library'|'takes'|'mix'|'profile';
 let page=0,importSlot:number|undefined,pane:Pane='main',busy=false;
 const KIT_KEY='artss-nexus-pattern-banks-v23',clonePattern=(v:number[][])=>v.map(row=>row.slice());
@@ -77,7 +100,6 @@ function paintPads(){const wrap=$('#pads');wrap.replaceChildren();for(let i=0;i<
  $('#selectedPad').textContent=PAD_NAMES[state.selected]??'KICK';updateSampleTarget();
 }
 function updateSampleTarget(){
- $('#sampleRecordHint').textContent=`PAD ${String(state.selected+1).padStart(2,'0')} · ${styleLabel(state.style)}`;
  const pad=Number($<HTMLSelectElement>('#replaceTarget').value);const custom=engine.bank.customInfo(pad,state.style);
  $('#soundInfo').textContent=custom?`СВОЙ · ${custom}`:`ОРИГИНАЛ · ${PAD_NAMES[pad]}`;
  $<HTMLButtonElement>('#restoreSound').disabled=!custom;
@@ -166,6 +188,26 @@ const paintLibrary=()=>{const host=$('#libraryStyles');const frag=document.creat
 };
 const init=()=>{
 engine.updateMix();refreshKitButtons();
+// Automatic DJ transitions process real user-owned music files, not sequencer presets.
+const trackStatus=$('#trackMixStatus'),mixStart=$<HTMLButtonElement>('#startTrackMix'),mixStop=$<HTMLButtonElement>('#stopTrackMix');
+const mixPlayer=new AutoMixPlayer(engine,(current:AutoMixState,message:string)=>{
+ const localized=language==='en'?message.replace('Анализ темпа и музыкальных фраз','Analyzing tempo and phrasing').replace('Автосводка остановлена','Automix stopped').replace('Автосводка','Automix'):message;
+ trackStatus.textContent=localized;
+ mixStart.disabled=current!=='ready';mixStop.disabled=current!=='playing';
+});
+$('#autoMixFiles').addEventListener('change',()=>void safe(async()=>{
+ const input=$<HTMLInputElement>('#autoMixFiles');if(!input.files?.length)return;
+ mixStart.disabled=true;await mixPlayer.load(input.files);
+}));
+mixStart.addEventListener('click',()=>void safe(async()=>{
+ const sync=$<HTMLInputElement>('#autoMixPadSync').checked;
+ if(sync){const first=mixPlayer.loaded[0];
+  if(first&&first.confidence>=.17){state.tempo=first.bpm;showTrack();engine.updateMix();scheduleSave();}
+ }
+ await mixPlayer.start(sync);mixPlayer.setPadOverlay(engine.state==='PLAY');updateTransport();
+}));
+mixStop.addEventListener('click',()=>{mixPlayer.stop();updateTransport()});
+
  $('#filter').addEventListener('input',()=>{state.filter=Number(($<HTMLInputElement>('#filter')).value)/100;$('#filterValue').textContent=state.filter>.97?'ОТКРЫТ':`${Math.round(state.filter*100)}%`;engine.updateMix();scheduleSave()});
  ($('#filter') as HTMLInputElement).value=String(Math.round(state.filter*100));$('#filterValue').textContent=state.filter>.97?'ОТКРЫТ':`${Math.round(state.filter*100)}%`;
  $('#echo').addEventListener('input',()=>{state.echo=Number(($<HTMLInputElement>('#echo')).value)/100;$('#echoValue').textContent=`${Math.round(state.echo*100)}%`;engine.updateMix();scheduleSave()});
@@ -234,11 +276,13 @@ engine.updateMix();refreshKitButtons();
  let lastTap=0;const recentTaps:number[]=[];
  $('#tapTempo').addEventListener('click',()=>{const now=performance.now(),elapsed=now-lastTap;lastTap=now;if(elapsed>2000){recentTaps.length=0;setStatus('TAP AGAIN TO SET BPM');return;}if(elapsed<300||elapsed>1000)return;recentTaps.push(elapsed);if(recentTaps.length>4)recentTaps.shift();const sorted=[...recentTaps].sort((a,b)=>a-b);const median=sorted[Math.floor(sorted.length/2)]??elapsed;changeTempo(60000/median);setStatus(`BPM ${state.tempo}`)});
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushSave();else if(engine.state==='PLAY'&&engine.ctx?.state==='suspended')setStatus('TAP PLAY TO RESTORE AUDIO')});
- window.addEventListener('pagehide',()=>{flushSave();for(const url of takeUrls)URL.revokeObjectURL(url);takeUrls=[]});
- $('#play').addEventListener('click',()=>void safe(async()=>{if(engine.state==='PLAY'&&engine.ctx?.state==='suspended')await engine.unlock();else if(engine.state==='PLAY')engine.pause();else await engine.start();updateTransport()}));
- $('#record').addEventListener('click',()=>void safe(async()=>{await engine.toggleRecord();updateTransport()}));
- $('#stop').addEventListener('click',()=>{engine.stop();updateTransport()});
- const cross=$<HTMLInputElement>('#crossfade');cross.value=String(Math.round(state.crossfader*100));cross.addEventListener('input',()=>{state.crossfader=Number(cross.value)/100;engine.updateMix();scheduleSave()});
+ window.addEventListener('pagehide',()=>{flushSave();mixPlayer.dispose();for(const url of takeUrls)URL.revokeObjectURL(url);takeUrls=[]});
+ $('#play').addEventListener('click',()=>void safe(async()=>{if(engine.state==='PLAY'&&engine.ctx?.state==='suspended')await engine.unlock();else if(engine.state==='PLAY')engine.pause();else await engine.start();mixPlayer.setPadOverlay(engine.state==='PLAY');updateTransport()}));
+ $('#record').addEventListener('click',()=>void safe(async()=>{await engine.toggleRecord();mixPlayer.setPadOverlay(engine.state==='PLAY');updateTransport()}));
+ $('#stop').addEventListener('click',()=>{mixPlayer.stop();engine.stop();updateTransport()});
+ const autoMixButton=$<HTMLButtonElement>('#autoMixToggle');
+ autoMixButton.addEventListener('click',()=>{engine.setAutoMix(!engine.autoMixEnabled);autoMixButton.setAttribute('aria-pressed',String(engine.autoMixEnabled));autoMixButton.classList.toggle('active',engine.autoMixEnabled);autoMixButton.textContent=engine.autoMixEnabled?'АВТОМИКС · ВКЛ':'АВТОМИКС · ВЫКЛ';setStatus(engine.autoMixEnabled?'АВТОМИКС ВКЛ':'АВТОМИКС ВЫКЛ')});
+ const cross=$<HTMLInputElement>('#crossfade');cross.value=String(Math.round(state.crossfader*100));cross.addEventListener('input',()=>{if(engine.autoMixEnabled){engine.setAutoMix(false);autoMixButton.classList.remove('active');autoMixButton.setAttribute('aria-pressed','false');autoMixButton.textContent='АВТОМИКС · ВЫКЛ';}state.crossfader=Number(cross.value)/100;engine.updateMix();scheduleSave()});
  for(const field of ['eqLow','eqMid','eqHigh'] as const){
   const input=$<HTMLInputElement>('#'+field);input.value=String(state[field]);
   const renderKnob=()=>{input.parentElement?.style.setProperty('--knob-angle',`${-135+(Number(input.value)+12)*270/24}deg`);
@@ -269,28 +313,12 @@ engine.updateMix();refreshKitButtons();
  $('#quickSettings').addEventListener('click',()=>setPane('profile'));
  $('#drawerImport').addEventListener('click',()=>{closeDrawer();setPane('sounds')});
  $('#drawerRecord').addEventListener('click',()=>{closeDrawer();setPane('takes')});
- $('#drawerSample').addEventListener('click',()=>{closeDrawer();setPane('main');const panel=$<HTMLDetailsElement>('.sample-recorder');panel.open=true;panel.scrollIntoView({block:'nearest',behavior:'smooth'});});
  $('#drawerSettings').addEventListener('click',()=>{closeDrawer();setPane('profile')});
  $('#drawerFX').addEventListener('click',()=>{closeDrawer();setPane('mix')});
  $('#drawerPresets').addEventListener('click',()=>{closeDrawer();setPane('library')});
  $('#libraryImport').addEventListener('click',()=>setPane('sounds'));
  $('#goToRecording').addEventListener('click',()=>setPane('takes'));
  $('#pageA').addEventListener('click',()=>{page=0;paintSteps()});$('#pageB').addEventListener('click',()=>{page=1;paintSteps()});
- const renderCapture=()=>{const active=engine.sampling;
-  const start=$<HTMLButtonElement>('#sampleStart'),stop=$<HTMLButtonElement>('#sampleStop');
-  start.disabled=active;stop.disabled=!active;start.classList.toggle('on',active);
-  ($('#sampleSource') as HTMLSelectElement).disabled=active;
-  start.textContent=active?'● ЗАПИСЬ':'● НАЧАТЬ';
- };
- $('#sampleStart').addEventListener('click',()=>void safe(async()=>{
-  const source='live' as const;
-  await engine.beginSampleCapture(source,state.selected);renderCapture();setStatus(`SAMPLE REC · PAD ${state.selected+1}`);
- }));
- $('#sampleStop').addEventListener('click',()=>void safe(async()=>{
-  try{const result=await engine.endSampleCapture();save();paintSteps();setStatus(`SAMPLE SAVED · PAD ${result.pad+1}`);paintPads();}
-  finally{renderCapture();}
- }));
- $('#addSound').addEventListener('click',()=>setPane('sounds'));
  $('#replaceTarget').addEventListener('change',updateSampleTarget);
  $('#replaceSound').addEventListener('click',()=>{importSlot=Number($<HTMLSelectElement>('#replaceTarget').value);$('#sampleInput').click()});
  $('#restoreSound').addEventListener('click',()=>void safe(async()=>{
@@ -322,8 +350,8 @@ engine.updateMix();refreshKitButtons();
    $('#transportTime').textContent=`${String(Math.floor(elapsed/60)).padStart(2,'0')}:${String(Math.floor(elapsed%60)).padStart(2,'0')} / ${String(Math.floor(total/60)).padStart(2,'0')}:${String(Math.ceil(total%60)).padStart(2,'0')}`;
   });
  };
- engine.events.onClip=(pad)=>{scheduleSave();for(let step=0;step<STEPS;step++)syncPatternCells(pad,step)};engine.events.onSamples=paintPads;engine.events.onState=v=>{setStatus(v);if(v.startsWith('SAMPLE SAVED')||v.startsWith('SAMPLE ERROR')){renderCapture();paintPads();}};
- paintPads();paintSteps();setPane('main');updateTransport();renderCapture();
+ engine.events.onClip=(pad)=>{scheduleSave();for(let step=0;step<STEPS;step++)syncPatternCells(pad,step)};engine.events.onSamples=paintPads;engine.events.onState=v=>{setStatus(v);};
+ paintPads();paintSteps();setPane('main');updateTransport();
  if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
 };
 function updateTransport(){const play=$('#play');play.querySelector('.deck-label')!.textContent=engine.state==='PLAY'?'ПАУЗА':'ПУСК';play.querySelector('.deck-play-icon')!.textContent=engine.state==='PLAY'?'Ⅱ':'▶';play.classList.toggle('on',engine.state==='PLAY');$('#record').classList.toggle('on',engine.recording);$('#record').querySelector('.deck-label')!.textContent=engine.recording?'СТОП ЗАПИСИ':'ЗАПИСЬ';$('#runState').textContent=localStatus(engine.state);if(engine.state==='STOP')$('#transportTime').textContent='00:00 / ЦИКЛ';}
