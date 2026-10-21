@@ -28,3 +28,8 @@ This repo currently deploys a **Web Audio/TypeScript iPhone PWA**. A separate `n
 7. Communicate concise verified changes, metrics and remaining blockers, not inflated claims of perfection. User authorizes normal reversible changes but destructive operations and sensitive external actions still require applicable safeguards.
 
 Engineering priorities: **sound integrity → correctness/data preservation → touch latency → screenshot fidelity → UI minimalism → features**.
+
+## v27.1 recording regression rule
+- Recorded PCM is WAV, not WebM: MIME, filename extension, header and stored IndexedDB name must agree.
+- Asynchronous IndexedDB restore cannot overwrite a user's newer imported sample during decode.
+- MediaRecorder failures must release microphone tracks and notify UI instead of leaving the recording button armed.

@@ -2,7 +2,7 @@ import {SampleRecorder,type CaptureSource} from './sample-recorder.js';
 import {STEPS,STYLES,type Session,note} from './model.js';
 import {placeSample} from './arranger.js';
 import {SoundBank,type Sound} from './sounds.js';
-import {AUDIO_HEADROOM,crossfadeGains,voiceGain,lowpassHz} from './audio-quality.js';
+import {AUDIO_HEADROOM,crossfadeGains,voiceGain,lowpassHz,recordingExtension} from './audio-quality.js';
 export type EngineEvents={onStep?:(step:number)=>void;onState?:(state:string)=>void;onMeter?:(value:number)=>void;onClip?:(pad:number)=>void;onSamples?:()=>void};
 const clamp=(x:number,lo:number,hi:number)=>Math.min(hi,Math.max(lo,x));
 const sampleRate=44100;
@@ -165,7 +165,9 @@ export class Engine{
   if(source==='live'&&!this.running)await this.start();
   const capture=this.ensureCapture();
   const target={pad,style:this.getSession().style};
-  await this.sampleRecorder.start(source,capture.stream,this.ctx!,()=>{void this.endSampleCapture().catch(e=>this.events.onState?.(e instanceof Error?e.message:'SAMPLE ERROR'));});
+  await this.sampleRecorder.start(source,capture.stream,this.ctx!,
+   ()=>{void this.endSampleCapture().catch(e=>this.events.onState?.(e instanceof Error?'SAMPLE ERROR · '+e.message:'SAMPLE ERROR'));},
+   error=>{this.sampleTarget=null;this.events.onState?.('SAMPLE ERROR · '+error.message);});
   this.sampleTarget=target;
   this.events.onState?.(`SAMPLE REC · ${target.pad+1}`);
  }
@@ -176,7 +178,7 @@ export class Engine{
   const blob=await this.sampleRecorder.stop();
   if(blob.size<2048)throw Error('Запись слишком короткая');
   if(!this.ctx)throw Error('Нет аудиоконтекста');
-  const extension=blob.type.includes('mp4')?'m4a':'webm';
+  const extension=recordingExtension(blob.type);
   const file=new File([blob],`REC-PAD-${target.pad+1}.${extension}`,{type:blob.type});
   const result=await this.bank.importFile(file,this.ctx,target.pad,target.style);
   placeSample(this.getSession().pattern,target.pad,target.style);

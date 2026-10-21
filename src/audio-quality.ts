@@ -14,3 +14,12 @@ export function lowpassHz(open:number,sampleRate:number):number {
  return Math.min(nyquist,40*Math.pow(nyquist/40,value));
 }
 export const AUDIO_HEADROOM={master:.87,wet:.28,feedback:.2,echoSend:.28} as const;
+
+/** Preserve the container announced by Safari/Chrome media capture, including PCM fallbacks. */
+export function recordingExtension(mime:string):'wav'|'m4a'|'webm' {
+ const format=mime.toLowerCase().split(';',1)[0]?.trim();
+ if(format==='audio/wav'||format==='audio/wave'||format==='audio/x-wav'||format==='audio/vnd.wave')return 'wav';
+ if(format==='audio/mp4'||format==='audio/x-m4a'||format==='audio/aac')return 'm4a';
+ if(format==='audio/webm')return 'webm';
+ throw Error('Формат аудиозаписи не поддерживается');
+}

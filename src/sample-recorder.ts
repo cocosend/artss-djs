@@ -1,7 +1,7 @@
 /** Single-use sample capture. Prefer MediaRecorder; capture lossless WAV when unavailable (Safari/WebKit). */
 export type CaptureSource = 'live' | 'mic';
 
-const pcmWav = (chunks: Float32Array[], frameCount: number, sampleRate: number): Blob => {
+export const pcmWav = (chunks: Float32Array[], frameCount: number, sampleRate: number): Blob => {
   const bytes = new ArrayBuffer(44 + frameCount * 4);
   const view = new DataView(bytes);
   const ascii = (index:number,s:string) => {for(let i=0;i<s.length;i++)view.setUint8(index+i,s.charCodeAt(i));};
@@ -36,7 +36,7 @@ export class SampleRecorder {
 
   get active(): boolean {return this.capturingPCM || this.recorder?.state === 'recording';}
 
-  async start(source: CaptureSource, liveStream: MediaStream, context: AudioContext, onLimit: () => void): Promise<void> {
+  async start(source: CaptureSource, liveStream: MediaStream, context: AudioContext, onLimit: () => void, onFailure: (error: Error) => void = () => {}): Promise<void> {
     if (this.active || this.stopPromise) throw Error('Запись сэмпла уже идёт');
     let stream: MediaStream;
     if (source === 'mic') {
@@ -67,7 +67,11 @@ export class SampleRecorder {
         const recorder = new MediaRecorder(stream, mime ? {mimeType:mime} : undefined);
         this.recorder = recorder;this.chunks=[];
         recorder.ondataavailable = event => {if(event.data.size > 0)this.chunks.push(event.data);};
-        recorder.onerror = () => this.fail?.(Error('Ошибка захвата аудио'));
+        recorder.onerror = () => {
+          const error=Error('Ошибка захвата аудио');
+          const rejectStop=this.fail;this.dispose();
+          rejectStop?.(error);onFailure(error);
+        };
         recorder.onstop = () => {
           const result = new Blob(this.chunks, {type:recorder.mimeType || this.chunks[0]?.type || 'audio/webm'});
           this.finish?.(result);this.dispose();

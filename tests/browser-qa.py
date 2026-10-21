@@ -166,6 +166,7 @@ with sync_playwright() as playwright:
    request.onsuccess=()=>{const data=request.result;resolve({name:data?.name,bytes:data?.data?.byteLength??0})};};
  })""")
  assert stored['bytes']>2048,stored
+ assert stored['name'].endswith(('.m4a','.webm','.wav')),stored
  page.reload(wait_until='networkidle')
  page.locator('.pad[data-pad="1"]').tap()
  page.wait_for_function("document.querySelector('.pad[data-pad=\"1\"] .pad-own').textContent === 'OWN'",timeout=10000)

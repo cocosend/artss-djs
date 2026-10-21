@@ -81,7 +81,8 @@ export class SoundBank {
     else if(typeof entry.arrayBuffer==='function')data=await entry.arrayBuffer(); // legacy stored File/Blob
     if(!data||!data.byteLength)continue;
     try{const decoded=await ctx.decodeAudioData(data.slice(0));const analysis=analyzeAudio(Array.from({length:decoded.numberOfChannels},(_,i)=>decoded.getChannelData(i)),decoded.sampleRate);
-     if(!this.deleted.has(key))this.custom.set(key,{buffer:decoded,gain:1,lowCut:20,highCut:Math.min(20000,decoded.sampleRate*.46),name:entry.name?.replace(/\.[^.]+$/,'')??'USER',user:true});}catch{}
+     // A user may replace this pad while a legacy file is decoding; never let stale storage win.
+     if(!this.deleted.has(key)&&!this.custom.has(key))this.custom.set(key,{buffer:decoded,gain:1,lowCut:20,highCut:Math.min(20000,decoded.sampleRate*.46),name:entry.name?.replace(/\.[^.]+$/,'')??'USER',user:true});}catch{}
    }
   }finally{db.close()}
  }
