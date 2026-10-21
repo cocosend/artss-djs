@@ -100,18 +100,16 @@ test('EQ drag has stable pixel sensitivity, no jumps on touch and safe bounds',(
  assert.equal(knobDragValue(3,NaN),3);
 });
 
-test('Safari live sample capture bypasses MediaStream roundtrip and outputs worklet PCM',async()=>{
+test('Safari pad sample capture renders offline from recorded events, without live PCM routing',async()=>{
  const {readFileSync}=await import('node:fs');
  const engine=readFileSync('src/engine.ts','utf8');
- const recorder=readFileSync('src/sample-recorder.ts','utf8');
- const worklet=readFileSync('src/pcm-capture.ts','utf8');
- const sw=readFileSync('sw.js','utf8');
- assert.match(engine,/directPcm\?this.bus!\.master:null/);
- assert.match(engine,/source==='live'&&!directPcm\?this.ensureCapture\(\):null/);
- assert.match(recorder,/audioWorklet\.addModule\('\/app\/pcm-capture\.js'\)/);
- assert.match(recorder,/this\.workletInput\.disconnect\(this\.worklet\)/);
- assert.match(worklet,/registerProcessor\('artss-pcm-capture',PcmCapture\)/);
- assert.match(sw,/app\/pcm-capture\.js/);
+ assert.match(engine,/offlineSampleHits\.push/);
+ assert.match(engine,/offlineSampleActive=true/);
+ assert.match(engine,/new OfflineAudioContext\(2,length,sampleRate\)/);
+ assert.match(engine,/blob=wavExport\(await offline\.startRendering\(\)\)/);
+ assert.match(engine,/if\(preferPcmRecording\(navigator\.userAgent/);
+ assert.match(engine,/if\(!hits\.length\)throw/);
+ assert.doesNotMatch(engine,/directPcm\?this\.bus!\.master:null/);
 });
 
 test('pad-only recording never requests microphone permission',async()=>{
