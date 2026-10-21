@@ -22,11 +22,11 @@ test('equal-power mix stays bounded and transitions smoothly',()=>{
  const left=crossfadeGains(0),center=crossfadeGains(.5),right=crossfadeGains(1);
  assert.ok(left[0]>.8&&left[1]<1e-10);assert.ok(right[1]>.8&&right[0]<1e-10);
  assert.ok(Math.abs(center[0]-center[1])<1e-9);
- for(let i=0;i<=100;i++){const g=crossfadeGains(i/100);assert.ok(g.every(n=>Number.isFinite(n)&&n>=0&&n<=.82));assert.ok(Math.abs(g[0]**2+g[1]**2-.82**2)<1e-10)}
+ for(let i=0;i<=100;i++){const g=crossfadeGains(i/100);assert.ok(g.every(n=>Number.isFinite(n)&&n>=0&&n<=.8));assert.ok(Math.abs(g[0]**2+g[1]**2-.8**2)<1e-10)}
 });
 test('sample voice gain is safe for imported and extreme source levels',()=>{
- for(const values of [[1,1,2.2],[1.8,1.2,3],[.1,.4,.8],[NaN,1,1],[-1,2,1]]){const gain=voiceGain(...values);assert.ok(gain>=0&&gain<=.94)}
- assert.ok(voiceGain(1,1,.85)>.6);assert.equal(voiceGain(0,1,1),0);
+ for(const values of [[1,1,2.2],[1.8,1.2,3],[.1,.4,.8],[NaN,1,1],[-1,2,1]]){const gain=voiceGain(...values);assert.ok(gain>=0&&gain<=.82)}
+ assert.ok(voiceGain(1,1,.85)>.5);assert.equal(voiceGain(0,1,1),0);
 });
 test('audio filter covers low/mid/high without crossing Nyquist',()=>{
  for(const rate of [44100,48000,96000]){let last=0;for(let i=0;i<=100;i++){const v=lowpassHz(i/100,rate);assert.ok(v>=40&&v<=rate*.45);assert.ok(v>=last);last=v;}}
@@ -123,4 +123,19 @@ test('pad-only recording never requests microphone permission',async()=>{
  assert.ok(!html.includes('value="mic"'));
  assert.ok(engine.includes('this.recordArmed=!this.recordArmed'));
  assert.ok(engine.includes('if(this.recordArmed&&this.running)'));
+});
+
+test('auto mixing stays phase-locked, preserves data and bounds gains',async()=>{
+ const {autoMixPosition,blendVelocity,simultaneousTrim}=await import('../app/automix.js');
+ const a=Array.from({length:8},()=>Array(16).fill(0)),b=Array.from({length:8},()=>Array(16).fill(0));
+ a[0][0]=1;b[2][0]=.7;
+ assert.deepEqual(autoMixPosition(0,0,4),{from:0,to:1,progress:0,segment:0});
+ assert.equal(autoMixPosition(0,32,4).progress,0);
+ assert.ok(autoMixPosition(0,40,4).progress>.45);
+ assert.equal(autoMixPosition(0,48,4).from,1);
+ assert.equal(blendVelocity(a,b,0,0,0),1);
+ assert.equal(blendVelocity(a,b,0,0,1),0);
+ assert.ok(blendVelocity(a,b,2,0,.5)>.3);
+ assert.equal(a[0][0],1);assert.equal(b[2][0],.7);
+ for(let count=0;count<20;count++)assert.ok(simultaneousTrim(count)>.6&&simultaneousTrim(count)<=1);
 });

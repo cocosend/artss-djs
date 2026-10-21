@@ -39,7 +39,7 @@ export class SoundBank {
  const options=paths[pad];if(!options?.length)return null;
  // Keep each pad's factory timbre stable across genre/preset changes.
  const url=options[0];const buffer=url?this.defaultBuffers.get(url):null;if(!buffer)return null;
- return {buffer,gain:.85,lowCut:pad===3||pad===4?3800:pad<=1?22:60,highCut:pad===1?650:pad===0?15000:19000,name:url!.split('/').at(-1)??'',user:false};
+ return {buffer,gain:.85,lowCut:pad===3||pad===4?1550:pad<=1?20:45,highCut:pad===1?2200:pad===0?18000:19000,name:url!.split('/').at(-1)??'',user:false};
  }
  async importFile(file:File,ctx:AudioContext,overridePad?:number,style=0):Promise<{pad:number;analysis:AudioAnalysis;name:string}> {
   if(file.size>16*1024*1024)throw Error('Один сэмпл — максимум 16 МБ');

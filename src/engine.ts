@@ -1,5 +1,6 @@
 import {SampleRecorder,preferPcmRecording,type CaptureSource} from './sample-recorder.js';
-import {STEPS,STYLES,type Session,note} from './model.js';
+import {STEPS,STYLES,type Session,note,type Pattern} from './model.js';
+import {autoMixPosition,blendVelocity,simultaneousTrim} from './automix.js';
 import {placeSample} from './arranger.js';
 import {SoundBank,type Sound} from './sounds.js';
 import {AUDIO_HEADROOM,crossfadeGains,voiceGain,lowpassHz,recordingExtension} from './audio-quality.js';
@@ -17,7 +18,7 @@ function wavExport(buffer:AudioBuffer):Blob {
 function createBus(ctx:BaseAudioContext,destination:AudioNode,settings:Session){
  const a=ctx.createGain(),b=ctx.createGain(),input=ctx.createGain();
  // DC/subsonic energy eats headroom and is inaudible on mobile speakers.
- const dc=ctx.createBiquadFilter();dc.type='highpass';dc.frequency.value=20;dc.Q.value=.707;
+ const dc=ctx.createBiquadFilter();dc.type='highpass';dc.frequency.value=19;dc.Q.value=.707;
  const filter=ctx.createBiquadFilter();filter.type='lowpass';filter.Q.value=.58;
  const eqLow=ctx.createBiquadFilter();eqLow.type='lowshelf';eqLow.frequency.value=110;
  const eqMid=ctx.createBiquadFilter();eqMid.type='peaking';eqMid.frequency.value=1100;eqMid.Q.value=.82;
@@ -25,8 +26,8 @@ function createBus(ctx:BaseAudioContext,destination:AudioNode,settings:Session){
  const dry=ctx.createGain();dry.gain.value=1;
  const echoSend=ctx.createGain(),echo=ctx.createDelay(1),feedback=ctx.createGain(),returnGain=ctx.createGain();
  echo.delayTime.value=.23;feedback.gain.value=AUDIO_HEADROOM.feedback;returnGain.gain.value=AUDIO_HEADROOM.wet;
- const compressor=ctx.createDynamicsCompressor();compressor.threshold.value=-8;compressor.ratio.value=2;compressor.knee.value=9;compressor.attack.value=.012;compressor.release.value=.18;
- const limiter=ctx.createDynamicsCompressor();limiter.threshold.value=-2.4;limiter.ratio.value=18;limiter.knee.value=1.2;limiter.attack.value=.002;limiter.release.value=.085;
+ const compressor=ctx.createDynamicsCompressor();compressor.threshold.value=-7;compressor.ratio.value=1.5;compressor.knee.value=10;compressor.attack.value=.016;compressor.release.value=.22;
+ const limiter=ctx.createDynamicsCompressor();limiter.threshold.value=-3.2;limiter.ratio.value=16;limiter.knee.value=2;limiter.attack.value=.003;limiter.release.value=.11;
  const master=ctx.createGain();master.gain.value=AUDIO_HEADROOM.master;
  const meter=ctx.createAnalyser();meter.fftSize=256;meter.smoothingTimeConstant=.2;
  a.connect(input);b.connect(input);input.connect(dc).connect(filter).connect(eqLow).connect(eqMid).connect(eqHigh);
@@ -52,12 +53,25 @@ export class Engine{
  private clock:AudioWorkletNode|null=null;private fallback:number|null=null;
  private pending=false;private running=false;private recordArmed=false;private origin=0;private nextStep=0;private nextTime=0;private stopAt=0;
  private active=new Set<{stop:()=>void;until:number}>();
+ private autoMixBanks:Pattern[]|null=null;private autoMixBase=0;private autoMixStartStep=0;
  private generation=0;private scheduledTempo=136;private recorder:MediaRecorder|null=null;private capture:MediaStreamAudioDestinationNode|null=null;
  private recorded:Blob[]=[];private currentChunks:Blob[]=[];
  private gain=1;private sampleRecorder=new SampleRecorder();private sampleTarget:{pad:number;style:number}|null=null;events:EngineEvents={};
  constructor(readonly getSession:()=>Session){if(typeof indexedDB!=='undefined')void this.restoreTakes();}
  get state(){return this.running?'PLAY':this.stopAt?'PAUSE':'STOP';}
  get recording(){return this.recordArmed;}
+ get autoMixing(){return this.autoMixBanks!==null;}
+ setAutoMix(enabled:boolean,banks:Pattern[]=[],baseBank=0){
+  if(!enabled){this.autoMixBanks=null;return;}
+  if(banks.length!==4||banks.some(pattern=>pattern.length!==8||pattern.some(row=>row.length!==STEPS)))throw Error('Для автомикса нужны четыре полных банка');
+  this.autoMixBanks=banks.map(pattern=>pattern.map(row=>row.slice()));
+  this.autoMixBase=Math.max(0,Math.min(3,Math.floor(baseBank)));
+  this.autoMixStartStep=this.nextStep;
+ }
+ get autoMixCaption(){if(!this.autoMixBanks)return '';
+  const {from,to,progress}=autoMixPosition(this.autoMixBase,this.nextStep-this.autoMixStartStep,4);
+  return String.fromCharCode(65+from)+(progress>0?' → '+String.fromCharCode(65+to):'');
+ }
  get sampling(){return this.sampleRecorder.active;}
  updateMix(){this.bus?.update(this.getSession());}
  get takes(){return this.recorded.slice();}
@@ -90,7 +104,7 @@ export class Engine{
   this.scheduledTempo=this.getSession().tempo;this.running=true;this.stopAt=0;this.generation++;this.pump();this.events.onState?.('PLAY');
  }
  pause(){if(!this.running)return;this.running=false;this.stopAt=this.time;this.generation++;this.silence();this.events.onState?.('PAUSE');}
- stop(){this.running=false;this.stopAt=0;this.recordArmed=false;this.nextStep=0;this.nextTime=0;this.generation++;this.silence();this.events.onState?.('STOP');}
+ stop(){this.running=false;this.stopAt=0;this.recordArmed=false;this.autoMixStartStep=0;this.nextStep=0;this.nextTime=0;this.generation++;this.silence();this.events.onState?.('STOP');}
  async toggleRecord(){await this.unlock();if(!this.running)await this.start();if(!this.running)return this.recordArmed;this.recordArmed=!this.recordArmed;this.events.onState?.(this.recordArmed?'REC ON':'REC OFF');return this.recordArmed;}
  async hit(pad:number,velocity=1){if(!Number.isInteger(pad)||pad<0||pad>7||this.getSession().muted[pad])return;
   // Do not await resume or worklet setup once AudioContext is already running. Trigger voice on pointerdown.
@@ -109,7 +123,10 @@ export class Engine{
   // Safari background suspension: fast-forward stale transport steps instead of bursting delayed notes.
   if(this.nextTime<now-.035){const skip=Math.max(1,Math.ceil((now-this.nextTime-.008)/d));this.nextStep+=skip;this.nextTime+=skip*d;}
   while(this.nextTime<now+.115){const step=this.nextStep%STEPS,session=this.getSession();
-   for(let p=0;p<8;p++){let velocity=session.pattern[p]?.[step]??0;if(session.muted[p]||velocity===0)continue;
+   const position=this.autoMixBanks?autoMixPosition(this.autoMixBase,this.nextStep-this.autoMixStartStep,4):null;
+   const voices=position&&this.autoMixBanks?Array.from({length:8},(_,p)=>blendVelocity(this.autoMixBanks![position.from]!,this.autoMixBanks![position.to]!,p,step,position.progress)).filter(v=>v>0).length:0;
+   const trim=position?simultaneousTrim(voices):1;
+   for(let p=0;p<8;p++){let velocity=position&&this.autoMixBanks?blendVelocity(this.autoMixBanks[position.from]!,this.autoMixBanks[position.to]!,p,step,position.progress)*trim:(session.pattern[p]?.[step]??0);if(session.muted[p]||velocity===0)continue;
     if(session.scene===1&&p>3)continue; // intro reduced
     if(session.scene===4&&p===0&&step%8!==0)continue; // break
     if(session.scene===2&&p===3&&step%2===1)velocity=.48; // build
@@ -129,7 +146,7 @@ export class Engine{
   high.frequency.value=Math.min(ctx.sampleRate*.46,sample?.highCut??(pad===1?640:pad===6?15500:17000));
   low.Q.value=.707;high.Q.value=.707;
   const baseline=voiceGain(velocity,level,sample?.gain??(pad===1?.64:pad===6?.33:.78));
-  const attack=.003,release=.012;
+  const attack=(pad===0||pad===2||pad===3||pad===4)?0.0008:0.0018,release=.013;
   low.connect(high).connect(amp).connect(bus);
   const playing:{stop:()=>void;until:number}={stop:()=>{},until:when+1};
   const cleanup=()=>{try{low.disconnect();high.disconnect();amp.disconnect()}catch{}this.active.delete(playing)};
