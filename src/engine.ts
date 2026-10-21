@@ -60,6 +60,12 @@ export class Engine{
  get recording(){return this.recordArmed;}
  get sampling(){return this.sampleRecorder.active;}
  updateMix(){this.bus?.update(this.getSession());if(this.autoMix)this.updateAutoMix();}
+ /** Connect local music files before master EQ, protection and stereo meter. */
+ connectMusicSource(node:AudioNode):()=>void {
+  if(!this.ctx||!this.bus||this.ctx.state!=='running')throw Error('Аудиодвижок недоступен');
+  const target=this.bus.input;node.connect(target);
+  return ()=>{try{node.disconnect(target)}catch{}};
+ }
  get autoMixEnabled(){return this.autoMix;}
  setAutoMix(enabled:boolean){this.autoMix=enabled;if(enabled)this.updateAutoMix();else this.bus?.update(this.getSession());}
  private updateAutoMix(){if(!this.bus||!this.ctx)return;const beat=this.running?(this.ctx.currentTime-this.origin)*this.getSession().tempo/60:0;const [a,b]=crossfadeGains(autoMixPosition(beat));const t=this.ctx.currentTime;this.bus.a.gain.setTargetAtTime(a,t,.035);this.bus.b.gain.setTargetAtTime(b,t,.035);}
