@@ -2,7 +2,8 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {defaultSession,sanitizeSession,note,toggle,createPattern,STEPS,STYLES} from '../app/model.js';
 import {analyzeAudio,choosePad} from '../app/smart.js';
 import {composeGroove} from '../app/arranger.js';
-import {AUDIO_HEADROOM,crossfadeGains,voiceGain,lowpassHz} from '../app/audio-quality.js';
+import {AUDIO_HEADROOM,crossfadeGains,voiceGain,lowpassHz,recordingExtension} from '../app/audio-quality.js';
+import {pcmWav,preferPcmRecording} from '../app/sample-recorder.js';
 test('8 pads, 16 steps and different style compositions',()=>{const a=defaultSession();assert.equal(a.pattern.length,8);for(const row of a.pattern)assert.equal(row.length,16);assert.ok(STYLES.length>=12);assert.notDeepEqual(createPattern(0),createPattern(5));});
 test('live overdub adds notes but never clears existing events',()=>{const p=createPattern();assert.equal(note(p,5,9,.85),true);assert.ok((p[5][9]??0)>.8);assert.equal(note(p,5,9,.25),true);assert.ok((p[5][9]??0)>.8);toggle(p,5,9);assert.equal(p[5][9],0);});
 test('older 32 step projects truncate safely to 16',()=>{const raw={version:16,bpm:143,bank:3,pattern:Array.from({length:16},()=>Array(32).fill(1)),levels:Array(8).fill(1.5)};const a=sanitizeSession(raw);assert.equal(a.pattern.length,8);assert.equal(a.pattern[0].length,16);assert.equal(a.tempo,143);assert.equal(a.style,3);assert.equal(a.levels[0],1.2);});
@@ -53,4 +54,36 @@ test('every factory slot resolves to one fixed shipped sample, never fallback sy
  }
  assert.ok(!engine.includes('createOscillator'),'No synthetic substitute on missing pad WAV');
  assert.match(engine,/if\(!sample\)return/);
+});
+
+test('recording formats retain their actual container extensions',()=>{
+ for(const [mime,ext] of [['audio/wav','wav'],['audio/x-wav','wav'],['audio/wave','wav'],['audio/MP4;codecs=mp4a.40.2','m4a'],['audio/webm;codecs=opus','webm']])assert.equal(recordingExtension(mime),ext);
+ assert.throws(()=>recordingExtension('application/octet-stream'),/не поддерживается/);
+});
+test('WebKit WAV fallback writes valid interleaved stereo 16-bit PCM',async()=>{
+ const frame=new Float32Array([.25,-.25,.5,-.5,1,-1,0,0]);
+ const blob=pcmWav([frame],4,48000);
+ assert.equal(blob.type,'audio/wav');assert.equal(blob.size,44+4*4);
+ const view=new DataView(await blob.arrayBuffer());
+ const chars=(a,n)=>Array.from({length:n},(_,i)=>String.fromCharCode(view.getUint8(a+i))).join('');
+ assert.equal(chars(0,4),'RIFF');assert.equal(chars(8,4),'WAVE');assert.equal(chars(36,4),'data');
+ assert.equal(view.getUint32(24,true),48000);assert.equal(view.getUint16(22,true),2);
+ assert.equal(view.getUint16(34,true),16);assert.equal(view.getUint32(40,true),16);
+ assert.ok(view.getInt16(44,true)>8000);assert.ok(view.getInt16(46,true)<-8000);
+ assert.equal(view.getInt16(56,true),0);
+});
+test('async IndexedDB sample restore must never overwrite a freshly imported pad',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const text=readFileSync('src/sounds.ts','utf8');
+ assert.match(text,/!this.deleted.has\(key\)&&!this.custom.has\(key\)/);
+});
+
+test('WebKit and all iOS browsers use reliable lossless PCM for short captures',()=>{
+ const safari='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Safari/605.1.15';
+ const iphone='Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/127.0 Mobile/15E148 Safari/604.1';
+ const chrome='Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Mobile Safari/537.36';
+ assert.equal(preferPcmRecording(safari,true),true);
+ assert.equal(preferPcmRecording(iphone,true),true);
+ assert.equal(preferPcmRecording(chrome,true),false);
+ assert.equal(preferPcmRecording(chrome,false),true);
 });
