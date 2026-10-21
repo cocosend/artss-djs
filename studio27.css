@@ -598,3 +598,10 @@ body{background:radial-gradient(ellipse 82% 25% at 80% -10%,#422066 0%,transpare
 .nexus-app .auto-track-buttons button:disabled{opacity:.4}
 .nexus-app #trackMixStatus{margin:0;min-height:20px;overflow-wrap:anywhere;color:#c6cdda;font-size:10px;line-height:1.45}
 @media(prefers-reduced-motion:reduce){.nexus-app .auto-track-chevron{transition:none}}
+
+/* NEXUS 28: tactile language switch must never sit beneath branding on narrow phones. */
+.nexus-app .brand-stack{pointer-events:none;min-width:0;max-width:100%;overflow:hidden}
+.nexus-app .nexus-header{display:flex;align-items:center;gap:clamp(3px,1.3vw,8px)}
+.nexus-app .head-tools{position:relative;z-index:5;display:flex;align-items:center;flex:none;gap:clamp(3px,.85vw,7px);margin-left:auto}
+.nexus-app .head-tools .language-toggle{position:relative;z-index:6;flex:none;pointer-events:auto;touch-action:manipulation}
+@media(max-width:390px){.nexus-app .brand-stack b{letter-spacing:.17em;text-indent:0;font-size:clamp(14px,4.1vw,17px)}.nexus-app .brand-stack span{letter-spacing:.07em;font-size:8px}.nexus-app .head-tools .chrome-icon{width:30px;min-width:30px;height:30px}}
