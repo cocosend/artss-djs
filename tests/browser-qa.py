@@ -48,6 +48,23 @@ with sync_playwright() as playwright:
  assert page.locator('[data-pane="profile"]').is_visible()
  assert page.locator('#sourceForm').count()==0
  assert page.locator('#waveform').count()==1
+ assert page.locator('#eqLow').evaluate("el=>getComputedStyle(el).touchAction")=='none'
+ # A pad touch must retain editor step DOM nodes instead of rebuilding the sequencer.
+ page.evaluate("window.__stepBefore=document.querySelector('#steps .step')")
+ page.locator('.pad[data-pad="3"]').tap()
+ assert page.evaluate("document.querySelector('#steps .step')===window.__stepBefore"),'Touch rebuilt step controls'
+ # True held-pointer affordance; pointercancel also releases it safely.
+ held=page.evaluate("""()=>{
+  const pad=document.querySelector('.pad[data-pad="3"]');
+  pad.dispatchEvent(new PointerEvent('pointerdown',{pointerId:777,pointerType:'touch',clientY:100,bubbles:true,cancelable:true}));
+  return pad.classList.contains('pressed');
+ }""")
+ assert held,'Pad did not respond on pointerdown'
+ page.wait_for_timeout(150)
+ assert page.locator('.pad[data-pad="3"]').evaluate("el=>el.classList.contains('pressed')"),'Pressed UI expired while still held'
+ page.evaluate("""()=>document.querySelector('.pad[data-pad="3"]').dispatchEvent(new PointerEvent('pointercancel',{pointerId:777,pointerType:'touch',bubbles:true}))""")
+ page.wait_for_timeout(100)
+ assert not page.locator('.pad[data-pad="3"]').evaluate("el=>el.classList.contains('pressed')"),'Pointer cancel left pad stuck'
  assert page.locator('.pattern-lane').count()==4
  assert page.locator('.pattern-cell').count()==64
  assert page.locator('.channel').count()==0
@@ -86,9 +103,19 @@ with sync_playwright() as playwright:
  page.locator('.pattern-cell[data-pad="0"][data-step="0"]').tap()
  page.locator('.pattern-cell[data-pad="0"][data-step="0"]').tap()
  page.locator('#eqLow').fill('4')
- assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).eqLow')==4
+ page.wait_for_function("JSON.parse(localStorage.getItem('artss-live-session-v19')).eqLow===4")
+ # Drag the EQ dial vertically 35 CSS pixels: should boost exactly +5 dB.
+ new_value=page.evaluate("""()=>{
+  const knob=document.querySelector('#eqLow');
+  knob.dispatchEvent(new PointerEvent('pointerdown',{pointerId:914,pointerType:'touch',clientY:170,bubbles:true,cancelable:true}));
+  knob.dispatchEvent(new PointerEvent('pointermove',{pointerId:914,pointerType:'touch',clientY:135,bubbles:true,cancelable:true}));
+  knob.dispatchEvent(new PointerEvent('pointerup',{pointerId:914,pointerType:'touch',clientY:135,bubbles:true,cancelable:true}));
+  return Number(knob.value);
+ }""")
+ assert new_value==9,('EQ finger drag inconsistent',new_value)
+ page.wait_for_function("JSON.parse(localStorage.getItem('artss-live-session-v19')).eqLow===9")
  page.locator('#crossfade').fill('66')
- assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).crossfader')==.66
+ page.wait_for_function("JSON.parse(localStorage.getItem('artss-live-session-v19')).crossfader===.66")
  page.locator('#quickUpload').tap()
  assert page.locator('#soundsFan').get_attribute('open') is not None
  assert page.locator('#replaceTarget option').count()==8
@@ -100,10 +127,10 @@ with sync_playwright() as playwright:
  page.locator('[data-pane="mix"]').tap()
  assert page.locator('#mixFan').get_attribute('open') is not None
  assert page.locator('.mixrow').count()==8
- page.locator('#filter').fill('50');assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).filter')==.5
- page.locator('#echo').fill('30');assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).echo')==.3
+ page.locator('#filter').fill('50');page.wait_for_function("JSON.parse(localStorage.getItem('artss-live-session-v19')).filter===.5")
+ page.locator('#echo').fill('30');page.wait_for_function("JSON.parse(localStorage.getItem('artss-live-session-v19')).echo===.3")
  assert page.locator('#crossfade').count()==1
- page.locator('.mixrow input[type="range"]').first.fill('67');assert page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).levels[0]')==.67
+ page.locator('.mixrow input[type="range"]').first.fill('67');page.wait_for_function("JSON.parse(localStorage.getItem('artss-live-session-v19')).levels[0]===.67")
  page.locator('[data-pane="takes"]').tap()
  with page.expect_download(timeout=60000) as event: page.locator('#export').tap()
  downloaded=event.value

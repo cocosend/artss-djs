@@ -4,6 +4,7 @@ import {analyzeAudio,choosePad} from '../app/smart.js';
 import {composeGroove} from '../app/arranger.js';
 import {AUDIO_HEADROOM,crossfadeGains,voiceGain,lowpassHz,recordingExtension} from '../app/audio-quality.js';
 import {pcmWav,preferPcmRecording} from '../app/sample-recorder.js';
+import {knobDragValue} from '../app/touch.js';
 test('8 pads, 16 steps and different style compositions',()=>{const a=defaultSession();assert.equal(a.pattern.length,8);for(const row of a.pattern)assert.equal(row.length,16);assert.ok(STYLES.length>=12);assert.notDeepEqual(createPattern(0),createPattern(5));});
 test('live overdub adds notes but never clears existing events',()=>{const p=createPattern();assert.equal(note(p,5,9,.85),true);assert.ok((p[5][9]??0)>.8);assert.equal(note(p,5,9,.25),true);assert.ok((p[5][9]??0)>.8);toggle(p,5,9);assert.equal(p[5][9],0);});
 test('older 32 step projects truncate safely to 16',()=>{const raw={version:16,bpm:143,bank:3,pattern:Array.from({length:16},()=>Array(32).fill(1)),levels:Array(8).fill(1.5)};const a=sanitizeSession(raw);assert.equal(a.pattern.length,8);assert.equal(a.pattern[0].length,16);assert.equal(a.tempo,143);assert.equal(a.style,3);assert.equal(a.levels[0],1.2);});
@@ -86,4 +87,15 @@ test('WebKit and all iOS browsers use reliable lossless PCM for short captures',
  assert.equal(preferPcmRecording(iphone,true),true);
  assert.equal(preferPcmRecording(chrome,true),false);
  assert.equal(preferPcmRecording(chrome,false),true);
+});
+
+test('EQ drag has stable pixel sensitivity, no jumps on touch and safe bounds',()=>{
+ assert.equal(knobDragValue(0,0),0);
+ assert.equal(knobDragValue(0,-35),5);
+ assert.equal(knobDragValue(0,35),-5);
+ assert.equal(knobDragValue(4,-35),9);
+ assert.equal(knobDragValue(0,-900),12);
+ assert.equal(knobDragValue(0,900),-12);
+ assert.equal(knobDragValue(NaN,0),0);
+ assert.equal(knobDragValue(3,NaN),3);
 });

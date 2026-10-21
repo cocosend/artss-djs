@@ -35,3 +35,9 @@ Engineering priorities: **sound integrity → correctness/data preservation → 
 - MediaRecorder failures must release microphone tracks and notify UI instead of leaving the recording button armed.
 
 - On Safari and iOS WebKit, short live/microphone sample recordings use the bounded PCM capture path, avoiding the flaky short MediaRecorder pipeline. Chromium retains MediaRecorder. Browser QA verifies actual WAV storage.
+
+## v27.2 tactile interaction
+- Pads render their pressed state immediately on pointerdown and retain it until pointerup or pointercancel; allow true multi-touch while forbidding long-press file pickers.
+- Pad selection changes classes, not audio engine, pad DOM nodes, or sequencer structure; tapping existing step controls persists via bounded 250 ms debounce with pagehide/background flush.
+- LOW/MID/HIGH accept vertical touch movement at 7 CSS px/dB, native keyboard access remains, and all frequency changes reach AudioParam before persistence.
+- One CSS cascade only; preserve 8 pads/4x2, A-D bank strip, five tabs and headroom/compressor behavior.
