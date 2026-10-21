@@ -70,18 +70,26 @@ with sync_playwright() as playwright:
  page.evaluate("window.__stepBefore=document.querySelector('#steps .step')")
  page.locator('.pad[data-pad="3"]').tap()
  assert page.evaluate("document.querySelector('#steps .step')===window.__stepBefore"),'Touch rebuilt step controls'
- # True held-pointer affordance; pointercancel also releases it safely.
- held=page.evaluate("""()=>{
+ # Hold is tested with a trusted mouse down/up, not an untrusted synthetic pointer
+ # which WebKit/Chromium can immediately cancel with lostpointercapture.
+ pad=page.locator('.pad[data-pad="3"]')
+ bounds=pad.bounding_box();assert bounds
+ page.mouse.move(bounds['x']+bounds['width']/2,bounds['y']+bounds['height']/2)
+ page.mouse.down()
+ assert pad.evaluate("el=>el.classList.contains('pressed')"),'Pad did not respond on pointerdown'
+ page.wait_for_timeout(150)
+ assert pad.evaluate("el=>el.classList.contains('pressed')"),'Pressed UI expired while physically held'
+ page.mouse.up()
+ page.wait_for_timeout(100)
+ assert not pad.evaluate("el=>el.classList.contains('pressed')"),'Pointerup left pad stuck'
+ # Cancellation is a separate event-flow assertion.
+ page.evaluate("""()=>{
   const pad=document.querySelector('.pad[data-pad="3"]');
   pad.dispatchEvent(new PointerEvent('pointerdown',{pointerId:777,pointerType:'touch',clientY:100,bubbles:true,cancelable:true}));
-  return pad.classList.contains('pressed');
+  pad.dispatchEvent(new PointerEvent('pointercancel',{pointerId:777,pointerType:'touch',bubbles:true}));
  }""")
- assert held,'Pad did not respond on pointerdown'
- page.wait_for_timeout(150)
- assert page.locator('.pad[data-pad="3"]').evaluate("el=>el.classList.contains('pressed')"),'Pressed UI expired while still held'
- page.evaluate("""()=>document.querySelector('.pad[data-pad="3"]').dispatchEvent(new PointerEvent('pointercancel',{pointerId:777,pointerType:'touch',bubbles:true}))""")
  page.wait_for_timeout(100)
- assert not page.locator('.pad[data-pad="3"]').evaluate("el=>el.classList.contains('pressed')"),'Pointer cancel left pad stuck'
+ assert not pad.evaluate("el=>el.classList.contains('pressed')"),'Pointercancel left pad stuck'
  assert page.locator('.pad[data-pad="3"]').evaluate("""el=>!el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))"""),'Long press unexpectedly opens sample replacement'
  assert page.locator('#pads .pad').first.evaluate("el=>getComputedStyle(el).touchAction")=='none'
  assert page.locator('.pattern-lane').count()==4
