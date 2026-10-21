@@ -22,3 +22,5 @@ class PcmCapture extends AudioWorkletProcessor {
  }
 }
 registerProcessor('artss-pcm-capture',PcmCapture);
+
+export {};
