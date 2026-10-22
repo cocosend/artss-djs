@@ -173,6 +173,23 @@ with sync_playwright() as playwright:
  page.locator('#record').tap();assert 'ЗАПИСЬ' in page.locator('#record').inner_text()
  page.locator('#play').tap();page.locator('#play').tap();page.wait_for_timeout(100)
  page.locator('#stop').tap()
+ if browser_type=='chromium':
+  # A synthetic local MediaStream tests real CUE -> master take -> saved audio, no microphone permission dialog.
+  page.evaluate("""()=>{
+   navigator.mediaDevices.getUserMedia=async()=>{
+    const ctx=new AudioContext(),osc=ctx.createOscillator(),out=ctx.createMediaStreamDestination();
+    osc.frequency.value=330;osc.connect(out);osc.start();window.__qaCueAudio={ctx,osc};
+    return out.stream;
+   };
+  }""")
+  page.locator('#cueOverdub').tap()
+  page.wait_for_function("document.querySelector('#cueOverdub').getAttribute('aria-pressed')==='true'",timeout=15000)
+  assert 'ЗАВЕРШИТЬ' in page.locator('#take').text_content()
+  page.wait_for_timeout(950)
+  page.locator('#cueOverdub').tap()
+  page.wait_for_function("document.querySelector('#cueOverdub').getAttribute('aria-pressed')==='false'",timeout=15000)
+  page.wait_for_function("document.querySelectorAll('#takesList .take').length>0",timeout=12000)
+  page.evaluate("()=>{window.__qaCueAudio.osc.stop();return window.__qaCueAudio.ctx.close()}")
  page.locator('#advancedEditor summary').tap()
  page.locator('#pageB').tap();assert '09–16' in page.locator('#stepLabel').inner_text()
  prior_state=page.locator('.step').first.evaluate("el=>el.classList.contains('on')")
