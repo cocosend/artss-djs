@@ -2,7 +2,7 @@ import {SampleRecorder,preferPcmRecording,type CaptureSource} from './sample-rec
 import {STEPS,STYLES,type Session,note} from './model.js';
 import {placeSample} from './arranger.js';
 import {SoundBank,type Sound} from './sounds.js';
-import {AUDIO_HEADROOM,crossfadeGains,voiceGain,lowpassHz,recordingExtension,autoMixPosition} from './audio-quality.js';
+import {AUDIO_HEADROOM,crossfadeGains,voiceGain,lowpassHz,recordingExtension} from './audio-quality.js';
 export type EngineEvents={onStep?:(step:number)=>void;onState?:(state:string)=>void;onMeter?:(value:number)=>void;onClip?:(pad:number)=>void;onSamples?:()=>void};
 const clamp=(x:number,lo:number,hi:number)=>Math.min(hi,Math.max(lo,x));
 const sampleRate=44100;
@@ -16,6 +16,10 @@ function wavExport(buffer:AudioBuffer):Blob {
 }
 function createBus(ctx:BaseAudioContext,destination:AudioNode,settings:Session){
  const a=ctx.createGain(),b=ctx.createGain(),input=ctx.createGain();
+ const channels=Array.from({length:8},(_,pad)=>{
+  const channel=ctx.createGain();channel.gain.value=settings.muted[pad]?0:clamp(settings.levels[pad]??1,0,1.2);
+  channel.connect((pad===1||pad>=6)?b:a);return channel;
+ });
  // DC/subsonic energy eats headroom and is inaudible on mobile speakers.
  const dc=ctx.createBiquadFilter();dc.type='highpass';dc.frequency.value=20;dc.Q.value=.707;
  const filter=ctx.createBiquadFilter();filter.type='lowpass';filter.Q.value=.58;
@@ -36,6 +40,7 @@ function createBus(ctx:BaseAudioContext,destination:AudioNode,settings:Session){
  function update(st:Session){
   const t=ctx.currentTime,[gainA,gainB]=crossfadeGains(st.crossfader);
   a.gain.setTargetAtTime(gainA,t,.012);b.gain.setTargetAtTime(gainB,t,.012);
+  channels.forEach((channel,pad)=>channel.gain.setTargetAtTime(st.muted[pad]?0:clamp(st.levels[pad]??1,0,1.2),t,.008));
   filter.frequency.setTargetAtTime(lowpassHz(st.filter,ctx.sampleRate),t,.024);
   echoSend.gain.setTargetAtTime(AUDIO_HEADROOM.echoSend*clamp(st.echo,0,1),t,.028);
   eqLow.gain.setTargetAtTime(clamp(st.eqLow,-12,12),t,.017);
@@ -44,17 +49,17 @@ function createBus(ctx:BaseAudioContext,destination:AudioNode,settings:Session){
   echo.delayTime.setTargetAtTime(.75*60/clamp(st.tempo,80,175),t,.024);
  }
  update(settings);
- return {input,a,b,master,meter,update};
+ return {input,a,b,channels,master,meter,update};
 }
 
 export class Engine{
  ctx:AudioContext|null=null;bank=new SoundBank();private bus:ReturnType<typeof createBus>|null=null;
  private clock:AudioWorkletNode|null=null;private fallback:number|null=null;
  private pending=false;private running=false;private recordArmed=false;private origin=0;private nextStep=0;private nextTime=0;private stopAt=0;
- private active=new Set<{stop:()=>void;until:number}>();
+ private active=new Set<{stop:()=>void;until:number;when:number}>();
  private generation=0;private scheduledTempo=136;private recorder:MediaRecorder|null=null;private capture:MediaStreamAudioDestinationNode|null=null;
  private recorded:Blob[]=[];private currentChunks:Blob[]=[];
- private gain=1;private autoMix=false;private musicDucker:GainNode|null=null;private sampleRecorder=new SampleRecorder();
+ private gain=1;private sampleRecorder=new SampleRecorder();
  private offlineSampleActive=false;private offlineSampleAt=0;private offlineSampleTimer:number|null=null;
  private offlineSampleHits:Array<{pad:number;at:number;velocity:number;style:number;level:number}>=[];
  private sampleTarget:{pad:number;style:number}|null=null;events:EngineEvents={};
@@ -62,36 +67,28 @@ export class Engine{
  get state(){return this.running?'PLAY':this.stopAt?'PAUSE':'STOP';}
  get recording(){return this.recordArmed;}
  get sampling(){return this.offlineSampleActive||this.sampleRecorder.active;}
- updateMix(){this.bus?.update(this.getSession());if(this.autoMix)this.updateAutoMix();}
- /** Connect local music files before master EQ, protection and stereo meter. */
- connectMusicSource(node:AudioNode):()=>void {
-  if(!this.ctx||!this.bus||this.ctx.state!=='running')throw Error('Аудиодвижок недоступен');
-  const target=this.bus.input,duck=this.ctx.createGain();
-  duck.gain.value=1;node.connect(duck);duck.connect(target);
-  this.musicDucker=duck;
-  return ()=>{try{node.disconnect(duck);duck.disconnect()}catch{}
-   if(this.musicDucker===duck)this.musicDucker=null;
-  };
+ updateMix(){
+  const tempo=this.getSession().tempo;
+  if(this.running&&this.ctx&&tempo!==this.scheduledTempo)this.rephase(tempo);
+  this.bus?.update(this.getSession());
  }
- get autoMixEnabled(){return this.autoMix;}
- setAutoMix(enabled:boolean){this.autoMix=enabled;if(enabled)this.updateAutoMix();else this.bus?.update(this.getSession());}
- private updateAutoMix(){if(!this.bus||!this.ctx)return;const beat=this.running?(this.ctx.currentTime-this.origin)*this.getSession().tempo/60:0;const [a,b]=crossfadeGains(autoMixPosition(beat));const t=this.ctx.currentTime;this.bus.a.gain.setTargetAtTime(a,t,.035);this.bus.b.gain.setTargetAtTime(b,t,.035);}
+ private rephase(tempo:number){
+  if(!this.ctx||!this.running)return;
+  const now=this.ctx.currentTime,oldStep=60/this.scheduledTempo/4,newStep=60/tempo/4;
+  const phase=Math.max(0,(now-this.origin)/oldStep);
+  for(const voice of [...this.active])if(voice.when>now){voice.stop();this.active.delete(voice)}
+  this.origin=now-phase*newStep;
+  this.nextStep=Math.max(0,Math.ceil(phase+1e-7));
+  this.nextTime=this.origin+this.nextStep*newStep;
+  this.scheduledTempo=tempo;
+  this.pump();
+ }
  get takes(){return this.recorded.slice();}
  get time(){return this.ctx?.currentTime??0;}
  private meterData=new Uint8Array(256);
  get meterLevel(){if(!this.bus)return 0;this.bus.meter.getByteTimeDomainData(this.meterData);let energy=0;for(let i=0;i<this.meterData.length;i++){const v=(this.meterData[i]!-128)/128;energy+=v*v;}return Math.min(1,Math.sqrt(energy/this.meterData.length)*2.8);}
  readWaveform(output:Uint8Array):boolean{if(!this.bus||!this.ctx||this.ctx.state!=='running')return false;this.bus.meter.getByteTimeDomainData(output);return true;}
  get currentStep(){if(!this.ctx||!this.running)return 0;const d=60/this.getSession().tempo/4;return ((Math.floor((this.time-this.origin)/d+1e-4)%STEPS)+STEPS)%STEPS;}
- /** Phase-lock music playback to the NEXT actual 16-step pad downbeat (AudioContext clock). */
- getMusicSyncPoint():{time:number;tempo:number;playing:boolean}{
-  const tempo=this.getSession().tempo,now=this.ctx?.currentTime??0,d=60/tempo/4;
-  if(!this.running||!this.ctx)return {time:now+.09,tempo,playing:false};
-  this.pump(); // Rephase the sequencer first if BPM changed this gesture.
-  const delta=(STEPS-this.nextStep%STEPS)%STEPS;
-  let at=this.nextTime+delta*d;
-  while(at<now+.09)at+=STEPS*d;
-  return {time:at,tempo,playing:true};
- }
  async unlock():Promise<void>{
   if(!this.ctx){const C=window.AudioContext||(window as Window & {webkitAudioContext?:typeof AudioContext}).webkitAudioContext;if(!C)throw Error('Web Audio недоступен');this.ctx=new C({latencyHint:'interactive'});void this.bank.restore(this.ctx).then(()=>this.events.onSamples?.()).catch(()=>{});this.bus=createBus(this.ctx,this.ctx.destination,this.getSession());}
   if(this.ctx.state!=='running')await this.ctx.resume();
@@ -130,7 +127,7 @@ export class Engine{
   if(!this.bank.resolve(pad,this.getSession().style))await this.bank.ensurePad(this.ctx!,pad);
   if(generation!==this.generation||this.getSession().muted[pad])return;
   const now=this.ctx!.currentTime+.002;
-  this.voice(this.ctx!,((pad===1||pad>=6)?this.bus!.b:this.bus!.a),pad,now,velocity,this.getSession().style,this.getSession().levels[pad]??1);
+  this.voice(this.ctx!,this.bus!.channels[pad]!,pad,now,velocity,this.getSession().style,1);
   if(this.recordArmed&&this.running){const d=60/this.getSession().tempo/4;
    const quant=this.getSession().quantize?Math.round((now-this.origin)/d):Math.floor((now-this.origin)/d);
    const at=((quant%STEPS)+STEPS)%STEPS;note(this.getSession().pattern,pad,at,Math.min(1,velocity));this.events.onClip?.(pad);}
@@ -138,16 +135,12 @@ export class Engine{
  private silence(){for(const v of this.active){try{v.stop();}catch{}}this.active.clear();}
  private pump(){if(!this.ctx||!this.running||!this.bus)return;
   const now=this.ctx.currentTime;const tempo=this.getSession().tempo;const d=60/tempo/4;
-  if(this.autoMix)this.updateAutoMix();
-  if(this.scheduledTempo!==tempo){this.origin=this.nextTime-this.nextStep*d;this.scheduledTempo=tempo;}
+  if(this.scheduledTempo!==tempo){this.rephase(tempo);return;}
   // Safari background suspension: fast-forward stale transport steps instead of bursting delayed notes.
   if(this.nextTime<now-.035){const skip=Math.max(1,Math.ceil((now-this.nextTime-.008)/d));this.nextStep+=skip;this.nextTime+=skip*d;}
   while(this.nextTime<now+.115){const step=this.nextStep%STEPS,session=this.getSession();
-   for(let p=0;p<8;p++){let velocity=session.pattern[p]?.[step]??0;if(session.muted[p]||velocity===0)continue;
-    if(session.scene===1&&p>3)continue; // intro reduced
-    if(session.scene===4&&p===0&&step%8!==0)continue; // break
-    if(session.scene===2&&p===3&&step%2===1)velocity=.48; // build
-    this.voice(this.ctx,((p===1||p>=6)?this.bus.b:this.bus.a),p,this.nextTime,velocity,session.style,session.levels[p]??1);
+   for(let p=0;p<8;p++){const velocity=session.pattern[p]?.[step]??0;if(session.muted[p]||velocity===0)continue;
+    this.voice(this.ctx,this.bus.channels[p]!,p,this.nextTime,velocity,session.style,1);
    }
    this.events.onStep?.(step);this.nextStep++;this.nextTime+=d;
   }
@@ -155,12 +148,6 @@ export class Engine{
  }
  private voice(ctx:BaseAudioContext,bus:AudioNode,pad:number,when:number,velocity:number,style:number,level:number){
   const live=ctx===this.ctx;
-  if(live&&this.musicDucker&&(pad===0||pad===1||pad===2)){
-   // Mild, sample-accurate musical ducking; leave the original drum transient untouched.
-   const g=this.musicDucker.gain,t=Math.max(ctx.currentTime,when);
-   g.cancelScheduledValues(t);g.setTargetAtTime(pad===2?.90:.81,t,.012);
-   g.setTargetAtTime(1,t+.10,.12);
-  }
   if(live&&this.active.size>=28){const oldest=this.active.values().next().value;if(oldest){oldest.stop();this.active.delete(oldest);}}
   const sample=this.bank.resolve(pad,style);if(!sample)return;
   if(live&&this.offlineSampleActive){const at=when-this.offlineSampleAt;
@@ -175,7 +162,7 @@ export class Engine{
   const baseline=voiceGain(velocity,level,sample?.gain??(pad===1?.64:pad===6?.33:.78));
   const attack=.003,release=.012;
   low.connect(high).connect(amp).connect(bus);
-  const playing:{stop:()=>void;until:number}={stop:()=>{},until:when+1};
+  const playing:{stop:()=>void;until:number;when:number}={stop:()=>{},until:when+1,when};
   const cleanup=()=>{try{source.disconnect();low.disconnect();high.disconnect();amp.disconnect()}catch{}this.active.delete(playing)};
   amp.gain.setValueAtTime(0,when);amp.gain.linearRampToValueAtTime(Math.max(.00001,baseline),when+attack);
 
@@ -252,7 +239,7 @@ export class Engine{
    for(const hit of hits){
     if(hit.at>=duration)continue;
     const when=Math.max(.004,hit.at);
-    this.voice(offline,(hit.pad===1||hit.pad>=6)?mix.b:mix.a,hit.pad,when,hit.velocity,hit.style,hit.level);
+    this.voice(offline,mix.channels[hit.pad]!,hit.pad,when,hit.velocity,hit.style,1);
    }
    blob=wavExport(await offline.startRendering());
   }else blob=await this.sampleRecorder.stop();
@@ -282,7 +269,7 @@ export class Engine{
   const offline=new OfflineAudioContext(2,length,rate),bus=createBus(offline,offline.destination,state);
   for(let step=0;step<bars*16;step++)for(let pad=0;pad<8;pad++){
    const velocity=state.pattern[pad]?.[step%16]??0;if(!velocity||state.muted[pad])continue;
-   this.voice(offline,((pad===1||pad>=6)?bus.b:bus.a),pad,step*d+.02,velocity,state.style,state.levels[pad]??1);
+   this.voice(offline,bus.channels[pad]!,pad,step*d+.02,velocity,state.style,1);
   }
   return wavExport(await offline.startRendering());
  }

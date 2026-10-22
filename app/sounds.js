@@ -1,14 +1,19 @@
-import { analyzeAudio, choosePad, withFades } from './smart.js';
+import { analyzeAudio } from './smart.js';
+// Every factory pad plays a known shipped sample; never substitute an oscillator.
 const paths = [
-    ['/samples/kicks/punch-01.wav', '/samples/kicks/punch-03.wav', '/samples/kicks/deep-01.wav', '/samples/kicks/tight-02.wav'],
-    [], ['/samples/claps/classic-01.wav', '/samples/claps/classic-03.wav', '/samples/snares/snap-01.wav'],
-    ['/samples/hats/closed-01.wav', '/samples/hats/closed-05.wav'],
-    ['/samples/hats/open-01.wav', '/samples/hats/open-03.wav'],
-    ['/samples/percs/tom-01.wav', '/samples/percs/shaker-01.wav', '/samples/percs/tick-02.wav', '/samples/percs/blip-01.wav'],
-    [], ['/samples/cymbals/ride-01.wav']
+    ['/samples/kicks/punch-01.wav'],
+    ['/samples/kicks/deep-01.wav'],
+    ['/samples/claps/classic-01.wav'],
+    ['/samples/hats/closed-01.wav'],
+    ['/samples/hats/open-01.wav'],
+    ['/samples/percs/tom-01.wav'],
+    ['/samples/percs/blip-01.wav'],
+    ['/samples/cymbals/ride-01.wav']
 ];
 export class SoundBank {
     restored = false;
+    deleted = new Set();
+    decoding = new Map();
     defaultBuffers = new Map();
     warming = null;
     raw = new Map();
@@ -20,10 +25,51 @@ export class SoundBank {
                 this.raw.set(path, fetch(path, { cache: 'force-cache' }).then(r => { if (!r.ok)
                     throw Error('sample unavailable'); return r.arrayBuffer(); }).catch(() => new ArrayBuffer(0)));
         } }
-    async warm(ctx) { if (this.warming)
-        return this.warming; const needed = new Set(paths.flat()); const promise = Promise.allSettled([...needed].map(async (path) => { if (this.defaultBuffers.has(path))
-        return; const raw = await this.raw.get(path); if (!raw?.byteLength)
-        return; const buff = await ctx.decodeAudioData(raw.slice(0)); this.defaultBuffers.set(path, buff); })).then(() => { }); this.warming = promise; await promise; }
+    async decodePath(ctx, path) {
+        if (this.defaultBuffers.has(path))
+            return;
+        const existing = this.decoding.get(path);
+        if (existing)
+            return existing;
+        const pending = (async () => {
+            const raw = await this.raw.get(path);
+            if (!raw?.byteLength)
+                throw Error('Factory WAV not available: ' + path);
+            const buffer = await ctx.decodeAudioData(raw.slice(0));
+            this.defaultBuffers.set(path, buffer);
+        })();
+        this.decoding.set(path, pending);
+        try {
+            await pending;
+        }
+        finally {
+            this.decoding.delete(path);
+        }
+    }
+    async ensurePad(ctx, pad) {
+        if (!Number.isInteger(pad) || pad < 0 || pad >= 8)
+            return;
+        const path = paths[pad]?.[0];
+        if (path)
+            await this.decodePath(ctx, path);
+    }
+    async warm(ctx) {
+        if (this.warming)
+            return this.warming;
+        const pending = (async () => {
+            const files = [...new Set(paths.flat())];
+            // WebKit struggles with multiple concurrent decoder jobs; bound parallelism to two.
+            for (let i = 0; i < files.length; i += 2)
+                await Promise.allSettled(files.slice(i, i + 2).map(path => this.decodePath(ctx, path)));
+        })();
+        this.warming = pending;
+        try {
+            await pending;
+        }
+        finally {
+            this.warming = null;
+        }
+    }
     resolve(pad, style) {
         const imported = this.custom.get(`${style}:${pad}`) ?? this.custom.get(`legacy:${pad}`);
         if (imported)
@@ -31,11 +77,12 @@ export class SoundBank {
         const options = paths[pad];
         if (!options?.length)
             return null;
-        const url = options[style % options.length];
+        // Keep each pad's factory timbre stable across genre/preset changes.
+        const url = options[0];
         const buffer = url ? this.defaultBuffers.get(url) : null;
         if (!buffer)
             return null;
-        return { buffer, gain: .85, lowCut: pad === 3 || pad === 4 ? 3800 : pad === 0 ? 22 : 80, highCut: pad === 0 ? 500 : 19000, name: url.split('/').at(-1) ?? '', user: false };
+        return { buffer, gain: .85, lowCut: pad === 3 || pad === 4 ? 3800 : pad <= 1 ? 22 : 60, highCut: pad === 1 ? 650 : pad === 0 ? 15000 : 19000, name: url.split('/').at(-1) ?? '', user: false };
     }
     async importFile(file, ctx, overridePad, style = 0) {
         if (file.size > 16 * 1024 * 1024)
@@ -47,12 +94,17 @@ export class SoundBank {
         if (decoded.duration > 30)
             throw Error('Загрузи отдельный звук до 30 сек., не полный трек');
         const a = analyzeAudio(Array.from({ length: decoded.numberOfChannels }, (_, i) => decoded.getChannelData(i)), decoded.sampleRate);
-        const pad = overridePad ?? choosePad(a);
+        if (overridePad === undefined)
+            throw Error('Выбери пэд и явно нажми REPLACE. Автоматическая замена отключена.');
+        const pad = overridePad;
         if (!Number.isInteger(pad) || pad < 0 || pad > 7)
             throw Error('Некорректный пэд');
-        const buffer = withFades(decoded, a, ctx);
-        this.custom.set(`${style}:${pad}`, { buffer, gain: a.gain, lowCut: a.lowCut, highCut: a.highCut, name: file.name.replace(/\.[^.]+$/, ''), user: true });
-        await this.persist(`${style}:${pad}`, file);
+        // Preserve imported timbre; no automatic classifier EQ, gain boost or hard trimming.
+        const custom = { buffer: decoded, gain: 1, lowCut: 20, highCut: Math.min(20000, decoded.sampleRate * .46), name: file.name.replace(/\.[^.]+$/, ''), user: true };
+        const key = `${style}:${pad}`;
+        await this.persist(key, file);
+        this.deleted.delete(key);
+        this.custom.set(key, custom);
         return { pad, analysis: a, name: file.name };
     }
     async database() {
@@ -97,8 +149,8 @@ export class SoundBank {
                 resolve(result); }; req.onerror = () => resolve(result); });
             for (const item of entries) {
                 const key = typeof item.key === 'number' ? `legacy:${item.key}` : String(item.key);
-                const scoped = /^[0-5]:[0-7]$/.test(key), legacy = /^legacy:[0-7]$/.test(key);
-                if (!(scoped || legacy) || this.custom.has(key) || !item.value)
+                const scoped = /^(?:[0-9]|1[01]):[0-7]$/.test(key), legacy = /^legacy:[0-7]$/.test(key);
+                if (!(scoped || legacy) || this.deleted.has(key) || this.custom.has(key) || !item.value)
                     continue;
                 const entry = item.value;
                 let data = null;
@@ -111,7 +163,9 @@ export class SoundBank {
                 try {
                     const decoded = await ctx.decodeAudioData(data.slice(0));
                     const analysis = analyzeAudio(Array.from({ length: decoded.numberOfChannels }, (_, i) => decoded.getChannelData(i)), decoded.sampleRate);
-                    this.custom.set(key, { buffer: withFades(decoded, analysis, ctx), gain: analysis.gain, lowCut: analysis.lowCut, highCut: analysis.highCut, name: entry.name?.replace(/\.[^.]+$/, '') ?? 'USER', user: true });
+                    // A user may replace this pad while a legacy file is decoding; never let stale storage win.
+                    if (!this.deleted.has(key) && !this.custom.has(key))
+                        this.custom.set(key, { buffer: decoded, gain: 1, lowCut: 20, highCut: Math.min(20000, decoded.sampleRate * .46), name: entry.name?.replace(/\.[^.]+$/, '') ?? 'USER', user: true });
                 }
                 catch { }
             }
@@ -121,5 +175,37 @@ export class SoundBank {
         }
     }
     customInfo(pad, style) { return (this.custom.get(`${style}:${pad}`) ?? this.custom.get(`legacy:${pad}`))?.name ?? null; }
+    /** Remove a specific style override AND any legacy override without touching other pads/styles. */
+    async restoreFactory(pad, style) {
+        if (!Number.isInteger(pad) || pad < 0 || pad > 7 || !Number.isInteger(style) || style < 0 || style > 11)
+            throw Error('Некорректный пэд');
+        const keys = [`${style}:${pad}`, `legacy:${pad}`];
+        const found = keys.some(key => this.custom.has(key));
+        // Prevent asynchronous IDB restore from reintroducing deleted overrides.
+        for (const key of keys) {
+            this.deleted.add(key);
+            this.custom.delete(key);
+        }
+        const db = await this.database();
+        if (!db)
+            return found;
+        try {
+            await new Promise((resolve, reject) => {
+                const tx = db.transaction('pads', 'readwrite');
+                const store = tx.objectStore('pads');
+                for (const key of keys)
+                    store.delete(key);
+                // Older versions wrote numeric keys; those are read as legacy:<pad>.
+                store.delete(pad);
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+                tx.onabort = () => reject(tx.error);
+            });
+        }
+        finally {
+            db.close();
+        }
+        return found;
+    }
     clearCustom() { this.custom.clear(); }
 }

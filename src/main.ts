@@ -1,25 +1,23 @@
-import {defaultSession,importSession,PAD_NAMES,STYLES,SCENES,toggle,STEPS,sanitizeSession,type Session} from './model.js';
+import {defaultSession,importSession,PAD_NAMES,STYLES,toggle,STEPS,sanitizeSession,type Session} from './model.js';
 import {Engine} from './engine.js';
 import { composeGroove } from './arranger.js';
 import {knobDragValue} from './touch.js';
-import {AutoMixPlayer,type AutoMixState} from './automix-player.js';
 const $=<T extends HTMLElement=HTMLElement>(q:string)=>document.querySelector<T>(q)!;
 const getStorage=():Session=>{for(const key of ['artss-live-session-v19','artss-live-session-v18']){try{const v=localStorage.getItem(key);if(v)return importSession(v)}catch{}}return defaultSession()};
 const state=getStorage();const engine=new Engine(()=>state);
 const STYLE_LABELS=['АНДЕГРАУНД','ЖЁСТКОЕ ТЕХНО','ЭЙСИД','ТЁМНОЕ ТЕХНО','РЕЙВ','ФОНК','ИНДАСТРИАЛ','ГИПНОТИК','ПИК-ТАЙМ','БРЕЙКС','МИНИМАЛ','ЭЛЕКТРО'] as const;
-const SCENE_LABELS=['ГРУВ','ВСТУПЛЕНИЕ','РАЗГОН','ДРОП','БРЕЙК'] as const;
-const styleLabel=(i:number)=>STYLE_LABELS[i]??'СТИЛЬ',sceneLabel=(i:number)=>SCENE_LABELS[i]??'РИТМ';
+const styleLabel=(i:number)=>STYLE_LABELS[i]??'ПАТТЕРН';
 const localStatus=(value:string):string=>{
  const map:Record<string,string>={'PLAY':'ИГРАЕТ','PAUSE':'ПАУЗА','STOP':'ОСТАНОВЛЕНО','AUDIO READY':'ЗВУК ГОТОВ','REC ON':'ЗАПИСЬ ПЭДОВ','REC OFF':'ЛУП СОХРАНЁН','TAKE SAVED':'ДУБЛЬ СОХРАНЁН','TAKE RECORDING':'ЗАПИСЬ АУДИО','STORAGE FULL':'ПАМЯТЬ ЗАПОЛНЕНА','ERROR':'ОШИБКА','TAP AGAIN TO SET BPM':'НАЖМИ ЕЩЁ РАЗ ДЛЯ ТЕМПА','TAP PLAY TO RESTORE AUDIO':'НАЖМИ ПУСК ДЛЯ ВОЗОБНОВЛЕНИЯ ЗВУКА'};
  const direct=map[value];if(direct!==undefined)return direct;
- for(const [en,ru] of [['SAMPLE SAVED','СЭМПЛ СОХРАНЁН'],['SAMPLE REC','ЗАПИСЬ СЭМПЛА'],['SAMPLE ERROR','ОШИБКА СЭМПЛА'],['ORIGINAL RESTORED','ОРИГИНАЛ ВОССТАНОВЛЕН'],['LOADING CUSTOM AUDIO','ЗАГРУЗКА ЗВУКА'],['REPLACED ','ЗАМЕНЁН '],['RESTORE AVAILABLE','МОЖНО ВОССТАНОВИТЬ'],['RANDOM IDEA READY','СЛУЧАЙНЫЙ РИТМ ГОТОВ'],['AUTO GROOVE READY','РИТМ СОЗДАН'],['GROOVE RESTORED','РИТМ ВОССТАНОВЛЕН'],['RENDERING WAV','СОЗДАНИЕ WAV'],['WAV EXPORTED','WAV СОХРАНЁН'],['PAD BANK ','БАНК ПЭДОВ '],['PAD ','ПЭД ']] as const)value=value.replace(en,ru);
+ for(const [en,ru] of [['SAMPLE SAVED','СЭМПЛ СОХРАНЁН'],['SAMPLE REC','ЗАПИСЬ СЭМПЛА'],['SAMPLE ERROR','ОШИБКА СЭМПЛА'],['ORIGINAL RESTORED','ОРИГИНАЛ ВОССТАНОВЛЕН'],['LOADING CUSTOM AUDIO','ЗАГРУЗКА ЗВУКА'],['REPLACED ','ЗАМЕНЁН '],['RESTORE AVAILABLE','МОЖНО ВОССТАНОВИТЬ'],['PATTERN LOADED','ПАТТЕРН ЗАГРУЖЕН'],['PATTERN CLEARED','ПАТТЕРН ОЧИЩЕН'],['PATTERN RESTORED','ПАТТЕРН ВОССТАНОВЛЕН'],['RENDERING WAV','СОЗДАНИЕ WAV'],['WAV EXPORTED','WAV СОХРАНЁН'],['PAD BANK ','БАНК ПЭДОВ '],['PAD ','ПЭД ']] as const)value=value.replace(en,ru);
  return value;
 };
 const languageKey='artss-nexus-language';
 type Language='ru'|'en';
 let language:Language=(()=>{try{return localStorage.getItem(languageKey)==='en'?'en':'ru'}catch{return 'ru'}})();
 const englishLabels:Record<string,string>={
- 'ПУСК':'PLAY','ПАУЗА':'PAUSE','СТОП':'STOP','ЗАПИСЬ':'REC','СТОП ЗАПИСИ':'STOP REC','ГОТОВО':'READY','ИГРАЕТ':'PLAYING','ОСТАНОВЛЕНО':'STOPPED','ЗАПИСЬ ПЭДОВ':'PAD RECORDING','ЛУП СОХРАНЁН':'LOOP SAVED','ДРАМ-ПЭДЫ':'DRUM PADS','ШАГОВЫЙ СЕКВЕНСОР':'STEP SEQUENCER','ЗВУКИ':'SOUNDS','ПРЕСЕТЫ':'PRESETS','ПРОЕКТ':'PROJECT','СОЗДАТЬ':'CREATE','ИГРАТЬ':'PERFORM','МИКС':'MIX','СОЗДАТЬ РИТМ':'AUTO GROOVE','АВТОРИТМ':'AUTO RHYTHM','СЛУЧАЙНЫЙ':'RANDOM','РИТМ':'GROOVE','ЗАДАТЬ ТЕМП':'TAP TEMPO','СЦЕНА':'SCENE','СТИЛЬ':'STYLE','НИЗ':'LOW','СЕР':'MID','ВЕРХ':'HIGH','СИГНАЛ':'SIGNAL','ПЭДЫ':'PADS','ЗВУКИ ПЭДОВ':'PAD SOUNDS','НАСТРОЙКИ':'SETTINGS','МИКШЕР И FX':'MIX & FX','ЗАПИСАТЬ СЭМПЛ':'RECORD SAMPLE','ОТКРЫТЬ ЗАПИСЬ':'OPEN RECORDER','ЗАПИСАТЬ АУДИО':'RECORD AUDIO','НАЧАТЬ':'START','ЗАВЕРШИТЬ ДУБЛЬ':'FINISH TAKE','ЭКСПОРТ WAV':'EXPORT WAV','ДОБАВИТЬ СЭМПЛ':'ADD SAMPLE','ИСТОЧНИК':'SOURCE','ЗВУК ПЭДОВ':'PAD MIX','СВОЙ':'CUSTOM','ОРИГИНАЛ':'ORIGINAL','БОЧКА':'KICK','САБ':'SUB','ХЛОПОК':'CLAP','ХЭТ':'HAT','ОТКР. ХЭТ':'OPEN HAT','ПЕРК':'PERC','ЭЙСИД':'ACID','УДАР':'HIT','ГРУВ':'GROOVE','ВСТУПЛЕНИЕ':'INTRO','РАЗГОН':'BUILD','ДРОП':'DROP','БРЕЙК':'BREAK','АНДЕГРАУНД':'UNDERGROUND','ЖЁСТКОЕ ТЕХНО':'HARD TECHNO','ТЁМНОЕ ТЕХНО':'DARK TECHNO','РЕЙВ':'RAVE','ФОНК':'PHONK','ИНДАСТРИАЛ':'INDUSTRIAL','ГИПНОТИК':'HYPNOTIC','ПИК-ТАЙМ':'PEAK TIME','БРЕЙКС':'BREAKS','МИНИМАЛ':'MINIMAL','ЭЛЕКТРО':'ELECTRO','АВТОСВОДКА ТРЕКОВ':'TRACK AUTOMIX','ТЕМП':'TEMPO','УРОВЕНЬ':'LEVEL','ПЕРЕХОД':'TRANSITION','ВЫБЕРИ 2–3 СВОИХ АУДИОТРЕКА':'SELECT 2–3 LOCAL AUDIO TRACKS','СВЕСТИ ТРЕКИ':'MIX TRACKS','ОСТАНОВИТЬ':'STOP','АВТОМИКС':'AUTO MIX','ВЫКЛ':'OFF','ВКЛ':'ON','ПЛОТНОСТЬ':'DENSITY','ЗВУК ГОТОВ':'AUDIO READY','БИБЛИОТЕКА ЗВУКОВ':'SOUND LIBRARY','ЗАПИСЬ ВЫСТУПЛЕНИЯ':'PERFORMANCE RECORDING','АУДИОТРЕКИ':'AUDIO TRACKS'};
+ 'ПУСК':'PLAY','ПАУЗА':'PAUSE','СТОП':'STOP','ЗАПИСЬ':'REC','СТОП ЗАПИСИ':'STOP REC','ГОТОВО':'READY','ИГРАЕТ':'PLAYING','ОСТАНОВЛЕНО':'STOPPED','ЗАПИСЬ ПЭДОВ':'PAD RECORDING','ЛУП СОХРАНЁН':'LOOP SAVED','ДРАМ-ПЭДЫ':'DRUM PADS','ШАГОВЫЙ СЕКВЕНСОР':'STEP SEQUENCER','ЗВУКИ':'SOUNDS','ПРЕСЕТЫ':'PRESETS','ПРОЕКТ':'PROJECT','МИКС':'MIX','ЗАДАТЬ ТЕМП':'TAP TEMPO','ПАТТЕРН':'PATTERN','ПАТТЕРНЫ':'PATTERNS','ЗАПИСИ':'RECORDINGS','НИЗ':'LOW','СЕР':'MID','ВЕРХ':'HIGH','СИГНАЛ':'SIGNAL','ПЭДЫ':'PADS','ЗВУКИ ПЭДОВ':'PAD SOUNDS','НАСТРОЙКИ':'SETTINGS','МИКШЕР И FX':'MIX & FX','ЗАПИСАТЬ СЭМПЛ':'RECORD SAMPLE','ОТКРЫТЬ ЗАПИСЬ':'OPEN RECORDER','ЗАПИСАТЬ АУДИО':'RECORD AUDIO','НАЧАТЬ':'START','ЗАВЕРШИТЬ ДУБЛЬ':'FINISH TAKE','ЭКСПОРТ WAV':'EXPORT WAV','ДОБАВИТЬ СЭМПЛ':'ADD SAMPLE','ИСТОЧНИК':'SOURCE','ЗВУК ПЭДОВ':'PAD MIX','СВОЙ':'CUSTOM','ОРИГИНАЛ':'ORIGINAL','БОЧКА':'KICK','САБ':'SUB','ХЛОПОК':'CLAP','ХЭТ':'HAT','ОТКР. ХЭТ':'OPEN HAT','ПЕРК':'PERC','ЭЙСИД':'ACID','УДАР':'HIT','АНДЕГРАУНД':'UNDERGROUND','ЖЁСТКОЕ ТЕХНО':'HARD TECHNO','ТЁМНОЕ ТЕХНО':'DARK TECHNO','РЕЙВ':'RAVE','ФОНК':'PHONK','ИНДАСТРИАЛ':'INDUSTRIAL','ГИПНОТИК':'HYPNOTIC','ПИК-ТАЙМ':'PEAK TIME','БРЕЙКС':'BREAKS','МИНИМАЛ':'MINIMAL','ЭЛЕКТРО':'ELECTRO','ТЕМП':'TEMPO','УРОВЕНЬ':'LEVEL','ВКЛ':'ON','ВЫКЛ':'OFF','ПЛОТНОСТЬ':'DENSITY','ЗВУК ГОТОВ':'AUDIO READY','БИБЛИОТЕКА ЗВУКОВ':'SOUND LIBRARY','ЗАПИСЬ ВЫСТУПЛЕНИЯ':'PERFORMANCE RECORDING','ЗАГРУЗИТЬ ПАТТЕРН':'LOAD PATTERN','ВЫБРАННЫЙ СТИЛЬ':'SELECTED STYLE','ОЧИСТИТЬ':'CLEAR','ШАГИ':'STEPS','ОТМЕНИТЬ':'UNDO','ИЗМЕНЕНИЕ':'CHANGE','КВАНТАЙЗ':'QUANTIZE','ТОЧНО В 16 ШАГОВ':'SNAP TO 16 STEPS','РУЧНОЕ УПРАВЛЕНИЕ':'MANUAL CONTROL','БЕЗ AI':'NO AI'};
 const translateText=(input:string)=>{if(language==='ru')return input;return input.replace(/[А-ЯЁ][А-ЯЁ.\s-]*/g,segment=>{const key=segment.trim();const translated=englishLabels[key];return translated?segment.replace(key,translated):segment})};
 const originalText=new WeakMap<Text,string>();
 const originalAttributes=new WeakMap<Element,Map<string,string>>();
@@ -179,8 +177,8 @@ function setPane(next:Pane){
 }
 function paintMix(){const wrap=$('#mixRows');wrap.replaceChildren();PAD_NAMES.forEach((name,i)=>{
  const row=h('div','','mixrow');const label=h('span',name,'mix-name');const range=document.createElement('input');range.type='range';range.min='0';range.max='120';range.step='1';range.value=String(Math.round((state.levels[i]??1)*100));
- range.setAttribute('aria-label',`Громкость ${name}`);range.addEventListener('input',()=>{state.levels[i]=Number(range.value)/100;scheduleSave()});
- const mute=h('button',state.muted[i]?'ON':'OFF',state.muted[i]?'mute active':'mute') as HTMLButtonElement;mute.setAttribute('aria-label',`Mute ${name}`);mute.addEventListener('click',()=>{state.muted[i]=!state.muted[i];save();paintMix();paintPads()});row.append(label,range,mute);wrap.append(row);
+ range.setAttribute('aria-label',`Громкость ${name}`);range.addEventListener('input',()=>{state.levels[i]=Number(range.value)/100;engine.updateMix();scheduleSave()});
+ const mute=h('button',state.muted[i]?'ON':'OFF',state.muted[i]?'mute active':'mute') as HTMLButtonElement;mute.setAttribute('aria-label',`Mute ${name}`);mute.addEventListener('click',()=>{state.muted[i]=!state.muted[i];engine.updateMix();save();paintMix();paintPads()});row.append(label,range,mute);wrap.append(row);
  });}
 let takeUrls:string[]=[];
 function paintTakes(){for(const url of takeUrls)URL.revokeObjectURL(url);takeUrls=[];const el=$('#takesList');el.replaceChildren();for(let i=0;i<engine.takes.length;i++){
@@ -195,26 +193,6 @@ const paintLibrary=()=>{const host=$('#libraryStyles');const frag=document.creat
 };
 const init=()=>{
 engine.updateMix();refreshKitButtons();
-// Automatic DJ transitions process real user-owned music files, not sequencer presets.
-const trackStatus=$('#trackMixStatus'),mixStart=$<HTMLButtonElement>('#startTrackMix'),mixStop=$<HTMLButtonElement>('#stopTrackMix');
-const mixPlayer=new AutoMixPlayer(engine,(current:AutoMixState,message:string)=>{
- const localized=language==='en'?message.replace('Анализ темпа и музыкальных фраз','Analyzing tempo and phrasing').replace('Автосводка остановлена','Automix stopped').replace('Автосводка','Automix'):message;
- trackStatus.textContent=localized;
- mixStart.disabled=current!=='ready';mixStop.disabled=current!=='playing';
-});
-$('#autoMixFiles').addEventListener('change',()=>void safe(async()=>{
- const input=$<HTMLInputElement>('#autoMixFiles');if(!input.files?.length)return;
- mixStart.disabled=true;await mixPlayer.load(input.files);
-}));
-mixStart.addEventListener('click',()=>void safe(async()=>{
- const sync=$<HTMLInputElement>('#autoMixPadSync').checked;
- if(sync){const first=mixPlayer.loaded[0];
-  if(first&&first.confidence>=.17){state.tempo=first.bpm;showTrack();engine.updateMix();scheduleSave();}
- }
- await mixPlayer.start(sync);mixPlayer.setPadOverlay(engine.state==='PLAY');updateTransport();
-}));
-mixStop.addEventListener('click',()=>{mixPlayer.stop();updateTransport()});
-
  $('#filter').addEventListener('input',()=>{state.filter=Number(($<HTMLInputElement>('#filter')).value)/100;$('#filterValue').textContent=state.filter>.97?'ОТКРЫТ':`${Math.round(state.filter*100)}%`;engine.updateMix();scheduleSave()});
  ($('#filter') as HTMLInputElement).value=String(Math.round(state.filter*100));$('#filterValue').textContent=state.filter>.97?'ОТКРЫТ':`${Math.round(state.filter*100)}%`;
  $('#echo').addEventListener('input',()=>{state.echo=Number(($<HTMLInputElement>('#echo')).value)/100;$('#echoValue').textContent=`${Math.round(state.echo*100)}%`;engine.updateMix();scheduleSave()});
@@ -255,42 +233,40 @@ mixStop.addEventListener('click',()=>{mixPlayer.stop();updateTransport()});
   };drawSignal();requestAnimationFrame(vu);
  $('#bank').replaceChildren(...STYLES.map((s,i)=>{const o=h('option',styleLabel(i)) as HTMLOptionElement;o.value=String(i);return o}));
  ($('#bank') as HTMLSelectElement).value=String(state.style);
- $('#scene').replaceChildren(...SCENES.map((s,i)=>{const o=h('option',sceneLabel(i)) as HTMLOptionElement;o.value=String(i);return o}));
- ($('#scene') as HTMLSelectElement).value=String(state.scene);$('#bpm').textContent=String(state.tempo);
- const showTrack=()=>{$('#trackName').textContent=`${styleLabel(state.style)} · ${sceneLabel(state.scene)}`;($('#bpmRange') as HTMLInputElement).value=String(state.tempo);$('#bpm').textContent=String(state.tempo);
-  for(const [id,index] of [['styleLights',state.style],['sceneLights',state.scene]] as const){const nodes=document.querySelectorAll('#'+id+' i');nodes.forEach((el,i)=>el.classList.toggle('active',i===index%nodes.length));}};
+ $('#bpm').textContent=String(state.tempo);
+ const showTrack=()=>{$('#trackName').textContent=`${styleLabel(state.style)} · BANK ${'ABCD'[kits.active]}`;($('#bpmRange') as HTMLInputElement).value=String(state.tempo);$('#bpm').textContent=String(state.tempo);
+  const nodes=document.querySelectorAll('#styleLights i');nodes.forEach((el,i)=>el.classList.toggle('active',i===state.style%nodes.length));};
  const changeTempo=(tempo:number)=>{state.tempo=Math.max(80,Math.min(175,Math.round(tempo)));showTrack();engine.updateMix();scheduleSave()};
  const changeStyle=(offset:number)=>{const el=$<HTMLSelectElement>('#bank');el.value=String((state.style+offset+STYLES.length)%STYLES.length);el.dispatchEvent(new Event('change'))};
- const changeScene=(offset:number)=>{const el=$<HTMLSelectElement>('#scene');el.value=String((state.scene+offset+SCENES.length)%SCENES.length);el.dispatchEvent(new Event('change'))};
  $('#stylePrev').addEventListener('click',()=>changeStyle(-1));$('#styleNext').addEventListener('click',()=>changeStyle(1));
- $('#scenePrev').addEventListener('click',()=>changeScene(-1));$('#sceneNext').addEventListener('click',()=>changeScene(1));
- $('#bank').addEventListener('change',()=>{state.style=Number(($<HTMLSelectElement>('#bank')).value);state.tempo=STYLES[state.style]?.bpm??136;showTrack();engine.updateMix();save();paintPads();paintSteps();updateSampleTarget()});
- showTrack();
  let generation=0,previousPattern:number[][]|null=null;
- const generateGroove=(random=false)=>{previousPattern=clonePattern(state.pattern);generation++;const energy=Number(($<HTMLInputElement>('#density')).value)/100;const variation=random?Math.floor(Math.random()*10000)+1:generation;state.pattern=composeGroove(state.style,random ? 0.35+Math.random()*.65 : energy,variation);save();paintSteps();$('#undoGroove').hidden=false;setStatus(random?'RANDOM IDEA READY':'AUTO GROOVE READY')};
- $('#autoGroove').addEventListener('click',()=>generateGroove());
- $('#randomGroove').addEventListener('click',()=>generateGroove(true));
- $('#editGroove').addEventListener('click',()=>{setPane('main');$('#advancedEditor').setAttribute('open','');$('#advancedEditor').scrollIntoView({block:'center',behavior:'smooth'})});
+ const undoButton=$<HTMLButtonElement>('#undoGroove');
+ const rememberPattern=()=>{previousPattern=clonePattern(state.pattern);undoButton.disabled=false};
+ const applySelectedPattern=()=>{rememberPattern();generation++;const energy=Number($<HTMLInputElement>('#density').value)/100;state.pattern=composeGroove(state.style,energy,generation);save();paintSteps();setStatus('PATTERN LOADED')};
+ $('#bank').addEventListener('change',()=>{rememberPattern();state.style=Number($<HTMLSelectElement>('#bank').value);state.tempo=STYLES[state.style]?.bpm??136;state.pattern=composeGroove(state.style,Number($<HTMLInputElement>('#density').value)/100,0);showTrack();engine.updateMix();save();paintPads();paintSteps();updateSampleTarget();setStatus('PATTERN LOADED')});
+ $('#applyPattern').addEventListener('click',applySelectedPattern);
+ $('#clearGroove').addEventListener('click',()=>{rememberPattern();state.pattern=Array.from({length:8},()=>Array(16).fill(0));save();paintSteps();setStatus('PATTERN CLEARED')});
+ undoButton.addEventListener('click',()=>{if(!previousPattern)return;const current=clonePattern(state.pattern);state.pattern=previousPattern;previousPattern=current;save();paintSteps();setStatus('PATTERN RESTORED')});
+ const quantize=$<HTMLButtonElement>('#quantize');
+ const paintQuantize=()=>{quantize.setAttribute('aria-pressed',String(state.quantize));quantize.classList.toggle('active',state.quantize);quantize.querySelector('b')!.textContent=state.quantize?'ВКЛ':'ВЫКЛ'};
+ paintQuantize();quantize.addEventListener('click',()=>{state.quantize=!state.quantize;paintQuantize();save()});
+ showTrack();
  $('#seqEdit').addEventListener('click',()=>{const advanced=$<HTMLDetailsElement>('#advancedEditor');advanced.open=!advanced.open;if(advanced.open)advanced.scrollIntoView({block:'nearest',behavior:'smooth'})});
  for(const btn of document.querySelectorAll<HTMLButtonElement>('[data-kit]'))btn.addEventListener('click',()=>{
   const to=Number(btn.dataset.kit);if(to===kits.active||!Number.isInteger(to)||to<0||to>3)return;
-  kits.patterns[kits.active]=clonePattern(state.pattern);kits.active=to;state.pattern=clonePattern(kits.patterns[to]??state.pattern);save();refreshKitButtons();paintSteps();setStatus(`PAD BANK ${'ABCD'[to]}`);
+  kits.patterns[kits.active]=clonePattern(state.pattern);kits.active=to;state.pattern=clonePattern(kits.patterns[to]??state.pattern);save();refreshKitButtons();paintSteps();showTrack();setStatus(`PAD BANK ${'ABCD'[to]}`);
  });
- $('#undoGroove').addEventListener('click',()=>{if(!previousPattern)return;state.pattern=previousPattern;previousPattern=null;save();paintSteps();$('#undoGroove').hidden=true;setStatus('GROOVE RESTORED')});
- $('#scene').addEventListener('change',()=>{state.scene=Number(($<HTMLSelectElement>('#scene')).value);showTrack();save()});
  $('#tempoDown').addEventListener('click',()=>changeTempo(state.tempo-1));
  $('#tempoUp').addEventListener('click',()=>changeTempo(state.tempo+1));
  $('#bpmRange').addEventListener('input',()=>changeTempo(Number(($<HTMLInputElement>('#bpmRange')).value)));
  let lastTap=0;const recentTaps:number[]=[];
  $('#tapTempo').addEventListener('click',()=>{const now=performance.now(),elapsed=now-lastTap;lastTap=now;if(elapsed>2000){recentTaps.length=0;setStatus('TAP AGAIN TO SET BPM');return;}if(elapsed<300||elapsed>1000)return;recentTaps.push(elapsed);if(recentTaps.length>4)recentTaps.shift();const sorted=[...recentTaps].sort((a,b)=>a-b);const median=sorted[Math.floor(sorted.length/2)]??elapsed;changeTempo(60000/median);setStatus(`BPM ${state.tempo}`)});
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushSave();else if(engine.state==='PLAY'&&engine.ctx?.state==='suspended')setStatus('TAP PLAY TO RESTORE AUDIO')});
- window.addEventListener('pagehide',()=>{flushSave();mixPlayer.dispose();for(const url of takeUrls)URL.revokeObjectURL(url);takeUrls=[]});
- $('#play').addEventListener('click',()=>void safe(async()=>{if(engine.state==='PLAY'&&engine.ctx?.state==='suspended')await engine.unlock();else if(engine.state==='PLAY')engine.pause();else await engine.start();mixPlayer.setPadOverlay(engine.state==='PLAY');updateTransport()}));
- $('#record').addEventListener('click',()=>void safe(async()=>{await engine.toggleRecord();mixPlayer.setPadOverlay(engine.state==='PLAY');updateTransport()}));
- $('#stop').addEventListener('click',()=>{mixPlayer.stop();engine.stop();updateTransport()});
- const autoMixButton=$<HTMLButtonElement>('#autoMixToggle');
- autoMixButton.addEventListener('click',()=>{engine.setAutoMix(!engine.autoMixEnabled);autoMixButton.setAttribute('aria-pressed',String(engine.autoMixEnabled));autoMixButton.classList.toggle('active',engine.autoMixEnabled);autoMixButton.textContent=engine.autoMixEnabled?'АВТОМИКС · ВКЛ':'АВТОМИКС · ВЫКЛ';setStatus(engine.autoMixEnabled?'АВТОМИКС ВКЛ':'АВТОМИКС ВЫКЛ')});
- const cross=$<HTMLInputElement>('#crossfade');cross.value=String(Math.round(state.crossfader*100));cross.addEventListener('input',()=>{if(engine.autoMixEnabled){engine.setAutoMix(false);autoMixButton.classList.remove('active');autoMixButton.setAttribute('aria-pressed','false');autoMixButton.textContent='АВТОМИКС · ВЫКЛ';}state.crossfader=Number(cross.value)/100;engine.updateMix();scheduleSave()});
+ window.addEventListener('pagehide',()=>{flushSave();for(const url of takeUrls)URL.revokeObjectURL(url);takeUrls=[]});
+ $('#play').addEventListener('click',()=>void safe(async()=>{if(engine.state==='PLAY'&&engine.ctx?.state==='suspended')await engine.unlock();else if(engine.state==='PLAY')engine.pause();else await engine.start();updateTransport()}));
+ $('#record').addEventListener('click',()=>void safe(async()=>{await engine.toggleRecord();updateTransport()}));
+ $('#stop').addEventListener('click',()=>{engine.stop();updateTransport()});
+ const cross=$<HTMLInputElement>('#crossfade');cross.value=String(Math.round(state.crossfader*100));cross.addEventListener('input',()=>{state.crossfader=Number(cross.value)/100;engine.updateMix();scheduleSave()});
  for(const field of ['eqLow','eqMid','eqHigh'] as const){
   const input=$<HTMLInputElement>('#'+field);input.value=String(state[field]);
   const renderKnob=()=>{input.parentElement?.style.setProperty('--knob-angle',`${-135+(Number(input.value)+12)*270/24}deg`);

@@ -576,29 +576,6 @@ body{background:radial-gradient(ellipse 82% 25% at 80% -10%,#422066 0%,transpare
 .nexus-app .language-toggle b{color:#f4f8ff;font-weight:950}.nexus-app .language-toggle span{color:#5e6877}.nexus-app .language-toggle:active{transform:scale(.97)}
 @media(max-width:365px){.nexus-app .language-toggle{min-width:54px;padding:0 5px;font-size:9px}}
 
-.nexus-app .auto-mix-toggle{min-height:34px;padding:7px 11px;border:1px solid #75608b;border-radius:11px;background:#17121f;color:#d4c1e9;font-size:10px;font-weight:850;letter-spacing:.03em;touch-action:manipulation}.nexus-app .auto-mix-toggle.active{border-color:#6de9d9;background:#102a30;color:#adfff2}
-
-/* NEXUS 28 / DJ track queue — one compact panel, no second deck. */
-.nexus-app .auto-track-panel{margin:3px 0 2px;border:1px solid #4a4264;border-radius:12px;background:linear-gradient(125deg,#1a142a,#070b15 66%,#161225);box-shadow:inset 0 1px #b7e4e628;overflow:hidden}
-.nexus-app .auto-track-panel summary{list-style:none;display:flex;align-items:center;gap:9px;min-height:40px;padding:7px 12px;cursor:pointer;touch-action:manipulation}
-.nexus-app .auto-track-panel summary::-webkit-details-marker{display:none}
-.nexus-app .auto-track-glyph{display:grid;place-items:center;width:29px;height:29px;color:#89fdf0;font-size:20px;border-radius:8px;border:1px solid #616080}
-.nexus-app .auto-track-panel summary>span:nth-child(2){display:flex;flex-direction:column;gap:3px;min-width:0}
-.nexus-app .auto-track-panel strong{font-size:10px;color:#f8faff;letter-spacing:.1em}
-.nexus-app .auto-track-panel small{font-size:8px;color:#aeb5c7;letter-spacing:.07em}
-.nexus-app .auto-track-chevron{margin-left:auto;font-size:15px;color:#8df7ed}
-.nexus-app .auto-track-panel[open] .auto-track-chevron{transform:rotate(180deg)}
-.nexus-app .auto-track-controls{border-top:1px solid #4a4264;display:flex;flex-direction:column;gap:10px;padding:12px}
-.nexus-app .auto-track-controls label{font-size:10px;font-weight:850;color:#b5ffef;letter-spacing:.08em}
-.nexus-app #autoMixFiles{width:100%;font-size:11px;color:#f4f7ff;padding:8px 5px;background:#0a0e1b;border:1px solid #4c5871;border-radius:9px}
-.nexus-app .auto-track-buttons{display:grid;grid-template-columns:1fr 1fr;gap:7px}
-.nexus-app .auto-track-buttons button{min-height:44px;border:1px solid #5a6881;border-radius:9px;background:linear-gradient(135deg,#242c43,#101220);color:#f7faff;font-size:10px;font-weight:900;touch-action:manipulation}
-.nexus-app #startTrackMix{border-color:#61e7d8;color:#a5fff2}
-.nexus-app #stopTrackMix{border-color:#eb5b77;color:#ffb7c6}
-.nexus-app .auto-track-buttons button:disabled{opacity:.4}
-.nexus-app #trackMixStatus{margin:0;min-height:20px;overflow-wrap:anywhere;color:#c6cdda;font-size:10px;line-height:1.45}
-@media(prefers-reduced-motion:reduce){.nexus-app .auto-track-chevron{transition:none}}
-
 /* NEXUS 28: tactile language switch must never sit beneath branding on narrow phones. */
 .nexus-app .brand-stack{pointer-events:none;min-width:0;max-width:100%;overflow:hidden}
 .nexus-app .nexus-header{display:flex;align-items:center;gap:clamp(3px,1.3vw,8px)}
@@ -635,11 +612,17 @@ html,body{background:#000000!important}
 .nexus-app .knob-visual{border-color:#9aa7a3!important;background:linear-gradient(143deg,#fff 0%,#87928e 8%,#18231f 24%,#030505 72%,#364640 91%,#ffffff 100%)!important;box-shadow:inset 0 1px #ffffff88,0 2px 5px #000d!important}
 .nexus-app .bottomnav{background:linear-gradient(180deg,#061411,#000000)!important;border-top-color:#780d22!important;box-shadow:inset 0 1px #ffffff3c!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 .nexus-app .bottomnav button.active{color:#00d9cd!important;background:linear-gradient(180deg,#06343059,#0000004d)!important}
-.nexus-app .auto-track-panel{background:linear-gradient(145deg,#063430,#061411 42%,#000000 65%,#06201e)!important;border-color:#38504c!important;box-shadow:inset 0 1px #ffffff65,0 2px 8px #000c!important}
-.nexus-app .auto-track-glyph{background:linear-gradient(135deg,#780d22,#063430)!important;border-color:#00d9cd!important;color:#fff!important}
-.nexus-app .auto-pad-sync{display:flex!important;align-items:center;gap:9px;font-size:10px;color:#ffffff!important;font-weight:800;letter-spacing:.02em;cursor:pointer;min-height:37px}
-.nexus-app .auto-pad-sync input{width:19px;height:19px;accent-color:#00d9cd;flex:none;touch-action:manipulation}
 .nexus-app .language-toggle{border-color:#52615c!important;background:linear-gradient(140deg,#063430,#061411)!important;color:#ffffff!important;box-shadow:inset 0 1px #ffffff40!important}
 .nexus-app :is(button,input,select,summary):focus-visible{outline:2px solid #00d9cd!important;outline-offset:2px}
 .nexus-app :is(.pad,.deck-disc,.pattern-cell,.knob-visual){-webkit-tap-highlight-color:transparent}
 @media(prefers-reduced-motion:reduce){.nexus-app #pads .pad,.nexus-app .deck-disc{transition:none!important}}
+
+/* NEXUS 29: one explicit manual workflow. */
+.nexus-app .quantize-unit{display:flex;flex-direction:column;justify-content:center;gap:5px}
+.nexus-app .quantize-unit>small{font-size:7px;color:#899a97;letter-spacing:.08em;text-align:center}
+.nexus-app .quantize-toggle{display:flex;align-items:center;justify-content:space-between;min-height:38px;padding:0 10px;border:1px solid #52615c;border-radius:9px;background:#050b09;color:#d5dfdc;font-size:9px;font-weight:900;letter-spacing:.06em;touch-action:manipulation}
+.nexus-app .quantize-toggle b{color:#7e8986}.nexus-app .quantize-toggle.active{border-color:#00d9cd;background:linear-gradient(135deg,#063430,#000)}.nexus-app .quantize-toggle.active b{color:#7affee}
+.nexus-app .creator-actions #undoGroove:disabled{opacity:.38;filter:saturate(.25)}
+.nexus-app .utility-actions{min-height:28px;padding:2px 8px}.nexus-app .utility-actions>span{font-size:7px;color:#7f918e;letter-spacing:.08em;white-space:nowrap}
+.nexus-app .cross-unit>div span{font-size:7px;letter-spacing:.05em}
+@media(max-width:360px){.nexus-app .utility-actions>span{display:none}.nexus-app .quantize-unit>small{font-size:6px}}

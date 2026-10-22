@@ -1,7 +1,8 @@
-import { SampleRecorder } from './sample-recorder.js';
+import { SampleRecorder, preferPcmRecording } from './sample-recorder.js';
 import { STEPS, note } from './model.js';
 import { placeSample } from './arranger.js';
 import { SoundBank } from './sounds.js';
+import { AUDIO_HEADROOM, crossfadeGains, voiceGain, lowpassHz, recordingExtension } from './audio-quality.js';
 const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 const sampleRate = 44100;
 function wavExport(buffer) {
@@ -34,40 +35,75 @@ function wavExport(buffer) {
 }
 function createBus(ctx, destination, settings) {
     const a = ctx.createGain(), b = ctx.createGain(), input = ctx.createGain();
-    const filter = ctx.createBiquadFilter(), dry = ctx.createGain(), echoSend = ctx.createGain(), echo = ctx.createDelay(1), feedback = ctx.createGain(), returnGain = ctx.createGain();
-    const compressor = ctx.createDynamicsCompressor(), master = ctx.createGain(), meter = ctx.createAnalyser();
+    const channels = Array.from({ length: 8 }, (_, pad) => {
+        const channel = ctx.createGain();
+        channel.gain.value = settings.muted[pad] ? 0 : clamp(settings.levels[pad] ?? 1, 0, 1.2);
+        channel.connect((pad === 1 || pad >= 6) ? b : a);
+        return channel;
+    });
+    // DC/subsonic energy eats headroom and is inaudible on mobile speakers.
+    const dc = ctx.createBiquadFilter();
+    dc.type = 'highpass';
+    dc.frequency.value = 20;
+    dc.Q.value = .707;
+    const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.Q.value = .62;
+    filter.Q.value = .58;
+    const eqLow = ctx.createBiquadFilter();
+    eqLow.type = 'lowshelf';
+    eqLow.frequency.value = 110;
+    const eqMid = ctx.createBiquadFilter();
+    eqMid.type = 'peaking';
+    eqMid.frequency.value = 1100;
+    eqMid.Q.value = .82;
+    const eqHigh = ctx.createBiquadFilter();
+    eqHigh.type = 'highshelf';
+    eqHigh.frequency.value = 6800;
+    const dry = ctx.createGain();
+    dry.gain.value = 1;
+    const echoSend = ctx.createGain(), echo = ctx.createDelay(1), feedback = ctx.createGain(), returnGain = ctx.createGain();
     echo.delayTime.value = .23;
-    feedback.gain.value = .24;
-    returnGain.gain.value = .38;
-    compressor.threshold.value = -12;
-    compressor.ratio.value = 6;
-    compressor.knee.value = 7;
-    compressor.attack.value = .004;
-    compressor.release.value = .13;
-    master.gain.value = .80;
+    feedback.gain.value = AUDIO_HEADROOM.feedback;
+    returnGain.gain.value = AUDIO_HEADROOM.wet;
+    const compressor = ctx.createDynamicsCompressor();
+    compressor.threshold.value = -8;
+    compressor.ratio.value = 2;
+    compressor.knee.value = 9;
+    compressor.attack.value = .012;
+    compressor.release.value = .18;
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -2.4;
+    limiter.ratio.value = 18;
+    limiter.knee.value = 1.2;
+    limiter.attack.value = .002;
+    limiter.release.value = .085;
+    const master = ctx.createGain();
+    master.gain.value = AUDIO_HEADROOM.master;
+    const meter = ctx.createAnalyser();
+    meter.fftSize = 256;
+    meter.smoothingTimeConstant = .2;
     a.connect(input);
     b.connect(input);
-    input.connect(filter);
-    filter.connect(dry).connect(compressor);
-    filter.connect(echoSend).connect(echo);
+    input.connect(dc).connect(filter).connect(eqLow).connect(eqMid).connect(eqHigh);
+    eqHigh.connect(dry).connect(compressor);
+    eqHigh.connect(echoSend).connect(echo);
     echo.connect(feedback).connect(echo);
     echo.connect(returnGain).connect(compressor);
-    compressor.connect(master).connect(meter).connect(destination);
-    meter.fftSize = 256;
+    compressor.connect(limiter).connect(master).connect(meter).connect(destination);
     function update(st) {
-        const t = ctx.currentTime;
-        const x = clamp(st.crossfader, 0, 1);
-        a.gain.setTargetAtTime(Math.cos(x * Math.PI / 2), t, .014);
-        b.gain.setTargetAtTime(Math.sin(x * Math.PI / 2), t, .014);
-        const cutoff = 160 + 19840 * Math.pow(clamp(st.filter, 0, 1), 2.4);
-        filter.frequency.setTargetAtTime(cutoff, t, .025);
-        echoSend.gain.setTargetAtTime(.40 * clamp(st.echo, 0, 1), t, .025);
-        echo.delayTime.setTargetAtTime(.75 * 60 / clamp(st.tempo, 80, 175), t, .02);
+        const t = ctx.currentTime, [gainA, gainB] = crossfadeGains(st.crossfader);
+        a.gain.setTargetAtTime(gainA, t, .012);
+        b.gain.setTargetAtTime(gainB, t, .012);
+        channels.forEach((channel, pad) => channel.gain.setTargetAtTime(st.muted[pad] ? 0 : clamp(st.levels[pad] ?? 1, 0, 1.2), t, .008));
+        filter.frequency.setTargetAtTime(lowpassHz(st.filter, ctx.sampleRate), t, .024);
+        echoSend.gain.setTargetAtTime(AUDIO_HEADROOM.echoSend * clamp(st.echo, 0, 1), t, .028);
+        eqLow.gain.setTargetAtTime(clamp(st.eqLow, -12, 12), t, .017);
+        eqMid.gain.setTargetAtTime(clamp(st.eqMid, -12, 12), t, .017);
+        eqHigh.gain.setTargetAtTime(clamp(st.eqHigh, -12, 12), t, .017);
+        echo.delayTime.setTargetAtTime(.75 * 60 / clamp(st.tempo, 80, 175), t, .024);
     }
     update(settings);
-    return { input, a, b, master, meter, update };
+    return { input, a, b, channels, master, meter, update };
 }
 export class Engine {
     getSession;
@@ -85,12 +121,17 @@ export class Engine {
     stopAt = 0;
     active = new Set();
     generation = 0;
+    scheduledTempo = 136;
     recorder = null;
     capture = null;
     recorded = [];
     currentChunks = [];
     gain = 1;
     sampleRecorder = new SampleRecorder();
+    offlineSampleActive = false;
+    offlineSampleAt = 0;
+    offlineSampleTimer = null;
+    offlineSampleHits = [];
     sampleTarget = null;
     events = {};
     constructor(getSession) {
@@ -100,8 +141,29 @@ export class Engine {
     }
     get state() { return this.running ? 'PLAY' : this.stopAt ? 'PAUSE' : 'STOP'; }
     get recording() { return this.recordArmed; }
-    get sampling() { return this.sampleRecorder.active; }
-    updateMix() { this.bus?.update(this.getSession()); }
+    get sampling() { return this.offlineSampleActive || this.sampleRecorder.active; }
+    updateMix() {
+        const tempo = this.getSession().tempo;
+        if (this.running && this.ctx && tempo !== this.scheduledTempo)
+            this.rephase(tempo);
+        this.bus?.update(this.getSession());
+    }
+    rephase(tempo) {
+        if (!this.ctx || !this.running)
+            return;
+        const now = this.ctx.currentTime, oldStep = 60 / this.scheduledTempo / 4, newStep = 60 / tempo / 4;
+        const phase = Math.max(0, (now - this.origin) / oldStep);
+        for (const voice of [...this.active])
+            if (voice.when > now) {
+                voice.stop();
+                this.active.delete(voice);
+            }
+        this.origin = now - phase * newStep;
+        this.nextStep = Math.max(0, Math.ceil(phase + 1e-7));
+        this.nextTime = this.origin + this.nextStep * newStep;
+        this.scheduledTempo = tempo;
+        this.pump();
+    }
     get takes() { return this.recorded.slice(); }
     get time() { return this.ctx?.currentTime ?? 0; }
     meterData = new Uint8Array(256);
@@ -110,6 +172,8 @@ export class Engine {
         const v = (this.meterData[i] - 128) / 128;
         energy += v * v;
     } return Math.min(1, Math.sqrt(energy / this.meterData.length) * 2.8); }
+    readWaveform(output) { if (!this.bus || !this.ctx || this.ctx.state !== 'running')
+        return false; this.bus.meter.getByteTimeDomainData(output); return true; }
     get currentStep() { if (!this.ctx || !this.running)
         return 0; const d = 60 / this.getSession().tempo / 4; return ((Math.floor((this.time - this.origin) / d + 1e-4) % STEPS) + STEPS) % STEPS; }
     async unlock() {
@@ -118,20 +182,22 @@ export class Engine {
             if (!C)
                 throw Error('Web Audio недоступен');
             this.ctx = new C({ latencyHint: 'interactive' });
-            this.capture = this.ctx.createMediaStreamDestination();
             void this.bank.restore(this.ctx).then(() => this.events.onSamples?.()).catch(() => { });
             this.bus = createBus(this.ctx, this.ctx.destination, this.getSession());
-            this.bus.master.connect(this.capture);
         }
         if (this.ctx.state !== 'running')
             await this.ctx.resume();
         if (this.ctx.state !== 'running')
             throw Error('Разреши воспроизведение звука в Safari');
-        // Keep the audio context gesture-driven. Sample arrays are fetched before first play.
-        void this.bank.warm(this.ctx).catch(() => { });
+        // Decoding is demand-driven: a pad never waits for all eight WAV decoders.
         if (!this.clock && this.fallback === null) {
             this.fallback = window.setInterval(() => this.pump(), 25); // reliable on the very first gesture
-            void this.enableWorklet(this.ctx);
+            // WebKit/iOS AudioWorklet can terminate during short pad recording in automated
+            // WebKit. A 25 ms lookahead pump avoids a second rendering thread on Safari.
+            // Chrome/Android retain low-cost AudioWorklet clocking.
+            const agent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+            if (!/AppleWebKit/i.test(agent) || /Chrome|Chromium|Edg|OPR|Android/i.test(agent))
+                void this.enableWorklet(this.ctx);
         }
         this.events.onState?.('AUDIO READY');
     }
@@ -148,6 +214,7 @@ export class Engine {
             worklet.connect(silent).connect(ctx.destination);
             worklet.port.onmessage = () => this.pump();
             this.clock = worklet;
+            worklet.port.postMessage(this.running ? 'start' : 'pause');
             if (this.fallback !== null) {
                 window.clearInterval(this.fallback);
                 this.fallback = null;
@@ -156,10 +223,13 @@ export class Engine {
         catch { }
     }
     async start() {
+        const generation = this.generation;
         await this.unlock();
-        if (this.running)
+        if (this.running || this.generation !== generation)
             return;
         await this.bank.warm(this.ctx);
+        if (this.running || this.generation !== generation)
+            return;
         const d = 60 / this.getSession().tempo / 4;
         if (this.stopAt > 0) {
             const progress = this.stopAt - this.origin;
@@ -172,25 +242,34 @@ export class Engine {
             this.nextStep = 0;
             this.nextTime = this.origin;
         }
+        this.scheduledTempo = this.getSession().tempo;
         this.running = true;
         this.stopAt = 0;
         this.generation++;
+        this.clock?.port.postMessage('start');
         this.pump();
         this.events.onState?.('PLAY');
     }
     pause() { if (!this.running)
-        return; this.running = false; this.stopAt = this.time; this.generation++; this.silence(); this.events.onState?.('PAUSE'); }
-    stop() { this.running = false; this.stopAt = 0; this.recordArmed = false; this.nextStep = 0; this.nextTime = 0; this.generation++; this.silence(); this.events.onState?.('STOP'); }
-    async toggleRecord() { await this.unlock(); if (!this.running)
-        await this.start(); this.recordArmed = !this.recordArmed; this.events.onState?.(this.recordArmed ? 'REC ON' : 'REC OFF'); return this.recordArmed; }
+        return; this.running = false; this.stopAt = this.time; this.generation++; this.clock?.port.postMessage('pause'); this.silence(); this.events.onState?.('PAUSE'); }
+    stop() { this.running = false; this.stopAt = 0; this.recordArmed = false; this.nextStep = 0; this.nextTime = 0; this.generation++; this.clock?.port.postMessage('pause'); this.silence(); this.events.onState?.('STOP'); }
+    async toggleRecord() { const generation = this.generation; await this.unlock(); if (generation !== this.generation)
+        return this.recordArmed; if (!this.running)
+        await this.start(); if (!this.running)
+        return this.recordArmed; this.recordArmed = !this.recordArmed; this.events.onState?.(this.recordArmed ? 'REC ON' : 'REC OFF'); return this.recordArmed; }
     async hit(pad, velocity = 1) {
-        await this.unlock();
-        if (pad < 0 || pad > 7 || this.getSession().muted[pad])
+        if (!Number.isInteger(pad) || pad < 0 || pad > 7 || this.getSession().muted[pad])
             return;
-        if (pad !== 1 && pad !== 6 && !this.bank.resolve(pad, this.getSession().style))
-            await this.bank.warm(this.ctx);
+        const generation = this.generation;
+        // Do not await resume or worklet setup once AudioContext is already running. Trigger voice on pointerdown.
+        if (!this.ctx || this.ctx.state !== 'running' || !this.bus)
+            await this.unlock();
+        if (!this.bank.resolve(pad, this.getSession().style))
+            await this.bank.ensurePad(this.ctx, pad);
+        if (generation !== this.generation || this.getSession().muted[pad])
+            return;
         const now = this.ctx.currentTime + .002;
-        this.voice(this.ctx, ((pad === 1 || pad >= 6) ? this.bus.b : this.bus.a), pad, now, velocity, this.getSession().style, this.getSession().levels[pad] ?? 1);
+        this.voice(this.ctx, this.bus.channels[pad], pad, now, velocity, this.getSession().style, 1);
         if (this.recordArmed && this.running) {
             const d = 60 / this.getSession().tempo / 4;
             const quant = this.getSession().quantize ? Math.round((now - this.origin) / d) : Math.floor((now - this.origin) / d);
@@ -209,20 +288,25 @@ export class Engine {
         if (!this.ctx || !this.running || !this.bus)
             return;
         const now = this.ctx.currentTime;
-        const d = 60 / this.getSession().tempo / 4;
+        const tempo = this.getSession().tempo;
+        const d = 60 / tempo / 4;
+        if (this.scheduledTempo !== tempo) {
+            this.rephase(tempo);
+            return;
+        }
+        // Safari background suspension: fast-forward stale transport steps instead of bursting delayed notes.
+        if (this.nextTime < now - .035) {
+            const skip = Math.max(1, Math.ceil((now - this.nextTime - .008) / d));
+            this.nextStep += skip;
+            this.nextTime += skip * d;
+        }
         while (this.nextTime < now + .115) {
             const step = this.nextStep % STEPS, session = this.getSession();
             for (let p = 0; p < 8; p++) {
-                let velocity = session.pattern[p]?.[step] ?? 0;
+                const velocity = session.pattern[p]?.[step] ?? 0;
                 if (session.muted[p] || velocity === 0)
                     continue;
-                if (session.scene === 1 && p > 3)
-                    continue; // intro reduced
-                if (session.scene === 4 && p === 0 && step % 8 !== 0)
-                    continue; // break
-                if (session.scene === 2 && p === 3 && step % 2 === 1)
-                    velocity = .48; // build
-                this.voice(this.ctx, ((p === 1 || p >= 6) ? this.bus.b : this.bus.a), p, this.nextTime, velocity, session.style, session.levels[p] ?? 1);
+                this.voice(this.ctx, this.bus.channels[p], p, this.nextTime, velocity, session.style, 1);
             }
             this.events.onStep?.(step);
             this.nextStep++;
@@ -235,103 +319,100 @@ export class Engine {
     voice(ctx, bus, pad, when, velocity, style, level) {
         const live = ctx === this.ctx;
         if (live && this.active.size >= 28) {
-            const first = this.active.values().next().value;
-            if (first) {
-                first.stop();
-                this.active.delete(first);
+            const oldest = this.active.values().next().value;
+            if (oldest) {
+                oldest.stop();
+                this.active.delete(oldest);
             }
         }
-        const s = this.bank.resolve(pad, style);
+        const sample = this.bank.resolve(pad, style);
+        if (!sample)
+            return;
+        if (live && this.offlineSampleActive) {
+            const at = when - this.offlineSampleAt;
+            if (at >= 0 && at < 12.25)
+                this.offlineSampleHits.push({ pad, at, velocity, style, level });
+        }
         const amp = ctx.createGain();
-        const loud = clamp(velocity * level * this.gain, 0, 1.3);
-        amp.gain.setValueAtTime(0, when);
-        amp.gain.linearRampToValueAtTime(Math.max(.0001, loud * (s?.gain ?? (pad === 1 ? .65 : pad === 6 ? .35 : .7))), when + .002);
         const low = ctx.createBiquadFilter(), high = ctx.createBiquadFilter();
         low.type = 'highpass';
         high.type = 'lowpass';
-        low.frequency.value = s?.lowCut ?? (pad === 1 ? 25 : pad === 6 ? 60 : 90);
-        high.frequency.value = s?.highCut ?? (pad === 1 ? 400 : pad === 6 ? 12000 : 16000);
+        low.frequency.value = sample?.lowCut ?? (pad === 1 ? 24 : pad === 6 ? 55 : pad === 0 ? 22 : 85);
+        high.frequency.value = Math.min(ctx.sampleRate * .46, sample?.highCut ?? (pad === 1 ? 640 : pad === 6 ? 15500 : 17000));
+        low.Q.value = .707;
+        high.Q.value = .707;
+        const baseline = voiceGain(velocity, level, sample?.gain ?? (pad === 1 ? .64 : pad === 6 ? .33 : .78));
+        const attack = .003, release = .012;
         low.connect(high).connect(amp).connect(bus);
-        const playing = { stop: () => { }, until: when + 1 };
+        const playing = { stop: () => { }, until: when + 1, when };
         const cleanup = () => { try {
+            source.disconnect();
             low.disconnect();
             high.disconnect();
             amp.disconnect();
         }
         catch { } this.active.delete(playing); };
-        if (s) {
-            const source = ctx.createBufferSource();
-            source.buffer = s.buffer;
-            source.connect(low);
-            const end = when + s.buffer.duration;
-            playing.until = end + .06;
-            amp.gain.setValueAtTime(loud * s.gain, Math.max(when + .003, end - .014));
-            amp.gain.linearRampToValueAtTime(0, Math.max(when + .005, end));
-            source.onended = cleanup;
-            source.start(when);
-            source.stop(end + .01);
-            playing.stop = () => { try {
-                source.stop();
+        amp.gain.setValueAtTime(0, when);
+        amp.gain.linearRampToValueAtTime(Math.max(.00001, baseline), when + attack);
+        const source = ctx.createBufferSource();
+        source.buffer = sample.buffer;
+        source.connect(low);
+        const end = when + sample.buffer.duration;
+        const fade = Math.min(release, Math.max(.003, sample.buffer.duration * .25));
+        amp.gain.setValueAtTime(Math.max(.00001, baseline), Math.max(when + attack, end - fade));
+        amp.gain.linearRampToValueAtTime(0, end);
+        source.onended = cleanup;
+        source.start(when);
+        source.stop(end + .004);
+        playing.until = end + .025;
+        playing.stop = () => {
+            try {
+                const now = ctx.currentTime;
+                // A scheduled note must never start after STOP or voice stealing.
+                if (now <= when) {
+                    source.stop(now);
+                    cleanup();
+                    return;
+                }
+                if (typeof amp.gain.cancelAndHoldAtTime === 'function')
+                    amp.gain.cancelAndHoldAtTime(now);
+                else {
+                    // Preserve the envelope level when cancelling an attack/release ramp.
+                    const peak = Math.max(.00001, baseline), releaseAt = Math.max(when + attack, end - fade);
+                    const held = now < when + attack ? peak * (now - when) / attack : now < releaseAt ? peak : peak * Math.max(0, (end - now) / (end - releaseAt));
+                    amp.gain.cancelScheduledValues(now);
+                    amp.gain.setValueAtTime(held, now);
+                }
+                amp.gain.linearRampToValueAtTime(0, now + .012);
+                source.stop(now + .018);
             }
-            catch { } cleanup(); };
-        }
-        else {
-            const osc = ctx.createOscillator(), osc2 = ctx.createOscillator();
-            const isAcid = pad === 6, root = [41.20, 43.65, 49.0, 46.25, 43.65, 49.0][style % 6] ?? 43.65;
-            const progression = isAcid ? [0, 0, 7, 3, 0, 10, 7, 3] : [0, 0, 0, -5, 0, 0, 7, -5];
-            const step = Math.abs(Math.round(when / (60 / this.getSession().tempo / 4))) % 8;
-            const freq = root * Math.pow(2, (progression[step] ?? 0) / 12) * (isAcid ? 2 : 1);
-            osc.type = isAcid ? 'sawtooth' : 'sine';
-            osc2.type = isAcid ? 'triangle' : 'sine';
-            osc.frequency.setValueAtTime(freq, when);
-            osc2.frequency.setValueAtTime(freq * (isAcid ? 1.003 : .5002), when);
-            const tone = ctx.createBiquadFilter();
-            tone.type = 'lowpass';
-            tone.Q.value = isAcid ? 4.0 : .8;
-            const length = isAcid ? .23 : .34;
-            if (isAcid) {
-                tone.frequency.setValueAtTime(2900, when);
-                tone.frequency.exponentialRampToValueAtTime(310, when + length * .88);
+            catch {
+                cleanup();
             }
-            else
-                tone.frequency.setValueAtTime(250, when);
-            const oscGain = ctx.createGain();
-            oscGain.gain.value = isAcid ? .23 : .62;
-            osc.connect(oscGain);
-            osc2.connect(oscGain);
-            oscGain.connect(tone).connect(low);
-            osc.start(when);
-            osc2.start(when);
-            amp.gain.setValueAtTime(0, when);
-            amp.gain.linearRampToValueAtTime(loud * (isAcid ? .18 : .48), when + .004);
-            amp.gain.exponentialRampToValueAtTime(.0001, when + length);
-            osc.stop(when + length + .005);
-            osc2.stop(when + length + .005);
-            playing.until = when + length + .02;
-            osc.onended = () => { try {
-                tone.disconnect();
-                oscGain.disconnect();
-            }
-            catch { } cleanup(); };
-            playing.stop = () => { try {
-                osc.stop();
-                osc2.stop();
-            }
-            catch { } cleanup(); };
-        }
+        };
         if (live)
             this.active.add(playing);
     }
     async addSamples(files, slot) {
+        if (slot === undefined)
+            throw Error('Импорт разрешён только через REPLACE выбранного пэда.');
+        const file = Array.from(files)[0];
+        if (!file)
+            throw Error('Выбери аудиофайл');
         await this.unlock();
-        const result = [];
-        for (const file of Array.from(files).slice(0, 8)) {
-            const a = await this.bank.importFile(file, this.ctx, slot, this.getSession().style);
-            placeSample(this.getSession().pattern, a.pad, this.getSession().style);
-            result.push({ pad: a.pad, name: file.name });
-            slot = undefined;
+        const result = await this.bank.importFile(file, this.ctx, slot, this.getSession().style);
+        return [{ pad: result.pad, name: file.name }];
+    }
+    async restoreFactorySound(pad) { await this.bank.restoreFactory(pad, this.getSession().style); this.events.onSamples?.(); }
+    ensureCapture() {
+        // Ordinary playback never enters WebKit's capture pipeline; allocate only for an explicit recording.
+        if (!this.ctx || !this.bus)
+            throw Error('Audio engine not initialized');
+        if (!this.capture) {
+            this.capture = this.ctx.createMediaStreamDestination();
+            this.bus.master.connect(this.capture);
         }
-        return result;
+        return this.capture;
     }
     async beginSampleCapture(source, pad) {
         if (!Number.isInteger(pad) || pad < 0 || pad >= 8)
@@ -341,10 +422,20 @@ export class Engine {
         await this.unlock();
         if (source === 'live' && !this.running)
             await this.start();
-        if (!this.capture)
-            throw Error('Аудиозахват недоступен');
         const target = { pad, style: this.getSession().style };
-        await this.sampleRecorder.start(source, this.capture.stream, this.ctx, () => { void this.endSampleCapture().catch(e => this.events.onState?.(e instanceof Error ? e.message : 'SAMPLE ERROR')); });
+        // WebKit process crashes during continuous live PCM routing. Capture deterministic pad events
+        // and render them through the same master DSP offline when Stop is pressed. No microphone.
+        if (preferPcmRecording(navigator.userAgent, typeof MediaRecorder !== 'undefined')) {
+            this.offlineSampleHits = [];
+            this.offlineSampleAt = this.ctx.currentTime;
+            this.offlineSampleActive = true;
+            this.sampleTarget = target;
+            this.offlineSampleTimer = window.setTimeout(() => { void this.endSampleCapture().catch(e => this.events.onState?.(e instanceof Error ? 'SAMPLE ERROR · ' + e.message : 'SAMPLE ERROR')); }, 12000);
+            this.events.onState?.(`SAMPLE REC · ${target.pad + 1}`);
+            return;
+        }
+        const capture = this.ensureCapture();
+        await this.sampleRecorder.start(source, capture.stream, this.ctx, () => { void this.endSampleCapture().catch(e => this.events.onState?.(e instanceof Error ? 'SAMPLE ERROR · ' + e.message : 'SAMPLE ERROR')); }, error => { this.sampleTarget = null; this.events.onState?.('SAMPLE ERROR · ' + error.message); });
         this.sampleTarget = target;
         this.events.onState?.(`SAMPLE REC · ${target.pad + 1}`);
     }
@@ -353,12 +444,36 @@ export class Engine {
         if (!target)
             throw Error('Запись сэмпла не запущена');
         this.sampleTarget = null;
-        const blob = await this.sampleRecorder.stop();
+        let blob;
+        if (this.offlineSampleActive) {
+            this.offlineSampleActive = false;
+            if (this.offlineSampleTimer !== null) {
+                window.clearTimeout(this.offlineSampleTimer);
+                this.offlineSampleTimer = null;
+            }
+            const hits = this.offlineSampleHits;
+            this.offlineSampleHits = [];
+            if (!hits.length)
+                throw Error('Нажми пэд во время записи');
+            const duration = Math.min(12, Math.max(.1, (this.ctx?.currentTime ?? this.offlineSampleAt) - this.offlineSampleAt));
+            const length = Math.ceil((duration + .2) * sampleRate);
+            const offline = new OfflineAudioContext(2, length, sampleRate);
+            const mix = createBus(offline, offline.destination, this.getSession());
+            for (const hit of hits) {
+                if (hit.at >= duration)
+                    continue;
+                const when = Math.max(.004, hit.at);
+                this.voice(offline, mix.channels[hit.pad], hit.pad, when, hit.velocity, hit.style, 1);
+            }
+            blob = wavExport(await offline.startRendering());
+        }
+        else
+            blob = await this.sampleRecorder.stop();
         if (blob.size < 2048)
             throw Error('Запись слишком короткая');
         if (!this.ctx)
             throw Error('Нет аудиоконтекста');
-        const extension = blob.type.includes('mp4') ? 'm4a' : 'webm';
+        const extension = recordingExtension(blob.type);
         const file = new File([blob], `REC-PAD-${target.pad + 1}.${extension}`, { type: blob.type });
         const result = await this.bank.importFile(file, this.ctx, target.pad, target.style);
         placeSample(this.getSession().pattern, target.pad, target.style);
@@ -367,13 +482,14 @@ export class Engine {
     }
     async beginTake() {
         await this.unlock();
-        if (!this.capture)
-            throw Error('Запись недоступна');
+        if (typeof MediaRecorder === 'undefined')
+            throw Error('Audio take недоступен — используй EXPORT WAV');
         if (this.recorder?.state === 'recording')
             return;
+        const capture = this.ensureCapture();
         const types = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'];
         const type = types.find(t => MediaRecorder.isTypeSupported(t));
-        const r = new MediaRecorder(this.capture.stream, type ? { mimeType: type } : {});
+        const r = new MediaRecorder(capture.stream, type ? { mimeType: type } : {});
         this.currentChunks = [];
         r.ondataavailable = e => { if (e.data.size)
             this.currentChunks.push(e.data); };
@@ -423,7 +539,7 @@ export class Engine {
                 const velocity = state.pattern[pad]?.[step % 16] ?? 0;
                 if (!velocity || state.muted[pad])
                     continue;
-                this.voice(offline, ((pad === 1 || pad >= 6) ? bus.b : bus.a), pad, step * d + .02, velocity, state.style, state.levels[pad] ?? 1);
+                this.voice(offline, bus.channels[pad], pad, step * d + .02, velocity, state.style, 1);
             }
         return wavExport(await offline.startRendering());
     }

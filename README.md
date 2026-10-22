@@ -1,9 +1,18 @@
-# ARTSS DJ Creator 20 — Live Sample Studio
+# ARTSS DJ Creator 29
 
-One existing Web Audio engine, two real mix buses (A drums/B synths), equal-power crossfader, 8 performance pads, strictly 16 steps, LIVE REC overdub, scene presets, BPM/filter/echo, offline WAV export and audio takes.
+The deployed target is a Web Audio PWA for iPhone and Android browsers. `native/` is an experimental iOS audio core, not a complete React Native application.
 
-**New: record your own pad sample.** Select a pad, record the internal pad mix, press START then STOP; microphone capture is unsupported. Capture up to 12 seconds of the current master mix or microphone without monitoring the microphone through speakers. Capture uses MediaRecorder where available and lossless PCM WAV via Web Audio ScriptProcessor fallback where unavailable (including Playwright WebKit). Trim transients, normalize bounded RMS/peak, apply role EQ, and bind the recorded sample to that pad for the **current style preset**. Imported sounds are now also style-scoped. Returning to that style restores its sound; legacy global samples remain a non-destructive fallback. Sound files persist locally in IndexedDB as cross-browser structured-cloned ArrayBuffers (legacy File entries are still readable), with no cloud uploads.
+The live workspace has eight sample pads, four pattern banks, a 16-step sequencer, manually selected style patterns, pad overdub, BPM, one manual A/B crossfader, three-band EQ, filter, echo, and eight channel level/mute controls. Track AutoMix and automatic A/B mixing were removed. Local sample replacement and restoration, audio takes, and offline WAV pattern export remain available.
 
-The LIVE REC transport records pad presses into the 16-step loop independently from START/STOP SAMPLE, which captures a reusable audio snippet. MASTER TAKE records a full set. Old session localStorage and existing IndexedDB audio are preserved.
+Pad recording writes events to the ongoing loop; it does not use the microphone. Existing localStorage session keys and IndexedDB custom samples/takes remain in place across updates. The service worker replaces only app shell caches.
 
-Automated validation: TypeScript check, Node tests, Chromium + WebKit browser smoke (record→pad binding→reload→per-style isolation), production smoke, no file uploads to servers. Real iPhone latency and subjective professional audio quality require hardware testing. **Not a neural AI model or stem separation.**
+## Verification
+
+```bash
+npm run check
+g++ -std=c++20 -O2 -Wall -Wextra -pedantic native/core/AudioCore.cpp native/core/test.cpp -o /tmp/artss-audio-test && /tmp/artss-audio-test
+python tests/browser-qa.py chromium
+python tests/browser-qa.py webkit
+```
+
+The browser suite covers pads, pad event recording, sample replacement and restore, mixer controls, PCM WAV export, STOP cancellation, language switching, and responsive widths. Physical iPhone and Android audio latency, interruptions, and installed PWA lifecycle still require device testing.

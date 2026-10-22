@@ -11,7 +11,7 @@
  <link rel="icon" href="/icon.svg" type="image/svg+xml">
  <link rel="manifest" href="/manifest.webmanifest">
  <link rel="stylesheet" href="/studio27.css">
- <title>ARTSS NEXUS 28.0 — DJ AUTO MIX</title>
+ <title>ARTSS NEXUS 29.0 — LIVE SEQUENCER</title>
 </head>
 <body>
 <div class="app nexus-app">
@@ -25,7 +25,7 @@
   </div>
  </header>
  <aside id="drawer" class="drawer" hidden>
-  <div class="drawer-head"><strong>ARTSS NEXUS</strong><span>STUDIO 27</span></div>
+  <div class="drawer-head"><strong>ARTSS NEXUS</strong><span>LIVE STUDIO</span></div>
   <p>Один движок · одна студия</p>
   <button id="drawerImport" type="button">+ УПРАВЛЕНИЕ ЗВУКАМИ</button>
   <button id="drawerRecord" type="button">● ЗАПИСЬ</button>
@@ -45,9 +45,9 @@
   <button id="record" class="deck-transport deck-record" aria-label="Запись исполнения в луп"><span class="deck-disc"><span class="deck-rec-icon"></span></span><span class="deck-label">ЗАПИСЬ</span></button>
  </section>
  <div class="status-strip"><span id="status" class="status" role="status">ГОТОВО</span><span>СТЕРЕО · АУДИО</span></div>
- <section class="control-deck" aria-label="Стиль темп и сцена">
+ <section class="control-deck" aria-label="Паттерн, темп и запись">
   <div class="select-unit">
-   <strong>СТИЛЬ</strong><div class="arrow-select"><button type="button" id="stylePrev" aria-label="Предыдущий стиль">‹</button><select id="bank" aria-label="Стиль музыки"></select><button type="button" id="styleNext" aria-label="Следующий стиль">›</button></div>
+   <strong>ПАТТЕРН</strong><div class="arrow-select"><button type="button" id="stylePrev" aria-label="Предыдущий паттерн">‹</button><select id="bank" aria-label="Паттерн музыки"></select><button type="button" id="styleNext" aria-label="Следующий паттерн">›</button></div>
    <div class="selector-lights" id="styleLights" aria-hidden="true"><i class="active"></i><i></i><i></i><i></i><i></i></div>
   </div>
   <div class="bpm-unit">
@@ -55,27 +55,18 @@
    <input id="bpmRange" type="range" min="80" max="175" value="136" aria-label="Темп BPM">
    <button id="tapTempo" type="button">ЗАДАТЬ ТЕМП</button>
   </div>
-  <div class="select-unit">
-   <strong>СЦЕНА</strong><div class="arrow-select"><button type="button" id="scenePrev" aria-label="Предыдущая сцена">‹</button><select id="scene" aria-label="Сцена"></select><button type="button" id="sceneNext" aria-label="Следующая сцена">›</button></div>
-   <div class="selector-lights" id="sceneLights" aria-hidden="true"><i class="active"></i><i></i><i></i><i></i><i></i></div>
+  <div class="select-unit quantize-unit">
+   <strong>ЗАПИСЬ ПЭДОВ</strong>
+   <button type="button" id="quantize" class="quantize-toggle" aria-pressed="true"><span>КВАНТАЙЗ</span><b>ВКЛ</b></button>
+   <small>ТОЧНО В 16 ШАГОВ</small>
   </div>
  </section>
  <section class="creator-actions" aria-label="Создание ритма">
-  <button type="button" class="side-action" id="randomGroove"><span class="action-glyph">⚄</span><span>СЛУЧАЙНЫЙ<br>РИТМ</span></button>
-  <button type="button" class="auto" id="autoGroove"><span class="galaxy" aria-hidden="true">✦</span><span class="auto-lines"><strong>СОЗДАТЬ РИТМ</strong><small>АВТОРИТМ</small></span><span class="auto-arrow">›</span></button>
-  <button type="button" class="side-action" id="editGroove"><span class="action-glyph">≋</span><span>ИЗМЕНИТЬ<br>РИТМ</span></button>
+  <button type="button" class="side-action" id="clearGroove"><span class="action-glyph">×</span><span>ОЧИСТИТЬ<br>ШАГИ</span></button>
+  <button type="button" class="auto" id="applyPattern"><span class="galaxy" aria-hidden="true">▦</span><span class="auto-lines"><strong>ЗАГРУЗИТЬ ПАТТЕРН</strong><small>ВЫБРАННЫЙ СТИЛЬ · 16 ШАГОВ</small></span><span class="auto-arrow">›</span></button>
+  <button type="button" class="side-action" id="undoGroove" disabled><span class="action-glyph">↶</span><span>ОТМЕНИТЬ<br>ИЗМЕНЕНИЕ</span></button>
  </section>
- <details id="trackAutoMix" class="auto-track-panel">
-  <summary><span class="auto-track-glyph">♫</span><span><strong>АВТОСВОДКА ТРЕКОВ</strong><small>ТЕМП · УРОВЕНЬ · ПЕРЕХОД</small></span><span class="auto-track-chevron">⌄</span></summary>
-  <div class="auto-track-controls">
-   <label for="autoMixFiles">ВЫБЕРИ 2–3 СВОИХ АУДИОТРЕКА</label>
-   <input id="autoMixFiles" type="file" accept="audio/*,.wav,.mp3,.m4a,.aac,.flac,.ogg" multiple aria-label="Аудиотреки для автоматической сводки">
-   <label class="auto-pad-sync"><input id="autoMixPadSync" type="checkbox" checked><span>СИНХРОНИЗИРОВАТЬ С ПЭДАМИ · BPM И ТАКТ</span></label>
-   <div class="auto-track-buttons"><button type="button" id="startTrackMix" disabled>▶ СВЕСТИ ТРЕКИ</button><button type="button" id="stopTrackMix" disabled>■ ОСТАНОВИТЬ</button></div>
-   <p id="trackMixStatus" role="status">Анализ BPM, выравнивание уровней и переход по музыкальной фразе.</p>
-  </div>
- </details>
- <div class="utility-actions"><button id="autoMixToggle" class="auto-mix-toggle" type="button" aria-pressed="false">АВТОМИКС · ВЫКЛ</button><label for="density">ПЛОТНОСТЬ <input id="density" type="range" min="25" max="100" value="70" aria-label="Плотность ритма"></label><button id="undoGroove" class="undo" hidden>↶ ОТМЕНИТЬ</button></div>
+ <div class="utility-actions"><label for="density">ПЛОТНОСТЬ ПАТТЕРНА <input id="density" type="range" min="25" max="100" value="70" aria-label="Плотность паттерна"></label><span>РУЧНОЕ УПРАВЛЕНИЕ · БЕЗ AI</span></div>
  <main id="mainPanel">
   <div class="section-heading pad-head"><div class="headline"><span class="heading-icon">▦</span><h2>ДРАМ-ПЭДЫ</h2></div><div id="kitBanks" class="kit-banks" role="group" aria-label="Банки паттернов"><button type="button" data-kit="0" class="active">A</button><button type="button" data-kit="1">B</button><button type="button" data-kit="2">C</button><button type="button" data-kit="3">D</button></div></div>
   <div id="pads" class="pads" aria-label="Все восемь звуковых пэдов"></div>
@@ -91,7 +82,7 @@
     <label class="knob-unit"><input id="eqMid" type="range" min="-12" max="12" value="0" aria-label="Средние частоты, децибелы"><span class="knob-visual" aria-hidden="true"></span><small>СЕР</small></label>
     <label class="knob-unit"><input id="eqHigh" type="range" min="-12" max="12" value="0" aria-label="Высокие частоты, децибелы"><span class="knob-visual" aria-hidden="true"></span><small>ВЕРХ</small></label>
    </div>
-   <div class="cross-unit"><div><span>A</span><span>B</span></div><input id="crossfade" type="range" min="0" max="100" value="50" aria-label="Баланс групп A и B"></div>
+   <div class="cross-unit"><div><span>DRUM</span><span>SYNTH</span></div><input id="crossfade" type="range" min="0" max="100" value="50" aria-label="Баланс барабанов и синтезаторов"></div>
   </section>
 
  </main>
@@ -115,7 +106,7 @@
  <details class="workspace-fan" id="libraryFan"><summary><span class="fan-icon">◈</span><span class="fan-text"><strong>ПРЕСЕТЫ</strong><small>12 МУЗЫКАЛЬНЫХ СТИЛЕЙ</small></span><span class="fan-arrow">⌄</span></summary><section id="libraryPanel"><div class="section-heading"><h2>БИБЛИОТЕКА ЗВУКОВ</h2><span class="hint">12 СТИЛЕЙ · ЛОКАЛЬНЫЕ СЭМПЛЫ</span></div><div class="library-grid" id="libraryStyles"></div><button id="libraryImport" class="secondary" type="button">+ ИМПОРТ СЭМПЛА</button></section></details>
  <details class="workspace-fan" id="profileFan"><summary><span class="fan-icon">◈</span><span class="fan-text"><strong>ПРОЕКТ</strong><small>ЛИЧНЫЕ НАСТРОЙКИ</small></span><span class="fan-arrow">⌄</span></summary><section id="profilePanel"><div class="section-heading"><h2>ЛОКАЛЬНЫЙ ПРОЕКТ</h2><span class="hint">ЛИЧНАЯ СТУДИЯ НА УСТРОЙСТВЕ</span></div><div class="profile-card"><strong>ARTSS NEXUS</strong><p>Все ритмы, сэмплы и записи остаются на устройстве. Регистрация не нужна.</p><div id="deviceStatus"></div><button id="goToRecording" class="secondary">ОТКРЫТЬ ЗАПИСЬ</button></div></section></details>
  </section>
- <nav class="bottomnav" aria-label="Навигация"><button data-pane="main" class="active"><span>⌂</span>СОЗДАТЬ</button><button data-pane="library"><span>♫</span>ЗВУКИ</button><button data-pane="takes"><span>◎</span>ИГРАТЬ</button><button data-pane="mix"><span>≋</span>MIX</button><button data-pane="profile"><span>♙</span>ПРОЕКТ</button></nav>
+ <nav class="bottomnav" aria-label="Навигация"><button data-pane="main" class="active"><span>◉</span>LIVE</button><button data-pane="library"><span>♫</span>ПАТТЕРНЫ</button><button data-pane="takes"><span>◎</span>ЗАПИСИ</button><button data-pane="mix"><span>≋</span>MIX</button><button data-pane="profile"><span>♙</span>ПРОЕКТ</button></nav>
 </div>
 <input id="sampleInput" type="file" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.flac" multiple hidden>
 <script type="module" src="/app/main.js"></script>
