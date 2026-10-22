@@ -1,6 +1,21 @@
 import {ABYSS_PADS,ABYSS_BPM,ABYSS_FX,type AbyssPad} from './abyss.js';
 import type {Engine} from './engine.js';
 type Voice={source:AudioBufferSourceNode;gain:GainNode;pad:AbyssPad;when:number};
+function roomImpulse(ctx:BaseAudioContext):AudioBuffer{
+ const frames=Math.round(ctx.sampleRate*1.25),ir=ctx.createBuffer(2,frames,ctx.sampleRate);let seed=0xAB155;
+ const damping=Math.exp(-2*Math.PI*ABYSS_FX.reverb.damping/ctx.sampleRate);
+ for(let c=0;c<2;c++){const data=ir.getChannelData(c);let low=0;for(let i=0;i<frames;i++){seed^=seed<<13;seed^=seed>>>17;seed^=seed<<5;
+  low=low*damping+((seed>>>0)/2147483648-1)*(1-damping);
+  data[i]=low*Math.exp(-i/ctx.sampleRate*(8-3*ABYSS_FX.reverb.room_size))*.18;
+ }}
+ return ir;
+}
+const kickReduction=10**(-Math.max(0,-8-ABYSS_FX.sidechain_compressor.threshold)*(1-1/ABYSS_FX.sidechain_compressor.ratio)/20);
+function duck(g:AudioParam,when:number){
+ g.cancelScheduledValues(when);g.setValueAtTime(1,when);
+ g.linearRampToValueAtTime(kickReduction,when+ABYSS_FX.sidechain_compressor.attack_ms/1000);
+ g.setTargetAtTime(1,when+.015,ABYSS_FX.sidechain_compressor.release_ms/3000);
+}
 /** A dedicated two-page performance sampler routed into the existing protected master. */
 export class AbyssPlayer{
  private buffers=new Map<number,AudioBuffer>();private loads=new Map<number,Promise<AudioBuffer>>();
@@ -12,13 +27,11 @@ export class AbyssPlayer{
  isActive(id:number){return this.voices.has(id)}
  private connect(){const {context,output}=this.engine.getSamplerOutput();if(this.context===context)return;
   this.context=context;this.anchor=context.currentTime+.045;
-  const filter=context.createBiquadFilter();filter.type='lowpass';filter.frequency.value=8000;filter.Q.value=1.2;
+  const filter=context.createBiquadFilter();filter.type='lowpass';filter.frequency.value=ABYSS_FX.lowpass_filter.cutoff;filter.Q.value=ABYSS_FX.lowpass_filter.resonance;
   const sidechain=context.createGain(),input=context.createGain(),dry=context.createGain(),send=context.createGain(),delay=context.createDelay(2),feedback=context.createGain();
   const room=context.createConvolver(),wet=context.createGain(),master=context.createGain();
   // Deterministic, damped stereo room impulse. No external capture or missing sample fallback.
-  const frames=Math.round(context.sampleRate*1.25),ir=context.createBuffer(2,frames,context.sampleRate);let seed=0xAB155;
-  for(let c=0;c<2;c++){const data=ir.getChannelData(c);let low=0;for(let i=0;i<frames;i++){seed^=seed<<13;seed^=seed>>>17;seed^=seed<<5;low=low*.38+((seed>>>0)/2147483648-1)*.62;data[i]=low*Math.exp(-i/context.sampleRate*5.5)*.18;}}
-  room.buffer=ir;delay.delayTime.value=60/ABYSS_BPM*.75;feedback.gain.value=ABYSS_FX.delay.feedback;send.gain.value=ABYSS_FX.delay.dry_wet;wet.gain.value=ABYSS_FX.reverb.dry_wet;dry.gain.value=.85;master.gain.value=.33;
+  room.buffer=roomImpulse(context);delay.delayTime.value=60/ABYSS_BPM*.75;feedback.gain.value=ABYSS_FX.delay.feedback;send.gain.value=ABYSS_FX.delay.dry_wet;wet.gain.value=ABYSS_FX.reverb.dry_wet;dry.gain.value=.85;master.gain.value=.33;
   input.connect(filter).connect(sidechain);sidechain.connect(dry).connect(master);
   sidechain.connect(send).connect(delay);delay.connect(feedback).connect(delay);delay.connect(master);
   sidechain.connect(room).connect(wet).connect(master);master.connect(output);
@@ -28,7 +41,7 @@ export class AbyssPlayer{
  private pumpKick(){if(!this.context||!this.sidechain||!this.filter||!this.voices.has(1))return;
   const now=this.context.currentTime,bar=240/ABYSS_BPM;
   const next=Math.ceil((now+.01-this.anchor)/bar*4)*(bar/4)+this.anchor;
-  if(next<=now+.09&&next>now&&next!==this.lastKickAt){this.lastKickAt=next;const g=this.sidechain.gain;g.cancelScheduledValues(next);g.setValueAtTime(1,next);g.linearRampToValueAtTime(.64,next+ABYSS_FX.sidechain_compressor.attack_ms/1000);g.setTargetAtTime(1,next+.015,ABYSS_FX.sidechain_compressor.release_ms/3000);
+  if(next<=now+.09&&next>now&&next!==this.lastKickAt){this.lastKickAt=next;duck(this.sidechain.gain,next);
    const f=this.filter.frequency;f.cancelScheduledValues(next);f.setValueAtTime(6200,next);f.setTargetAtTime(8000,next+.015,.09);
   }
  }
@@ -59,10 +72,13 @@ export class AbyssPlayer{
  }
  stop(){for(const id of [...this.voices.keys()])this.stopVoice(id,this.context?.currentTime??0);this.generations.clear();}
  private renderOffline(ctx:OfflineAudioContext,bus:AudioNode,seconds:number){if(!this.voices.size)return;
-  const filter=ctx.createBiquadFilter(),level=ctx.createGain(),delay=ctx.createDelay(2),send=ctx.createGain(),feedback=ctx.createGain();
+  const filter=ctx.createBiquadFilter(),level=ctx.createGain(),delay=ctx.createDelay(2),send=ctx.createGain(),feedback=ctx.createGain(),room=ctx.createConvolver(),wet=ctx.createGain(),side=ctx.createGain();
   filter.type='lowpass';filter.frequency.value=ABYSS_FX.lowpass_filter.cutoff;filter.Q.value=ABYSS_FX.lowpass_filter.resonance;
   level.gain.value=.33;delay.delayTime.value=60/ABYSS_BPM*.75;send.gain.value=ABYSS_FX.delay.dry_wet;feedback.gain.value=ABYSS_FX.delay.feedback;
-  filter.connect(level).connect(bus);filter.connect(send).connect(delay);delay.connect(feedback).connect(delay);delay.connect(level);
+  room.buffer=roomImpulse(ctx);wet.gain.value=ABYSS_FX.reverb.dry_wet;
+  filter.connect(side).connect(level).connect(bus);side.connect(send).connect(delay);delay.connect(feedback).connect(delay);delay.connect(level);
+  side.connect(room).connect(wet).connect(level);
+  if(this.voices.has(1))for(let t=.02;t<seconds;t+=60/ABYSS_BPM)duck(side.gain,t);
   for(const voice of this.voices.values()){const source=ctx.createBufferSource();source.buffer=voice.source.buffer;source.loop=voice.pad.type==='loop';
    const volume=ctx.createGain();volume.gain.value=voice.pad.group==='Bass'?.72:1;source.connect(volume).connect(filter);source.start(.02);source.stop(Math.min(seconds+.015,voice.pad.type==='loop'?seconds+.015:voice.source.buffer!.duration+.02));
   }
