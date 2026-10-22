@@ -37,7 +37,7 @@ test('sample overrides are user-controlled and never imported by an automatic cl
  const {readFileSync}=await import('node:fs');
  const source=readFileSync('src/sounds.ts','utf8'),engine=readFileSync('src/engine.ts','utf8');
  assert.match(source,/overridePad===undefined/);
- assert.match(source,/const url=options\[0\]/);
+ assert.match(source,/const url=this\.kitPath\(pad\)/);
  assert.match(source,/async restoreFactory\(/);
  assert.match(source,/store\.delete\(pad\)/);
  assert.match(engine,/async restoreFactorySound\(/);
@@ -48,7 +48,8 @@ test('every factory slot resolves to one fixed shipped sample, never fallback sy
  const {readFileSync,existsSync}=await import('node:fs');
  const source=readFileSync('src/sounds.ts','utf8');
  const engine=readFileSync('src/engine.ts','utf8');
- const sampleRows=source.match(/\['\/samples\/[^\]]+'\]/g)??[];
+ const fixedPaths=source.split('const paths=[')[1]?.split('];')[0]??'';
+ const sampleRows=fixedPaths.match(/\['\/samples\/[^\]]+'\]/g)??[];
  assert.equal(sampleRows.length,8,'All 8 pads require authored WAV files');
  for(const row of sampleRows){
   const match=row.match(/'([^']+\.wav)'/);assert.ok(match&&existsSync('.'+match[1]),row);
