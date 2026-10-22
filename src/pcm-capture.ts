@@ -6,6 +6,11 @@ declare abstract class AudioWorkletProcessor {
 declare function registerProcessor(name:string,processorCtor:new()=>AudioWorkletProcessor):void;
 class PcmCapture extends AudioWorkletProcessor {
  private samples=new Float32Array(4096);private offset=0;
+ constructor(){super();this.port.onmessage=e=>{
+  if(e.data!=='flush')return;
+  if(this.offset){const tail=this.samples.slice(0,this.offset);this.samples=new Float32Array(4096);this.offset=0;this.port.postMessage(tail.buffer,[tail.buffer]);}
+  this.port.postMessage('flushed');
+ };}
  process(inputs:Float32Array[][]):boolean {
   const channels=inputs[0],left=channels?.[0];if(!left)return true;
   const right=channels?.[1]??left;
