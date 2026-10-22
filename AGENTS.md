@@ -63,3 +63,8 @@ Engineering priorities: **sound integrity → correctness/data preservation → 
 - The later user request removes the AI MIXER and competing automatic track/pad mixing workflows. The current release is a manual pad sequencer with one A/B crossfader, eight live channel controls, EQ, FX and recording. Do not restore the former `AutoMixPlayer`, `Engine.autoMix`, or their panels as a release requirement.
 - Style selection previews a pattern; loading it is an explicit action. Manual BPM must not be silently changed by a track analyzer. Keep the original eight pad sounds and existing saved session, sample and take data.
 - A future local-track DJ flow requires a separate product decision and physical-device audio verification before implementation.
+
+## v30 user-requested DJ AutoMix supersedes the v29 removal
+- The user's current decision restores local-file DJ AutoMix with one visible workflow, no duplicate decks, and explicit 1–3 track loading. The v29 prohibition on restoring AutoMix is superseded. Preserve manual sequencer and the existing saved projects.
+- Musical performance pages add 24 bundled WAV voices (acid, minor-scale piano, FX) beside the original eight drum pads. A key selector changes playback pitch only for the new tonal voices; no user sample is replaced.
+- Intro is a short, optional two-bar sampled cue leading into the user's first detected beat. BPM analysis is an estimate and low-confidence tracks play without forced matching; do not claim reliable harmonic key analysis or separated stems.

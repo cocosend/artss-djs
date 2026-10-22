@@ -1,10 +1,20 @@
 import {defaultSession,importSession,PAD_NAMES,STYLES,toggle,STEPS,sanitizeSession,type Session} from './model.js';
 import {Engine} from './engine.js';
+import {AutoMixPlayer} from './automix-player.js';
 import { composeGroove } from './arranger.js';
 import {knobDragValue} from './touch.js';
 const $=<T extends HTMLElement=HTMLElement>(q:string)=>document.querySelector<T>(q)!;
 const getStorage=():Session=>{for(const key of ['artss-live-session-v19','artss-live-session-v18']){try{const v=localStorage.getItem(key);if(v)return importSession(v)}catch{}}return defaultSession()};
 const state=getStorage();const engine=new Engine(()=>state);
+const autoMix=new AutoMixPlayer(engine,(status,message)=>{
+ const line=document.querySelector<HTMLElement>('#mixStatus');if(line)line.textContent=message;
+ const start=document.querySelector<HTMLButtonElement>('#startAutoMix'),stop=document.querySelector<HTMLButtonElement>('#stopAutoMix');
+ if(start)start.disabled=status==='loading'||status==='playing'||status==='idle'||status==='error';
+ if(stop)stop.disabled=status!=='playing';
+});
+const SOUND_LABELS={acid:['SUB 303','SLIDE','RESONANCE','PULSE','SQUELCH','STAB','DRIVE','OCTAVE'],piano:['C','D','E♭','F','G','A♭','B♭','C⁵'],fx:['METAL HIT','MINOR STAB','RISER','SUB DROP','CLAP HIT','DARK CHORD','FALL','IMPACT']} as const;
+type SoundPage=keyof typeof SOUND_LABELS;
+let soundPage:SoundPage='acid';
 const STYLE_LABELS=['АНДЕГРАУНД','ЖЁСТКОЕ ТЕХНО','ЭЙСИД','ТЁМНОЕ ТЕХНО','РЕЙВ','ФОНК','ИНДАСТРИАЛ','ГИПНОТИК','ПИК-ТАЙМ','БРЕЙКС','МИНИМАЛ','ЭЛЕКТРО'] as const;
 const styleLabel=(i:number)=>STYLE_LABELS[i]??'ПАТТЕРН';
 const localStatus=(value:string):string=>{
@@ -193,6 +203,40 @@ const paintLibrary=()=>{const host=$('#libraryStyles');const frag=document.creat
 };
 const init=()=>{
 engine.updateMix();refreshKitButtons();
+ const renderSoundPads=()=>{
+  const host=$('#musicPads'),fragment=document.createDocumentFragment();
+  SOUND_LABELS[soundPage].forEach((label,index)=>{
+   const button=h('button','','music-pad') as HTMLButtonElement;
+   button.type='button';button.setAttribute('aria-label',`Играть ${soundPage} ${label}`);
+   button.append(h('small',String(index+1).padStart(2,'0')),h('strong',label));
+   button.addEventListener('pointerdown',event=>{
+    if(event.pointerType==='mouse'&&event.button!==0)return;
+    event.preventDefault();button.classList.add('pressed');
+    const path=`/samples/performance/${soundPage}-${String(index+1).padStart(2,'0')}.wav`;
+    const shift=soundPage==='fx'?0:Number($<HTMLSelectElement>('#musicKey').value);
+    void engine.playPerformance(path,2**(shift/12)).catch(error=>setStatus(error instanceof Error?error.message:'ЗВУК НЕДОСТУПЕН'));
+   },{passive:false});
+   for(const action of ['pointerup','pointercancel','lostpointercapture'])button.addEventListener(action,()=>button.classList.remove('pressed'));
+   button.addEventListener('click',event=>{if((event as PointerEvent).detail!==0)return;const path=`/samples/performance/${soundPage}-${String(index+1).padStart(2,'0')}.wav`;void engine.playPerformance(path,soundPage==='fx'?1:2**(Number($<HTMLSelectElement>('#musicKey').value)/12)).catch(error=>setStatus(String(error)))});
+   button.addEventListener('contextmenu',event=>event.preventDefault());fragment.append(button);
+  });host.replaceChildren(fragment);
+  for(const button of document.querySelectorAll<HTMLButtonElement>('[data-sound-page]'))button.classList.toggle('active',button.dataset.soundPage===soundPage);
+ };
+ for(const button of document.querySelectorAll<HTMLButtonElement>('[data-sound-page]'))button.addEventListener('click',()=>{soundPage=button.dataset.soundPage as SoundPage;renderSoundPads()});
+ renderSoundPads();
+ $('#chooseTracks').addEventListener('click',()=>$<HTMLInputElement>('#trackInput').click());
+ $('#trackInput').addEventListener('change',()=>void safe(async()=>{
+  const input=$<HTMLInputElement>('#trackInput');try{
+   if(!input.files?.length)return;
+   await autoMix.load(input.files);
+   $('#trackQueue').replaceChildren(...autoMix.loaded.map((track,index)=>h('div',`${String(index+1).padStart(2,'0')} · ${track.name} · ${track.confidence>=.17?`${track.bpm} BPM`:'BPM вручную / без синхронизации'}`,'track-chip')));
+  }finally{input.value='';}
+ }));
+ $('#startAutoMix').addEventListener('click',()=>void safe(async()=>{
+  await autoMix.start($<HTMLInputElement>('#mixPads').checked,$<HTMLInputElement>('#mixIntro').checked);
+  updateTransport();
+ }));
+ $('#stopAutoMix').addEventListener('click',()=>{autoMix.stop();updateTransport()});
  $('#filter').addEventListener('input',()=>{state.filter=Number(($<HTMLInputElement>('#filter')).value)/100;$('#filterValue').textContent=state.filter>.97?'ОТКРЫТ':`${Math.round(state.filter*100)}%`;engine.updateMix();scheduleSave()});
  ($('#filter') as HTMLInputElement).value=String(Math.round(state.filter*100));$('#filterValue').textContent=state.filter>.97?'ОТКРЫТ':`${Math.round(state.filter*100)}%`;
  $('#echo').addEventListener('input',()=>{state.echo=Number(($<HTMLInputElement>('#echo')).value)/100;$('#echoValue').textContent=`${Math.round(state.echo*100)}%`;engine.updateMix();scheduleSave()});
@@ -265,7 +309,7 @@ engine.updateMix();refreshKitButtons();
  window.addEventListener('pagehide',()=>{flushSave();for(const url of takeUrls)URL.revokeObjectURL(url);takeUrls=[]});
  $('#play').addEventListener('click',()=>void safe(async()=>{if(engine.state==='PLAY'&&engine.ctx?.state==='suspended')await engine.unlock();else if(engine.state==='PLAY')engine.pause();else await engine.start();updateTransport()}));
  $('#record').addEventListener('click',()=>void safe(async()=>{await engine.toggleRecord();updateTransport()}));
- $('#stop').addEventListener('click',()=>{engine.stop();updateTransport()});
+ $('#stop').addEventListener('click',()=>{autoMix.stop();engine.stop();updateTransport()});
  const cross=$<HTMLInputElement>('#crossfade');cross.value=String(Math.round(state.crossfader*100));cross.addEventListener('input',()=>{state.crossfader=Number(cross.value)/100;engine.updateMix();scheduleSave()});
  for(const field of ['eqLow','eqMid','eqHigh'] as const){
   const input=$<HTMLInputElement>('#'+field);input.value=String(state[field]);

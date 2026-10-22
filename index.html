@@ -7,11 +7,11 @@
  <meta name="apple-mobile-web-app-capable" content="yes">
  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
  <meta name="apple-mobile-web-app-title" content="ARTSS NEXUS">
- <meta name="description" content="ARTSS NEXUS DJ Creator — eight live pads, 16-step sequencer, recording, DSP mixer and local WAV export for iPhone.">
+ <meta name="description" content="ARTSS NEXUS DJ Creator — local-track AutoMix, 32 live pads and sounds, 16-step sequencer, recording and master mixer.">
  <link rel="icon" href="/icon.svg" type="image/svg+xml">
  <link rel="manifest" href="/manifest.webmanifest">
  <link rel="stylesheet" href="/studio27.css">
- <title>ARTSS NEXUS 29.0 — LIVE SEQUENCER</title>
+ <title>ARTSS NEXUS 30.0 — DJ AUTOMIX</title>
 </head>
 <body>
 <div class="app nexus-app">
@@ -45,6 +45,14 @@
   <button id="record" class="deck-transport deck-record" aria-label="Запись исполнения в луп"><span class="deck-disc"><span class="deck-rec-icon"></span></span><span class="deck-label">ЗАПИСЬ</span></button>
  </section>
  <div class="status-strip"><span id="status" class="status" role="status">ГОТОВО</span><span>СТЕРЕО · АУДИО</span></div>
+ <section class="dj-workflow" aria-label="DJ автосводка пользовательских треков">
+  <div class="dj-title"><span>01 / DJ WORKFLOW</span><strong>ТВОЙ ТРЕК → ПОДВОД → ДРОП</strong></div>
+  <p>Загрузи до трёх своих аудиотреков. Подвод и переходы звучат через общий мастер. Музыка остаётся на устройстве.</p>
+  <div class="dj-actions"><button id="chooseTracks" type="button">＋ ДОБАВИТЬ ТРЕКИ</button><button id="startAutoMix" type="button" disabled>▶ АВТОСВОДКА</button><button id="stopAutoMix" type="button" disabled>■</button></div>
+  <div id="trackQueue" class="track-queue" aria-live="polite">Пока нет треков</div>
+  <div class="dj-options"><label><input id="mixIntro" type="checkbox" checked> ПОДВОД 2 ТАКТА</label><label><input id="mixPads" type="checkbox"> ДРАМ-ЛУП В МИКСЕ</label></div>
+  <div id="mixStatus" class="mix-status" role="status">Выбери локальный аудиофайл · 1–3 трека</div>
+ </section>
  <section class="control-deck" aria-label="Паттерн, темп и запись">
   <div class="select-unit">
    <strong>ПАТТЕРН</strong><div class="arrow-select"><button type="button" id="stylePrev" aria-label="Предыдущий паттерн">‹</button><select id="bank" aria-label="Паттерн музыки"></select><button type="button" id="styleNext" aria-label="Следующий паттерн">›</button></div>
@@ -70,6 +78,12 @@
  <main id="mainPanel">
   <div class="section-heading pad-head"><div class="headline"><span class="heading-icon">▦</span><h2>ДРАМ-ПЭДЫ</h2></div><div id="kitBanks" class="kit-banks" role="group" aria-label="Банки паттернов"><button type="button" data-kit="0" class="active">A</button><button type="button" data-kit="1">B</button><button type="button" data-kit="2">C</button><button type="button" data-kit="3">D</button></div></div>
   <div id="pads" class="pads" aria-label="Все восемь звуковых пэдов"></div>
+  <section class="sound-pages" aria-label="Музыкальные пэды">
+   <div class="section-heading"><div class="headline"><span class="heading-icon">♫</span><h2>МУЗЫКАЛЬНЫЕ ПЭДЫ</h2></div><span class="sound-count">24 ЗВУКА</span></div>
+   <div class="sound-tabs" role="group" aria-label="Банк музыкальных звуков"><button type="button" data-sound-page="acid" class="active">ACID 303</button><button type="button" data-sound-page="piano">PIANO</button><button type="button" data-sound-page="fx">FX / HITS</button></div>
+   <label class="piano-key">ТОНАЛЬНОСТЬ <select id="musicKey" aria-label="Тональность пианино и кислотных звуков"><option value="0">C MINOR</option><option value="2">D MINOR</option><option value="5">F MINOR</option><option value="7">G MINOR</option><option value="9">A MINOR</option></select></label>
+   <div id="musicPads" class="music-pads" aria-label="Восемь музыкальных пэдов выбранного банка"></div>
+  </section>
   <div class="section-heading seqheading"><div class="headline"><span class="heading-icon">▦</span><h2>ШАГОВЫЙ СЕКВЕНСОР</h2></div><button type="button" id="seqEdit" class="sequencer-edit" aria-label="Редактирование всех пэдов">DRUMS <span>⌄</span></button></div>
   <div id="patternOverview" class="pattern-overview" aria-label="Редактируемый 16-шаговый ритм"></div>
   <details id="advancedEditor" class="advanced-editor"><summary>РЕДАКТОР ПЭДА <em id="selectedPad">KICK</em><small id="stepLabel">01–08 / 16</small></summary>
@@ -109,6 +123,7 @@
  <nav class="bottomnav" aria-label="Навигация"><button data-pane="main" class="active"><span>◉</span>LIVE</button><button data-pane="library"><span>♫</span>ПАТТЕРНЫ</button><button data-pane="takes"><span>◎</span>ЗАПИСИ</button><button data-pane="mix"><span>≋</span>MIX</button><button data-pane="profile"><span>♙</span>ПРОЕКТ</button></nav>
 </div>
 <input id="sampleInput" type="file" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.flac" multiple hidden>
+<input id="trackInput" type="file" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.flac" multiple hidden>
 <script type="module" src="/app/main.js"></script>
 </body>
 </html>
