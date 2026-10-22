@@ -68,3 +68,11 @@ Engineering priorities: **sound integrity → correctness/data preservation → 
 - The user's current decision restores local-file DJ AutoMix with one visible workflow, no duplicate decks, and explicit 1–3 track loading. The v29 prohibition on restoring AutoMix is superseded. Preserve manual sequencer and the existing saved projects.
 - Musical performance pages add 24 bundled WAV voices (acid, minor-scale piano, FX) beside the original eight drum pads. A key selector changes playback pitch only for the new tonal voices; no user sample is replaced.
 - Intro is a short, optional two-bar sampled cue leading into the user's first detected beat. BPM analysis is an estimate and low-confidence tracks play without forced matching; do not claim reliable harmonic key analysis or separated stems.
+
+## v31 explicit user mandate: single jog, generative vault and opt-in CUE recording
+- The user's latest request supersedes the v27 microphone prohibition **only for an explicit CUE · MIC gesture**. Never capture without permission or in the background; STOP/PAUSE must release microphone tracks. CUE starts an audio take from the existing master, including mic and pads; CUE off finishes its own take.
+- The hero has **one** touch jog wheel, not two decorative discs. Real rotary modes control filter, BPM, echo and track cue. PLAY, pad REC, CUE MIC and STOP remain independent physical transport actions.
+- 3,145,728 indexed preset **variations** are generated locally from 12 style families × 18 independent rhythm bits. Do not claim 3.1 million recorded WAV files or a neural model. Preserve existing factory WAV pads, 24 performance samples and legacy user sessions/IndexedDB.
+- The persistent preset vault uses its own versioned localStorage key, bounded per-folder entries and textContent-only rendering; no Supabase dependency.
+- Existing ARTSS DJ Vercel project and production domain are the rollback target. The linked Supabase project named ARTSSAGENTSSBOT is not the DJ project's dedicated database. Do not delete unrelated projects or user data.
+- Verify PCM audio-take recording on WebKit and MediaRecorder on Chromium. A CI WebKit smoke is not a physical iPhone test. Do not promote the release before CI passes.
