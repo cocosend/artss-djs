@@ -211,6 +211,14 @@ function paintPads() {
     $('#selectedPad').textContent = PAD_NAMES[state.selected] ?? 'KICK';
     updateSampleTarget();
 }
+function syncPadSamples() {
+    for (const button of document.querySelectorAll('#pads .pad')) {
+        const pad = Number(button.dataset.pad), dot = button.querySelector('.pad-own');
+        if (dot)
+            dot.textContent = engine.bank.customInfo(pad, state.style) ? 'СВОЙ' : '';
+    }
+    updateSampleTarget();
+}
 function updateSampleTarget() {
     const pad = Number($('#replaceTarget').value);
     const custom = engine.bank.customInfo(pad, state.style);
@@ -764,7 +772,7 @@ const init = () => {
     };
     engine.events.onClip = (pad) => { scheduleSave(); for (let step = 0; step < STEPS; step++)
         syncPatternCells(pad, step); };
-    engine.events.onSamples = paintPads;
+    engine.events.onSamples = syncPadSamples;
     engine.events.onState = v => { setStatus(v); };
     paintPads();
     paintSteps();

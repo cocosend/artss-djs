@@ -102,6 +102,13 @@ function paintPads(){const wrap=$('#pads');wrap.replaceChildren();for(let i=0;i<
  }
  $('#selectedPad').textContent=PAD_NAMES[state.selected]??'KICK';updateSampleTarget();
 }
+function syncPadSamples(){
+ for(const button of document.querySelectorAll<HTMLButtonElement>('#pads .pad')){
+  const pad=Number(button.dataset.pad),dot=button.querySelector<HTMLElement>('.pad-own');
+  if(dot)dot.textContent=engine.bank.customInfo(pad,state.style)?'СВОЙ':'';
+ }
+ updateSampleTarget();
+}
 function updateSampleTarget(){
  const pad=Number($<HTMLSelectElement>('#replaceTarget').value);const custom=engine.bank.customInfo(pad,state.style);
  $('#soundInfo').textContent=custom?`СВОЙ · ${custom}`:`ОРИГИНАЛ · ${PAD_NAMES[pad]}`;
@@ -385,7 +392,7 @@ mixStop.addEventListener('click',()=>{mixPlayer.stop();updateTransport()});
    $('#transportTime').textContent=`${String(Math.floor(elapsed/60)).padStart(2,'0')}:${String(Math.floor(elapsed%60)).padStart(2,'0')} / ${String(Math.floor(total/60)).padStart(2,'0')}:${String(Math.ceil(total%60)).padStart(2,'0')}`;
   });
  };
- engine.events.onClip=(pad)=>{scheduleSave();for(let step=0;step<STEPS;step++)syncPatternCells(pad,step)};engine.events.onSamples=paintPads;engine.events.onState=v=>{setStatus(v);};
+ engine.events.onClip=(pad)=>{scheduleSave();for(let step=0;step<STEPS;step++)syncPatternCells(pad,step)};engine.events.onSamples=syncPadSamples;engine.events.onState=v=>{setStatus(v);};
  paintPads();paintSteps();setPane('main');updateTransport();
  if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
 };
