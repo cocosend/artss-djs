@@ -373,11 +373,24 @@ engine.updateMix();refreshKitButtons();
  window.addEventListener('pagehide',()=>{flushSave();for(const url of takeUrls)URL.revokeObjectURL(url);takeUrls=[]});
  $('#play').addEventListener('click',()=>void safe(async()=>{if(engine.state==='PLAY'&&engine.ctx?.state==='suspended')await engine.unlock();else if(engine.state==='PLAY')engine.pause();else await engine.start();updateTransport()}));
  $('#record').addEventListener('click',()=>void safe(async()=>{await engine.toggleRecord();updateTransport()}));
+ const takeButton=$<HTMLButtonElement>('#take');
+ let cueOwnsTake=false;
+ const syncTakeButton=()=>{takeButton.classList.toggle('on',engine.taking);takeButton.textContent=engine.taking?'■ ЗАВЕРШИТЬ ДУБЛЬ':'● ЗАПИСАТЬ АУДИО'};
  $('#cueOverdub').addEventListener('click',()=>void safe(async()=>{
-  if(engine.cueMicActive)engine.stopCueMic();else await engine.startCueMic();
-  updateTransport();
+  if(engine.cueMicActive){
+   engine.stopCueMic();
+   if(cueOwnsTake){cueOwnsTake=false;await engine.endTake();paintTakes();}
+  }else{
+   await engine.startCueMic();
+   if(!engine.taking){try{await engine.beginTake();cueOwnsTake=true;}catch(error){engine.stopCueMic();throw error}}
+  }
+  syncTakeButton();updateTransport();
  }));
- $('#stop').addEventListener('click',()=>{autoMix.stop();engine.stop();updateTransport()});
+ $('#stop').addEventListener('click',()=>{
+  autoMix.stop();engine.stop();cueOwnsTake=false;
+  void engine.endTake().then(()=>{syncTakeButton();paintTakes()}).catch(error=>setStatus(String(error)));
+  updateTransport();
+ });
  const cross=$<HTMLInputElement>('#crossfade');cross.value=String(Math.round(state.crossfader*100));cross.addEventListener('input',()=>{state.crossfader=Number(cross.value)/100;engine.updateMix();scheduleSave()});
  for(const field of ['eqLow','eqMid','eqHigh'] as const){
   const input=$<HTMLInputElement>('#'+field);input.value=String(state[field]);
@@ -430,7 +443,7 @@ engine.updateMix();refreshKitButtons();
    paintPads();updateSampleTarget();
   }finally{input.value='';importSlot=undefined;}
  }));
- $('#take').addEventListener('click',()=>void safe(async()=>{if(($('#take') as HTMLButtonElement).classList.contains('on')){engine.endTake();$('#take').classList.remove('on');$('#take').textContent='● ЗАПИСАТЬ АУДИО';window.setTimeout(paintTakes,400)}else{await engine.beginTake();$('#take').classList.add('on');$('#take').textContent='■ ЗАВЕРШИТЬ ДУБЛЬ'}}));
+ $('#take').addEventListener('click',()=>void safe(async()=>{if(engine.taking){cueOwnsTake=false;await engine.endTake();paintTakes()}else await engine.beginTake();syncTakeButton()}));
  $('#export').addEventListener('click',()=>void safe(async()=>{setStatus('RENDERING WAV');const blob=await engine.exportWav();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='ARTSS-NEXUS-LIVE.wav';a.click();window.setTimeout(()=>URL.revokeObjectURL(url),30000);setStatus('WAV EXPORTED')}));
  $('#reset').addEventListener('click',()=>{if(!confirm('Очистить записанные шаги?'))return;state.pattern=Array.from({length:8},()=>Array(16).fill(0));save();paintSteps()});
  for(const el of document.querySelectorAll('[data-pane]'))el.addEventListener('click',()=>{closeDrawer();setPane((el as HTMLElement).dataset.pane as Pane)});
@@ -446,7 +459,7 @@ engine.updateMix();refreshKitButtons();
   const timeText=`${String(Math.floor(elapsed/60)).padStart(2,'0')}:${String(Math.floor(elapsed%60)).padStart(2,'0')} / ${String(Math.floor(total/60)).padStart(2,'0')}:${String(Math.ceil(total%60)).padStart(2,'0')}`;
   const timeLabel=$('#transportTime');if(timeLabel.textContent!==timeText)timeLabel.textContent=timeText;
  };
- engine.events.onClip=(pad)=>{scheduleSave();for(let step=0;step<STEPS;step++)syncPatternCells(pad,step)};engine.events.onSamples=paintPads;engine.events.onState=v=>{setStatus(v);};
+ engine.events.onClip=(pad)=>{scheduleSave();for(let step=0;step<STEPS;step++)syncPatternCells(pad,step)};engine.events.onSamples=paintPads;engine.events.onState=v=>{setStatus(v);if(v==='TAKE SAVED'){cueOwnsTake=false;syncTakeButton();paintTakes()}};
  paintPads();paintSteps();setPane('main');updateTransport();
  if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
 };
