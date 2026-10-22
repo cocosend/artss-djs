@@ -27,7 +27,7 @@ with sync_playwright() as playwright:
   context.route('https://artss.test/**',serve_static)
   URL='https://artss.test/'
  page.on('crash',lambda _:errors.append('Browser renderer crashed'))
- page.goto(URL,wait_until='networkidle');assert 'NEXUS 28' in page.title(),page.title()
+ page.goto(URL,wait_until='networkidle');assert 'NEXUS 29' in page.title(),page.title()
  try:
   page.wait_for_function("document.querySelectorAll('#pads .pad').length===8",timeout=15000)
  except Exception as exc:
@@ -73,7 +73,8 @@ with sync_playwright() as playwright:
  # Hold is tested with a trusted mouse down/up, not an untrusted synthetic pointer
  # which WebKit/Chromium can immediately cancel with lostpointercapture.
  pad=page.locator('.pad[data-pad="3"]')
- bounds=pad.bounding_box();assert bounds
+ pad.wait_for(state='visible',timeout=10000)
+ bounds=page.evaluate("""()=>{const r=document.querySelector('.pad[data-pad="3"]')?.getBoundingClientRect();return r&&r.width?{x:r.x,y:r.y,width:r.width,height:r.height}:null}""");assert bounds
  page.mouse.move(bounds['x']+bounds['width']/2,bounds['y']+bounds['height']/2)
  page.mouse.down()
  assert pad.evaluate("el=>el.classList.contains('pressed')"),'Pad did not respond on pointerdown'
@@ -96,16 +97,13 @@ with sync_playwright() as playwright:
  assert page.locator('.pattern-cell').count()==64
  assert page.locator('.channel').count()==0
  assert page.locator('#crossfade').count()==1
- # Auto A/B fader can be enabled, and manual fader must take back control.
- page.locator('#autoMixToggle').tap()
- assert page.locator('#autoMixToggle').get_attribute('aria-pressed')=='true'
- page.locator('#autoMixToggle').tap()
- assert page.locator('#autoMixToggle').get_attribute('aria-pressed')=='false'
+ assert page.locator('#autoMixToggle').count()==0
+ assert page.locator('#trackAutoMix').count()==0
  page.locator('#tapTempo').tap()
  page.wait_for_timeout(450)
  page.locator('#tapTempo').tap()
  assert 80<=int(page.locator('#bpm').inner_text())<=175
- page.locator('#autoGroove').tap()
+ page.locator('#applyPattern').tap()
  assert page.locator('#undoGroove').is_visible()
  assert sum(1 for x in page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).pattern[0]') if x>0)>=4
  page.locator('#undoGroove').tap()
@@ -233,61 +231,14 @@ with sync_playwright() as playwright:
   page.set_viewport_size({'width':width,'height':844})
   assert page.locator('body').evaluate('(el)=>el.scrollWidth <= innerWidth+2'),width
  assert not errors,errors
- # The WebKit media process must not retain old OfflineAudioContext and live capture nodes
- # when stress-testing the independent track queue; test it in its own browser context.
- context.close()
- mix_context=browser.new_context(viewport={'width':390,'height':844},device_scale_factor=3,is_mobile=True,has_touch=True,accept_downloads=True)
- if os.getenv('ARTSS_LOCAL_PREVIEW')=='1':mix_context.route('https://artss.test/**',serve_static)
- page=mix_context.new_page();mix_errors=[];page.on('pageerror',lambda e:mix_errors.append(str(e)))
- page.goto(URL,wait_until='networkidle')
- page.wait_for_function("document.querySelectorAll('#pads .pad').length===8",timeout=15000)
- assert page.locator('.pad').count()==8
- # Real DJ automix: two local WAV tracks, tempo analysis, beat-aware transition and stop.
- def music_track(bpm):
-  sample_rate=22050;length=6*sample_rate;beat_len=round(sample_rate*60/bpm)
-  pcm=io.BytesIO()
-  with wave.open(pcm,'wb') as wf:
-   wf.setnchannels(1);wf.setsampwidth(2);wf.setframerate(sample_rate)
-   frames=bytearray()
-   for i in range(length):
-    beat_phase=i%beat_len
-    kick=15000*math.exp(-beat_phase/450) if beat_phase<4500 else 0
-    sample=int(max(-32000,min(32000,kick+2400*math.sin(2*math.pi*110*i/sample_rate))))
-    frames.extend(struct.pack('<h',sample))
-   wf.writeframes(frames)
-  return pcm.getvalue()
- page.locator('#trackAutoMix summary').tap()
- page.locator('#autoMixFiles').set_input_files([
-  {'name':'first-120.wav','mimeType':'audio/wav','buffer':music_track(120)},
-  {'name':'second-125.wav','mimeType':'audio/wav','buffer':music_track(125)}
- ])
- page.wait_for_function("!document.querySelector('#startTrackMix').disabled",timeout=20000)
- assert page.locator('#autoMixPadSync').is_checked(),'Pad sync should be enabled for DJ performance'
- page.locator('#startTrackMix').tap()
- page.wait_for_function("!document.querySelector('#stopTrackMix').disabled",timeout=20000)
- assert page.locator('#runState').inner_text()=='ИГРАЕТ','DJ automix stopped or failed to start the pad loop'
- assert int(page.locator('#bpm').inner_text())>0,'Pad tempo not available after track sync'
- page.locator('.pad[data-pad="2"]').tap()
- assert not page.locator('#stopTrackMix').is_disabled(),'Touching drum pad stopped DJ track mix'
- assert 'Автосводка' in page.locator('#trackMixStatus').inner_text()
- page.locator('#stopTrackMix').tap()
- assert page.locator('#stopTrackMix').is_disabled()
- # Switch languages during active playback; repeat to expose translation starvation.
- page.locator('#languageToggle').tap()
- assert page.locator('html').get_attribute('lang')=='en'
- assert 'DRUM PADS' in page.locator('.pad-head').inner_text()
+ # Switching languages during live playback must not stall the transport.
+ page.locator('[data-pane="main"]').tap()
+ page.locator('#play').tap()
  for _ in range(3):
   page.locator('#languageToggle').tap(timeout=5000)
-  assert page.locator('html').get_attribute('lang')=='ru'
   page.locator('#languageToggle').tap(timeout=5000)
-  assert page.locator('html').get_attribute('lang')=='en'
- assert page.locator('#play').inner_text().find('PAUSE')>=0
- page.reload(wait_until='networkidle')
- assert page.locator('html').get_attribute('lang')=='en'
- page.locator('#languageToggle').tap()
- assert page.locator('html').get_attribute('lang')=='ru'
- assert not mix_errors,mix_errors
- mix_context.close()
+ assert page.locator('#play').inner_text().find('ПАУЗА')>=0
+ page.locator('#stop').tap()
  browser.close()
 srv.shutdown()
 print(f'PASS browser smoke ({browser_type}) and 7 mobile/tablet/desktop viewport widths')

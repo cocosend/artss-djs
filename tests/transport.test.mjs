@@ -30,3 +30,21 @@ test('STOP during unlock cancels pending record activation',async()=>{
  let starts=0;e.start=async()=>{starts++;e.running=true};
  const rec=e.toggleRecord();e.stop();finish();await rec;assert.equal(starts,0);assert.equal(e.recording,false);
 });
+test('changing BPM cancels old lookahead notes and preserves audible beat phase',()=>{
+ const session=defaultSession(),{e,ctx}=fixture(1.05);
+ e.getSession=()=>session;
+ e.running=true;e.origin=1;e.scheduledTempo=120;e.nextStep=1;e.nextTime=1.125;
+ const oldGrid={when:1.125,until:2,stopCount:0,stop(){this.stopCount++}};
+ const sounding={when:1,until:2,stopCount:0,stop(){this.stopCount++}};
+ e.active.add(oldGrid);e.active.add(sounding);
+ // A bus is unnecessary to verify the atomic transport rephase itself.
+ e.bus=null;
+ const oldPhase=(ctx.currentTime-e.origin)/(60/120/4);
+ session.tempo=150;e.updateMix();
+ assert.equal(oldGrid.stopCount,1);
+ assert.equal(sounding.stopCount,0);
+ assert.ok(Math.abs((ctx.currentTime-e.origin)/(60/150/4)-oldPhase)<1e-9);
+ assert.equal(e.scheduledTempo,150);
+ assert.ok(e.nextTime>=ctx.currentTime);
+ assert.equal(e.nextStep,1);
+});
