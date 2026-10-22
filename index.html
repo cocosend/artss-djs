@@ -7,11 +7,11 @@
  <meta name="apple-mobile-web-app-capable" content="yes">
  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
  <meta name="apple-mobile-web-app-title" content="ARTSS NEXUS">
- <meta name="description" content="ARTSS NEXUS DJ Creator — local-track AutoMix, 32 live pads and sounds, 16-step sequencer, recording and master mixer.">
+ <meta name="description" content="ARTSS NEXUS DJ Creator — local-track AutoMix, single jog, 3.1 million generative rhythms, 32 live pads, 16-step sequencer, recording and master mixer.">
  <link rel="icon" href="/icon.svg" type="image/svg+xml">
  <link rel="manifest" href="/manifest.webmanifest">
  <link rel="stylesheet" href="/studio27.css">
- <title>ARTSS NEXUS 30.0 — DJ AUTOMIX</title>
+ <title>ARTSS NEXUS 31.0 — JOG STUDIO</title>
 </head>
 <body>
 <div class="app nexus-app">
@@ -35,14 +35,22 @@
   <button id="drawerPresets" type="button">♫ СТИЛИ</button>
   
  </aside>
- <section class="hero-deck" aria-label="Панель воспроизведения и записи">
-  <button id="play" class="deck-transport deck-play" aria-label="Запустить или приостановить"><span class="deck-disc"><span class="deck-play-icon">▶</span></span><span class="deck-label">ПУСК</span></button>
+ <section class="hero-deck nexus-jog-console" aria-label="Единый DJ jog и транспорт">
+  <div class="jog-station">
+   <div class="jog-modes" role="group" aria-label="Режим вращения"><button type="button" data-jog-mode="filter" class="active">FILTER</button><button type="button" data-jog-mode="tempo">BPM</button><button type="button" data-jog-mode="echo">ECHO</button><button type="button" data-jog-mode="cue">CUE</button></div>
+   <button id="jogWheel" class="jog-wheel" type="button" role="slider" aria-label="Jog controller" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" tabindex="0"><span class="jog-rim"><span class="jog-rotor"><span class="jog-spoke"></span></span><span class="jog-core"><b>NEXUS</b><span id="jogValue">FILTER 100%</span><small>TOUCH / ROTATE</small></span></span></button>
+   <div class="jog-transport">
+    <button id="play" class="deck-transport deck-play" type="button" aria-label="Пуск или пауза"><span class="deck-play-icon">▶</span><span class="deck-label">ПУСК</span></button>
+    <button id="record" class="deck-transport deck-record" type="button" aria-label="Запись пэдов в луп"><span class="deck-rec-icon">●</span><span class="deck-label">ЗАПИСЬ</span></button>
+    <button id="cueOverdub" class="cue-overdub" type="button" aria-pressed="false">CUE · MIC</button>
+    <button id="stop" class="jog-stop" type="button" aria-label="Остановить все звуки">■ STOP</button>
+   </div>
+  </div>
   <div class="hero-wave">
-   <div class="trackline"><span class="signal" id="pulseDot"></span><span id="trackName">WAREHOUSE · GROOVE</span><span id="transportTime">00:00 / ЦИКЛ</span><button id="stop" type="button" aria-label="Стоп">■</button></div>
+   <div class="trackline"><span class="signal" id="pulseDot"></span><span id="trackName">WAREHOUSE · GROOVE</span><span id="transportTime">00:00 / ЦИКЛ</span></div>
    <canvas id="waveform" width="480" height="140" role="img" aria-label="Живая осциллограмма стереовыхода"></canvas>
    <div class="wave-foot"><span>СИГНАЛ</span><div class="meter"><i id="outputMeter"></i></div><span id="runState">СТОП</span></div>
   </div>
-  <button id="record" class="deck-transport deck-record" aria-label="Запись исполнения в луп"><span class="deck-disc"><span class="deck-rec-icon"></span></span><span class="deck-label">ЗАПИСЬ</span></button>
  </section>
  <div class="status-strip"><span id="status" class="status" role="status">ГОТОВО</span><span>СТЕРЕО · АУДИО</span></div>
  <section class="dj-workflow" aria-label="DJ автосводка пользовательских треков">
@@ -75,7 +83,7 @@
   <button type="button" class="auto" id="applyPattern"><span class="galaxy" aria-hidden="true">▦</span><span class="auto-lines"><strong>ЗАГРУЗИТЬ ПАТТЕРН</strong><small>ВЫБРАННЫЙ СТИЛЬ · 16 ШАГОВ</small></span><span class="auto-arrow">›</span></button>
   <button type="button" class="side-action" id="undoGroove" disabled><span class="action-glyph">↶</span><span>ОТМЕНИТЬ<br>ИЗМЕНЕНИЕ</span></button>
  </section>
- <div class="utility-actions"><label for="density">ПЛОТНОСТЬ ПАТТЕРНА <input id="density" type="range" min="25" max="100" value="70" aria-label="Плотность паттерна"></label><span>РУЧНОЕ УПРАВЛЕНИЕ · БЕЗ AI</span></div>
+ <div class="utility-actions"><label for="density">ПЛОТНОСТЬ ПАТТЕРНА <input id="density" type="range" min="25" max="100" value="70" aria-label="Плотность паттерна"></label><span>SMART MIX · АНАЛИЗ ТЕМПА ЛОКАЛЬНО</span></div>
  <main id="mainPanel">
   <div class="section-heading pad-head"><div class="headline"><span class="heading-icon">▦</span><h2>ДРАМ-ПЭДЫ</h2></div><div id="kitBanks" class="kit-banks" role="group" aria-label="Банки паттернов"><button type="button" data-kit="0" class="active">A</button><button type="button" data-kit="1">B</button><button type="button" data-kit="2">C</button><button type="button" data-kit="3">D</button></div></div>
   <div id="pads" class="pads" aria-label="Все восемь звуковых пэдов"></div>
@@ -101,7 +109,15 @@
   </section>
 
  </main>
- <section class="fan-workspace" id="fanWorkspace" aria-label="Инструменты студии">
+  <section class="preset-vault" id="presetVault" aria-label="Генеративные пресеты и папки">
+  <div class="vault-heading"><div><span>03 / PRESET ENGINE</span><h2>ПРЕСЕТЫ · КАРМАНЫ</h2></div><strong><span id="presetCount">3 145 728</span><small>ГЕНЕРАТИВНЫХ ВАРИАЦИЙ</small></strong></div>
+  <p>12 стилей × 262 144 адресуемых ритма. Генерация на устройстве — без скачивания миллионов файлов.</p>
+  <div class="vault-controls"><label>СТИЛЬ<select id="presetGenre" aria-label="Стиль пресета"></select></label><label>НОМЕР ПРЕСЕТА<input id="presetNumber" type="number" inputmode="numeric" value="1" min="1" max="3145728"></label><button id="presetRandom" type="button">↻ СЛУЧАЙНЫЙ</button><button id="presetApply" type="button">▶ ЗАГРУЗИТЬ</button></div>
+  <div class="vault-folders"><label>ПАПКА<select id="presetFolder" aria-label="Выбрать папку"></select></label><input id="folderName" type="text" maxlength="24" placeholder="Новая папка" aria-label="Название новой папки"><button id="folderCreate" type="button">＋ ПАПКА</button></div>
+  <div class="vault-save"><input id="presetTitle" type="text" maxlength="50" placeholder="Название ритма" aria-label="Название сохранённого ритма"><button id="presetSave" type="button">＋ СОХРАНИТЬ В КАРМАН</button></div>
+  <div id="presetItems" class="pocket-items"></div><p id="presetStatus" class="vault-status" role="status">Библиотека готова</p>
+ </section>
+<section class="fan-workspace" id="fanWorkspace" aria-label="Инструменты студии">
  <details class="workspace-fan" id="soundsFan"><summary><span class="fan-icon">◈</span><span class="fan-text"><strong>ЗВУКИ</strong><small>8 ПЭДОВ · ЗАМЕНА / ВОССТАНОВЛЕНИЕ</small></span><span class="fan-arrow">⌄</span></summary><section id="soundsPanel" class="sound-library">
  <div class="section-heading"><h2>ЗВУКИ ПЭДОВ</h2><span class="hint">ТОЛЬКО РУЧНАЯ ЗАМЕНА</span></div>
  <p class="sound-notice">Оригинальные звуки сохраняются при смене стиля. Замена только вручную.</p>
