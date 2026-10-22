@@ -55,7 +55,7 @@ export class SoundBank {
  }
  private async database():Promise<IDBDatabase|null>{
   if(!('indexedDB' in window))return null;
-  return new Promise(resolve=>{const request=indexedDB.open('artss-live-user-samples',1);
+  return new Promise(resolve=>{let request:IDBOpenDBRequest;try{request=indexedDB.open('artss-live-user-samples',1)}catch{resolve(null);return;}
    request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains('pads'))request.result.createObjectStore('pads')};
    request.onsuccess=()=>resolve(request.result);request.onerror=()=>resolve(null);request.onblocked=()=>resolve(null);
   });
