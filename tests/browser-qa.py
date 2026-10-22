@@ -27,7 +27,7 @@ with sync_playwright() as playwright:
   context.route('https://artss.test/**',serve_static)
   URL='https://artss.test/'
  page.on('crash',lambda _:errors.append('Browser renderer crashed'))
- page.goto(URL,wait_until='networkidle');assert 'NEXUS 30' in page.title(),page.title()
+ page.goto(URL,wait_until='networkidle');assert 'NEXUS 31' in page.title(),page.title()
  try:
   page.wait_for_function("document.querySelectorAll('#pads .pad').length===8",timeout=15000)
  except Exception as exc:
@@ -159,8 +159,17 @@ with sync_playwright() as playwright:
  assert page.locator('#restoreSound').is_disabled()
  page.locator('#menuToggle').tap()
  page.locator('#drawerPresets').tap()
- assert page.locator('.library-style').count()==12
+ assert page.locator('.library-style').count()==16
  assert page.locator('#libraryFan').get_attribute('open') is not None
+ page.locator('#bank').select_option('12')
+ assert page.locator('#melodyToggle').get_attribute('aria-pressed')=='true'
+ page.locator('#melodyToggle').tap()
+ assert page.locator('#melodyToggle').get_attribute('aria-pressed')=='false'
+ page.locator('#melodyToggle').tap()
+ page.reload(wait_until='networkidle')
+ assert page.locator('#bank').input_value()=='12'
+ assert page.locator('#melodyToggle').get_attribute('aria-pressed')=='true'
+ page.locator('#bank').select_option('0')
  page.locator('[data-pane="mix"]').tap()
  assert page.locator('#mixFan').get_attribute('open') is not None
  assert page.locator('.mixrow').count()==8

@@ -84,7 +84,7 @@ export class SoundBank {
   try{const entries=await new Promise<Array<{key:IDBValidKey;value:unknown}>>(resolve=>{const result:Array<{key:IDBValidKey;value:unknown}>=[];const req=db.transaction('pads','readonly').objectStore('pads').openCursor();req.onsuccess=()=>{const c=req.result;if(c){result.push({key:c.key,value:c.value});c.continue()}else resolve(result)};req.onerror=()=>resolve(result)});
    for(const item of entries){
     const key=typeof item.key==='number'?`legacy:${item.key}`:String(item.key);
-    const scoped=/^(?:[0-9]|1[01]):[0-7]$/.test(key),legacy=/^legacy:[0-7]$/.test(key);
+    const scoped=/^(?:[0-9]|1[0-5]):[0-7]$/.test(key),legacy=/^legacy:[0-7]$/.test(key);
     if(!(scoped||legacy)||this.deleted.has(key)||this.custom.has(key)||!item.value)continue;
     const entry=item.value as {data?:unknown;name?:string;type?:string;size?:number;arrayBuffer?:()=>Promise<ArrayBuffer>};
     let data:ArrayBuffer|null=null;
@@ -100,7 +100,7 @@ export class SoundBank {
  customInfo(pad:number,style:number){return (this.custom.get(`${style}:${pad}`)??this.custom.get(`legacy:${pad}`))?.name??null;}
  /** Remove a specific style override AND any legacy override without touching other pads/styles. */
  async restoreFactory(pad:number,style:number):Promise<boolean>{
-  if(!Number.isInteger(pad)||pad<0||pad>7||!Number.isInteger(style)||style<0||style>11)throw Error('Некорректный пэд');
+  if(!Number.isInteger(pad)||pad<0||pad>7||!Number.isInteger(style)||style<0||style>=16)throw Error('Некорректный пэд');
   const keys=[`${style}:${pad}`,`legacy:${pad}`];
   const found=keys.some(key=>this.custom.has(key));
   // Prevent asynchronous IDB restore from reintroducing deleted overrides.

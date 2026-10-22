@@ -14,7 +14,20 @@ test('silence and invalid source are safe',()=>{const z=analyzeAudio([new Float3
 test('audio loading clamps to supported source metadata',()=>{const s=sanitizeSession({style:999,scene:-5,tempo:700,selected:100,quantize:false});assert.equal(s.style,STYLES.length-1);assert.equal(s.scene,0);assert.equal(s.tempo,175);assert.equal(s.selected,7);assert.equal(s.quantize,false);});
 
 test('dual-bus controls persist and clamp invalid input',()=>{const s=sanitizeSession({crossfader:3,filter:-2,echo:Infinity});assert.equal(s.crossfader,1);assert.equal(s.filter,0);assert.equal(s.echo,.12);const d=defaultSession();assert.equal(d.crossfader,.5);assert.equal(d.filter,1);assert.equal(d.echo,.12)});
-test('twelve scoped genres produce distinct, bounded live grooves',()=>{const seen=new Set();for(let i=0;i<STYLES.length;i++){const g=composeGroove(i,.8,i+1);assert.equal(g.length,8);assert.ok(g.every(row=>row.length===16&&row.every(v=>v>=0&&v<=1)));seen.add(JSON.stringify(g));}assert.ok(seen.size>=10)});
+test('sixteen styles have distinct, bounded grooves and multi-note variations',()=>{const seen=new Set();for(let i=0;i<STYLES.length;i++){const g=composeGroove(i,.8,i+1);assert.equal(g.length,8);assert.ok(g.every(row=>row.length===16&&row.every(v=>v>=0&&v<=1)));seen.add(JSON.stringify(g));}assert.equal(STYLES.length,16);assert.ok(seen.size>=14);
+ for(const genre of [12,13,14,15]){const variants=new Set(Array.from({length:8},(_,v)=>JSON.stringify(composeGroove(genre,.8,v+1))));assert.ok(variants.size>=6,STYLES[genre].name)}
+});
+test('original EDM stems contain audible, bounded WAV samples and survive session restore',async()=>{
+ const {readFileSync}=await import('node:fs');
+ for(const name of ['festival','house','trance','future']){
+  const wav=readFileSync(`dist/samples/hooks/${name}.wav`);assert.equal(wav.toString('ascii',0,4),'RIFF');assert.equal(wav.toString('ascii',8,12),'WAVE');assert.ok(wav.length>200_000);
+  const frames=new Int16Array(wav.buffer,wav.byteOffset+44,(wav.length-44)/2);let sum=0,peak=0;
+  for(const value of frames){sum+=value*value;peak=Math.max(peak,Math.abs(value))}
+  assert.ok(Math.sqrt(sum/frames.length)>900,name);assert.ok(peak<16500,name);
+ }
+ assert.equal(sanitizeSession({style:12,melodyEnabled:true}).melodyEnabled,true);
+ assert.equal(sanitizeSession({style:12}).melodyEnabled,false);
+});
 
 test('EQ fields are safe and backwards compatible',()=>{const a=sanitizeSession({eqLow:100,eqMid:-90,eqHigh:NaN,crossfader:.67});assert.equal(a.eqLow,12);assert.equal(a.eqMid,-12);assert.equal(a.eqHigh,0);assert.equal(a.crossfader,.67);const b=defaultSession();assert.equal(b.eqLow,0);assert.equal(b.eqMid,0);assert.equal(b.eqHigh,0)});
 

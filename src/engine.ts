@@ -50,6 +50,7 @@ function createBus(ctx:BaseAudioContext,destination:AudioNode,settings:Session){
 
 export class Engine{
  ctx:AudioContext|null=null;bank=new SoundBank();private bus:ReturnType<typeof createBus>|null=null;
+ private melodicBuffers=new Map<number,AudioBuffer>();private melodicLoads=new Map<number,Promise<void>>();
  private clock:AudioWorkletNode|null=null;private fallback:number|null=null;
  private pending=false;private running=false;private recordArmed=false;private origin=0;private nextStep=0;private nextTime=0;private stopAt=0;
  private active=new Set<{stop:()=>void;until:number}>();
@@ -69,6 +70,30 @@ export class Engine{
  get performanceLoop(){return this.loopLength;}
  setLoop(length:LoopSize){this.loopLength=length;this.loopStart=loopAnchor(this.absoluteStep(),length);this.events.onState?.(length?`LOOP ${length/4} BEAT`:'LOOP OFF');}
  setSoundKit(index:number){this.bank.setKit(index);if(this.ctx)void this.bank.warm(this.ctx).then(()=>this.events.onSamples?.()).catch(()=>this.events.onState?.('SAMPLE LOAD ERROR'));}
+ async warmMelody(style:number):Promise<void>{
+  if(style<12||style>15||this.melodicBuffers.has(style))return;
+  const pending=this.melodicLoads.get(style);if(pending)return pending;
+  const path=['festival','house','trance','future'][style-12];
+  const load=(async()=>{const response=await fetch(`/samples/hooks/${path}.wav`,{cache:'force-cache'});
+   if(!response.ok)throw Error('Melodic stem unavailable');
+   if(!this.ctx)throw Error('Audio engine unavailable');
+   this.melodicBuffers.set(style,await this.ctx.decodeAudioData(await response.arrayBuffer()));
+  })();this.melodicLoads.set(style,load);
+  try{await load}finally{this.melodicLoads.delete(style)}
+ }
+ private scheduleMelody(ctx:BaseAudioContext,bus:AudioNode,style:number,when:number,tempo:number,scene:number){
+  const buffer=this.melodicBuffers.get(style);if(!buffer||scene===1||scene===4)return;
+  const source=ctx.createBufferSource(),level=ctx.createGain(),bar=240/tempo;
+  source.buffer=buffer;source.playbackRate.value=tempo/(STYLES[style]?.bpm??tempo);
+  source.connect(level).connect(bus);
+  level.gain.setValueAtTime(0,when);
+  level.gain.linearRampToValueAtTime(scene===2?.22:.42,when+.02);
+  level.gain.setValueAtTime(scene===2?.22:.42,when+Math.max(.03,bar-.035));
+  level.gain.linearRampToValueAtTime(0,when+bar);
+  source.start(when);source.stop(when+bar+.005);
+  source.onended=()=>{source.disconnect();level.disconnect()};
+  if(ctx===this.ctx){const voice={stop:()=>{try{source.stop()}catch{}},until:when+bar+.02};this.active.add(voice);source.addEventListener('ended',()=>this.active.delete(voice),{once:true});}
+ }
  updateMix(){this.bus?.update(this.getSession());if(this.autoMix)this.updateAutoMix();}
  /** Connect local music files before master EQ, protection and stereo meter. */
  connectMusicSource(node:AudioNode):()=>void {
@@ -123,7 +148,7 @@ export class Engine{
    if(this.fallback!==null){window.clearInterval(this.fallback);this.fallback=null;}
   }catch{}
  }
- async start(){const generation=this.generation;await this.unlock();if(this.running||this.generation!==generation)return;await this.bank.warm(this.ctx!);if(this.running||this.generation!==generation)return;const d=60/this.getSession().tempo/4;
+ async start(){const generation=this.generation;await this.unlock();if(this.running||this.generation!==generation)return;await this.bank.warm(this.ctx!);if(this.getSession().melodyEnabled)await this.warmMelody(this.getSession().style);if(this.running||this.generation!==generation)return;const d=60/this.getSession().tempo/4;
   if(this.stopAt>0){const progress=this.stopAt-this.origin;this.origin=this.time-progress;this.nextStep=Math.max(0,Math.ceil((this.time-this.origin)/d));this.nextTime=this.origin+this.nextStep*d;}
   else{this.origin=this.time+.05;this.nextStep=0;this.nextTime=this.origin;}
   this.scheduledTempo=this.getSession().tempo;this.running=true;this.stopAt=0;this.generation++;this.clock?.port.postMessage('start');this.pump();this.events.onState?.('PLAY');
@@ -149,6 +174,7 @@ export class Engine{
   // Safari background suspension: fast-forward stale transport steps instead of bursting delayed notes.
   if(this.nextTime<now-.035){const skip=Math.max(1,Math.ceil((now-this.nextTime-.008)/d));this.nextStep+=skip;this.nextTime+=skip*d;}
   while(this.nextTime<now+.115){const step=loopedStep(this.nextStep,this.loopLength,this.loopStart),session=this.getSession();
+   if(session.melodyEnabled&&step===0)this.scheduleMelody(this.ctx,this.bus.input,session.style,this.nextTime,tempo,session.scene);
    for(let p=0;p<8;p++){let velocity=session.pattern[p]?.[step]??0;if(session.muted[p]||velocity===0)continue;
     if(session.scene===1&&p>3)continue; // intro reduced
     if(session.scene===4&&p===0&&step%8!==0)continue; // break
@@ -285,8 +311,9 @@ export class Engine{
  private async storeTake(blob:Blob){const db=await this.openTakes();if(!db)return;try{const tx=db.transaction('takes','readwrite');tx.objectStore('takes').add(blob)}catch{}finally{db.close()}}
  private async restoreTakes(){const db=await this.openTakes();if(!db)return;try{const r=db.transaction('takes','readonly').objectStore('takes').getAll();r.onsuccess=()=>{for(const b of (r.result as Blob[]).reverse())if(b.size)this.recorded.push(b)};}catch{}finally{db.close()}}
 
- async exportWav(bars=4):Promise<Blob>{await this.unlock();await this.bank.warm(this.ctx!);const state=this.getSession();const rate=sampleRate;const d=60/state.tempo/4;const length=Math.ceil((bars*16*d+2)*rate);
+ async exportWav(bars=4):Promise<Blob>{await this.unlock();await this.bank.warm(this.ctx!);const state=this.getSession();if(state.melodyEnabled)await this.warmMelody(state.style);const rate=sampleRate;const d=60/state.tempo/4;const length=Math.ceil((bars*16*d+2)*rate);
   const offline=new OfflineAudioContext(2,length,rate),bus=createBus(offline,offline.destination,state);
+  if(state.melodyEnabled)for(let bar=0;bar<bars;bar++)this.scheduleMelody(offline,bus.input,state.style,bar*16*d+.02,state.tempo,state.scene);
   for(let step=0;step<bars*16;step++)for(let pad=0;pad<8;pad++){
    const current=this.loopLength?(this.loopStart+step%this.loopLength)%STEPS:step%STEPS;const velocity=state.pattern[pad]?.[current]??0;if(!velocity||state.muted[pad])continue;
    if(state.scene===1&&pad>3)continue;if(state.scene===4&&pad===0&&current%8!==0)continue;

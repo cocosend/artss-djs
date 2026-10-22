@@ -11,7 +11,7 @@
  <link rel="icon" href="/icon.svg" type="image/svg+xml">
  <link rel="manifest" href="/manifest.webmanifest">
  <link rel="stylesheet" href="/studio27.css">
- <title>ARTSS NEXUS 30.0 — PERFORMANCE DJ STUDIO</title>
+ <title>ARTSS NEXUS 31.0 — EDM PERFORMANCE STUDIO</title>
 </head>
 <body>
 <div class="app nexus-app">
@@ -76,7 +76,7 @@
    <p id="trackMixStatus" role="status">Анализ BPM, выравнивание уровней и переход по музыкальной фразе.</p>
   </div>
  </details>
- <div class="utility-actions"><button id="autoMixToggle" class="auto-mix-toggle" type="button" aria-pressed="false">АВТОМИКС · ВЫКЛ</button><label for="density">ПЛОТНОСТЬ <input id="density" type="range" min="25" max="100" value="70" aria-label="Плотность ритма"></label><button id="undoGroove" class="undo" hidden>↶ ОТМЕНИТЬ</button></div>
+ <div class="utility-actions"><button id="melodyToggle" type="button" aria-pressed="false">♫ МЕЛОДИЯ · ВЫКЛ</button><button id="autoMixToggle" class="auto-mix-toggle" type="button" aria-pressed="false">АВТОМИКС · ВЫКЛ</button><label for="density">ПЛОТНОСТЬ <input id="density" type="range" min="25" max="100" value="70" aria-label="Плотность ритма"></label><button id="undoGroove" class="undo" hidden>↶ ОТМЕНИТЬ</button></div>
  <main id="mainPanel">
   <div class="section-heading pad-head"><div class="headline"><span class="heading-icon">▦</span><h2>ДРАМ-ПЭДЫ</h2></div><div id="kitBanks" class="kit-banks" role="group" aria-label="Банки паттернов"><button type="button" data-kit="0" class="active">A</button><button type="button" data-kit="1">B</button><button type="button" data-kit="2">C</button><button type="button" data-kit="3">D</button></div></div>
   <div id="pads" class="pads" aria-label="Все восемь звуковых пэдов"></div>
@@ -113,7 +113,7 @@
  <details class="workspace-fan" id="takesFan"><summary><span class="fan-icon">◈</span><span class="fan-text"><strong>ЗАПИСЬORD</strong><small>ДУБЛИ · WAV · ВЫСТУПЛЕНИЕ</small></span><span class="fan-arrow">⌄</span></summary><section id="takesPanel"><div class="section-heading"><h2>ЗАПИСЬ ВЫСТУПЛЕНИЯ</h2><span class="hint">ЛОКАЛЬНЫЙ ПРОЕКТ</span></div>
   <button id="take" class="takebutton">● ЗАПИСАТЬ АУДИО</button><button id="export" class="secondary">↓ ЭКСПОРТ WAV · 4 ТАКТА</button><div id="takesList" class="takeslist"></div><button id="reset" class="danger">ОЧИСТИТЬ ТЕКУЩИЙ РИТМ</button>
  </section></details>
- <details class="workspace-fan" id="libraryFan"><summary><span class="fan-icon">◈</span><span class="fan-text"><strong>ПРЕСЕТЫ</strong><small>12 МУЗЫКАЛЬНЫХ СТИЛЕЙ</small></span><span class="fan-arrow">⌄</span></summary><section id="libraryPanel"><div class="section-heading"><h2>БИБЛИОТЕКА ЗВУКОВ</h2><span class="hint">12 СТИЛЕЙ · ЛОКАЛЬНЫЕ СЭМПЛЫ</span></div><div class="library-grid" id="libraryStyles"></div><button id="libraryImport" class="secondary" type="button">+ ИМПОРТ СЭМПЛА</button></section></details>
+ <details class="workspace-fan" id="libraryFan"><summary><span class="fan-icon">◈</span><span class="fan-text"><strong>ПРЕСЕТЫ</strong><small>16 СТИЛЕЙ · 4 МЕЛОДИЧЕСКИХ EDM</small></span><span class="fan-arrow">⌄</span></summary><section id="libraryPanel"><div class="section-heading"><h2>БИБЛИОТЕКА ЗВУКОВ</h2><span class="hint">16 СТИЛЕЙ · ЛОКАЛЬНЫЕ СЭМПЛЫ</span></div><div class="library-grid" id="libraryStyles"></div><button id="libraryImport" class="secondary" type="button">+ ИМПОРТ СЭМПЛА</button></section></details>
  <details class="workspace-fan" id="profileFan"><summary><span class="fan-icon">◈</span><span class="fan-text"><strong>ПРОЕКТ</strong><small>ЛИЧНЫЕ НАСТРОЙКИ</small></span><span class="fan-arrow">⌄</span></summary><section id="profilePanel"><div class="section-heading"><h2>ЛОКАЛЬНЫЙ ПРОЕКТ</h2><span class="hint">ЛИЧНАЯ СТУДИЯ НА УСТРОЙСТВЕ</span></div><div class="profile-card"><strong>ARTSS NEXUS</strong><p>Все ритмы, сэмплы и записи остаются на устройстве. Регистрация не нужна.</p><div id="deviceStatus"></div><button id="goToRecording" class="secondary">ОТКРЫТЬ ЗАПИСЬ</button></div></section></details>
  </section>
  <nav class="bottomnav" aria-label="Навигация"><button data-pane="main" class="active"><span>⌂</span>СОЗДАТЬ</button><button data-pane="library"><span>♫</span>ЗВУКИ</button><button data-pane="takes"><span>◎</span>ИГРАТЬ</button><button data-pane="mix"><span>≋</span>MIX</button><button data-pane="profile"><span>♙</span>ПРОЕКТ</button></nav>

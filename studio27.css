@@ -699,3 +699,74 @@ body{min-width:300px;background:radial-gradient(ellipse 95% 34% at 50% -17%,#301
 .nexus-app .hero-wave .loop-tools button.active{color:#020d0e;background:linear-gradient(120deg,#acfff4,#51e4d5);border-color:#81ffed;box-shadow:inset 0 1px 0 #fff8}
 .nexus-app .hero-wave .loop-tools button:focus-visible{outline:2px solid #fff!important;outline-offset:2px}
 @media(max-width:360px){.nexus-app .hero-wave .loop-tools span{font-size:7px}.nexus-app .hero-wave .loop-tools button{min-width:20px;padding:1px 3px}}
+
+/* NEXUS 31: a single flat performance console, replacing the stacked neon panels. */
+:root{--bg:#030908;--panel:#081511;--panel2:#11211d;--line:#355d53;--text:#f7fff9;--sub:#91afa5;--a:#ff584a;--b:#b9ff58;--ice:#9affdf;--hi:#fff;--n-yellow:#e9fc69;--n-purple:#80f4d4}
+html{background:#020706}
+body{background:#020706!important;color:#f7fff9}
+.nexus-app{width:min(100%,520px);gap:7px!important;padding-inline:clamp(10px,3vw,18px);background:linear-gradient(164deg,#0b211b 0,#020706 22%,#020706 100%);box-shadow:0 0 0 1px #35504688}
+.nexus-app .nexus-header{order:0;min-height:51px!important;border-color:#36574c!important}
+.nexus-app .brand-stack b{font-size:19px!important;letter-spacing:-.065em;text-shadow:none!important;color:#f8fff6!important}
+.nexus-app .brand-stack span{color:#b9ff58!important;letter-spacing:.25em}
+.nexus-app .chrome-icon,.nexus-app .menu-toggle,.nexus-app .language-toggle{background:#0b1814!important;border:1px solid #315447!important;box-shadow:none!important;color:#edfff3!important;border-radius:12px!important}
+.nexus-app .control-deck{order:1;display:grid;grid-template-columns:minmax(0,1fr) 92px minmax(0,1fr);gap:5px!important;padding:0;border:0!important}
+.nexus-app .select-unit,.nexus-app .bpm-unit{min-width:0;min-height:79px;padding:7px 5px!important;background:#0e2019!important;border:1px solid #2d5546!important;border-radius:11px!important;box-shadow:none!important}
+.nexus-app .bpm-unit{background:#b9ff58!important;border-color:#cfff8b!important;color:#08130c!important}
+.nexus-app .control-deck strong{color:#a9dac1!important;font-size:8px!important;letter-spacing:.12em!important}
+.nexus-app .bpm-unit strong,.nexus-app .bpm-counter b{color:#08130c!important;text-shadow:none!important}
+.nexus-app .bpm-counter b{font-size:25px!important;font-weight:1000;letter-spacing:-.09em}
+.nexus-app .control-deck select{background:transparent!important;color:#f8fff9!important;border:0!important;font-size:clamp(10px,3vw,13px)!important}
+.nexus-app .control-deck .arrow-select button{background:transparent!important;border:0!important;color:#b9ff58!important;min-width:20px}
+.nexus-app .bpm-counter button{background:transparent!important;border:0!important;color:#17311d!important}
+.nexus-app #bpmRange{accent-color:#0a3021!important}.nexus-app #tapTempo{background:#173224!important;color:#effff1!important;border:0!important}
+.nexus-app .selector-lights i.active{background:#b9ff58!important;box-shadow:none!important}
+.nexus-app .hero-deck{order:2;background:#071711!important;border:1px solid #3b6755!important;border-radius:16px!important;padding:8px!important;box-shadow:none!important;gap:7px!important}
+.nexus-app .deck-transport{background:#0b2018!important;border:1px solid #3c735a!important;border-radius:13px!important;box-shadow:none!important}
+.nexus-app .deck-disc,.nexus-app .deck-play .deck-disc{background:#06140e!important;border:3px solid #b9ff58!important;box-shadow:inset 0 0 0 5px #071711,0 0 0 1px #a4e775!important}
+.nexus-app .deck-record .deck-disc{border-color:#ff584a!important;box-shadow:inset 0 0 0 5px #130d0c,0 0 0 1px #fc7d70!important}
+.nexus-app .deck-label{color:#f7fff5!important;font-size:10px!important}
+.nexus-app .hero-wave{background:#020907!important;border:1px solid #284738!important;border-radius:12px!important;box-shadow:none!important}
+.nexus-app #waveform{background:#020907!important}
+.nexus-app .hero-wave .trackline,.nexus-app .hero-wave .wave-foot{color:#bbddc7!important}
+.nexus-app .meter{border-color:#426b55!important;background:#0d2115!important}
+.nexus-app .meter i{background:linear-gradient(90deg,#6befc0,#dfff73,#ff735e)!important}
+.nexus-app .hero-wave .loop-tools button{min-height:28px;border-color:#416754;background:#10251b;color:#d8f6dd;border-radius:7px}
+.nexus-app .hero-wave .loop-tools button.active{background:#b9ff58!important;border-color:#ddffae!important;color:#102012!important;box-shadow:none!important}
+.nexus-app .status-strip{order:3;color:#86b49a!important;border-bottom:1px solid #294539;padding-bottom:4px}
+.nexus-app .status-strip #status{color:#b9ff58!important}
+.nexus-app .creator-actions{order:4;gap:6px!important}
+.nexus-app .creator-actions .auto{background:#e9fff0!important;border:1px solid #fff!important;color:#092318!important;border-radius:12px!important;box-shadow:none!important;min-height:52px}
+.nexus-app .creator-actions .auto :is(strong,small,.galaxy,.auto-arrow){color:#092318!important;text-shadow:none!important}
+.nexus-app .creator-actions .side-action{background:#10291e!important;border:1px solid #38664d!important;border-radius:12px!important;color:#caffda!important;box-shadow:none!important}
+.nexus-app .auto-track-panel{order:5;background:#0b1a13!important;border:1px solid #305d47!important;border-radius:11px!important;box-shadow:none!important}
+.nexus-app .utility-actions{order:6;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.nexus-app .utility-actions #melodyToggle{min-height:43px;padding:5px 10px;flex:1 1 145px;border:1px solid #557942;border-radius:10px;background:#1e371c;color:#dfffbc;font-size:10px;font-weight:900;letter-spacing:.04em}
+.nexus-app .utility-actions #melodyToggle[aria-pressed="true"]{background:#b9ff58;color:#0b1b0b;border-color:#dbff94}
+.nexus-app .utility-actions #melodyToggle:disabled{opacity:.48}
+.nexus-app .utility-actions .auto-mix-toggle{min-height:43px;flex:1 1 124px;background:#10231c!important;border:1px solid #385b4e!important;color:#d1fce0!important;border-radius:10px!important}
+.nexus-app .utility-actions label{flex:1 1 140px}
+.nexus-app #mainPanel{order:7}
+.nexus-app .section-heading h2{color:#f8fff4!important;text-shadow:none!important;letter-spacing:.04em!important;font-size:15px!important}
+.nexus-app .heading-icon{color:#caff71!important}
+.nexus-app #kitBanks button{background:#10231a!important;border-color:#37634d!important;color:#e7ffe9!important;border-radius:7px!important}
+.nexus-app #kitBanks button.active{background:#b9ff58!important;color:#092015!important;border-color:#cfff8e!important}
+.nexus-app #pads{gap:6px!important}
+.nexus-app #pads .pad{height:clamp(77px,23vw,108px)!important;min-height:77px;background:#10251d!important;border:1px solid #3b6b52!important;border-bottom:3px solid var(--tone)!important;border-radius:10px!important;box-shadow:inset 0 1px 0 #93dfa33d!important}
+.nexus-app #pads .pad:nth-child(4n+2),.nexus-app #pads .pad:nth-child(4n+4){background:#0d2018!important}
+.nexus-app #pads .pad:before{background:none!important;border-color:#55755c64!important}
+.nexus-app #pads .pad.pressed{background:#315c3a!important;border-color:#d5ffc1!important;box-shadow:inset 0 0 0 1px #e6ffdc!important}
+.nexus-app #pads .pad.selected{border-color:#b9ff58!important;box-shadow:inset 0 0 0 1px #92c75e!important}
+.nexus-app #pads .pad-glyph{color:var(--tone)!important;text-shadow:none!important}
+.nexus-app #pads .pad-name{color:#f7fff5!important}
+.nexus-app .pattern-overview,.nexus-app .main-mixer{background:#0a1b15!important;border-color:#315b43!important;border-radius:11px!important;box-shadow:none!important}
+.nexus-app .pattern-cell{background:#193129!important;border-color:#2d5040!important;box-shadow:none!important}
+.nexus-app .pattern-cell.on{background:#b9ff58!important;border-color:#d2ff91!important;box-shadow:none!important}
+.nexus-app .pattern-cell.playhead{outline:2px solid #ff6c58!important}
+.nexus-app .knob-visual{background:#153729!important;border-color:#a4efb3!important;box-shadow:inset 0 1px #d8ffe7a0!important}
+.nexus-app .workspace-fan,.nexus-app .advanced-editor,.nexus-app .drawer{background:#0c1c15!important;border-color:#2e5540!important;box-shadow:none!important}
+.nexus-app #fanWorkspace{order:8}
+.nexus-app .bottomnav{order:9;background:#07120d!important;border:1px solid #396345!important;box-shadow:none!important;border-radius:12px!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+.nexus-app .bottomnav button.active{background:#b9ff58!important;color:#0a1c10!important;border-radius:9px!important}
+.nexus-app .bottomnav button{color:#b4d6b9!important}
+.nexus-app :is(button,select,input,summary):focus-visible{outline:2px solid #e4ff84!important;outline-offset:2px}
+@media(max-width:360px){.nexus-app .control-deck{grid-template-columns:minmax(0,1fr) 80px minmax(0,1fr)}.nexus-app #pads .pad{height:75px!important;min-height:75px}.nexus-app .utility-actions #melodyToggle{flex-basis:110px;font-size:9px}}
