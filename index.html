@@ -11,7 +11,7 @@
  <link rel="icon" href="/icon.svg" type="image/svg+xml">
  <link rel="manifest" href="/manifest.webmanifest">
  <link rel="stylesheet" href="/studio27.css">
- <title>ARTSS NEXUS 29.0 — NEON DJ STUDIO</title>
+ <title>ARTSS NEXUS 30.0 — PERFORMANCE DJ STUDIO</title>
 </head>
 <body>
 <div class="app nexus-app">
@@ -40,6 +40,7 @@
   <div class="hero-wave">
    <div class="trackline"><span class="signal" id="pulseDot"></span><span id="trackName">WAREHOUSE · GROOVE</span><span id="transportTime">00:00 / ЦИКЛ</span><button id="stop" type="button" aria-label="Стоп">■</button></div>
    <canvas id="waveform" width="480" height="140" role="img" aria-label="Живая осциллограмма стереовыхода"></canvas>
+   <div class="loop-tools" role="group" aria-label="Beat-synced loop"><span>LOOP</span><button type="button" data-loop="0" aria-pressed="true" class="active" aria-label="Loop off">OFF</button><button type="button" data-loop="4" aria-pressed="false" aria-label="Loop one beat">1</button><button type="button" data-loop="8" aria-pressed="false" aria-label="Loop two beats">2</button><button type="button" data-loop="16" aria-pressed="false" aria-label="Loop four beats">4</button></div>
    <div class="wave-foot"><span>СИГНАЛ</span><div class="meter"><i id="outputMeter"></i></div><span id="runState">СТОП</span></div>
   </div>
   <button id="record" class="deck-transport deck-record" aria-label="Запись исполнения в луп"><span class="deck-disc"><span class="deck-rec-icon"></span></span><span class="deck-label">ЗАПИСЬ</span></button>
