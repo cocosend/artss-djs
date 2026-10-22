@@ -27,7 +27,7 @@ with sync_playwright() as playwright:
   context.route('https://artss.test/**',serve_static)
   URL='https://artss.test/'
  page.on('crash',lambda _:errors.append('Browser renderer crashed'))
- page.goto(URL,wait_until='networkidle');assert 'NEXUS 28' in page.title(),page.title()
+ page.goto(URL,wait_until='networkidle');assert 'NEXUS 30' in page.title(),page.title()
  try:
   page.wait_for_function("document.querySelectorAll('#pads .pad').length===8",timeout=15000)
  except Exception as exc:
