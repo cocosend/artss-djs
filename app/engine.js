@@ -106,6 +106,7 @@ export class Engine {
     bus = null;
     melodicBuffers = new Map();
     melodicLoads = new Map();
+    renderSamplerOffline = null;
     clock = null;
     fallback = null;
     pending = false;
@@ -273,6 +274,11 @@ export class Engine {
                 void this.enableWorklet(this.ctx);
         }
         this.events.onState?.('AUDIO READY');
+    }
+    getSamplerOutput() {
+        if (!this.ctx || !this.bus || this.ctx.state !== 'running')
+            throw Error('Звук не готов');
+        return { context: this.ctx, output: this.bus.input };
     }
     async enableWorklet(ctx) {
         try {
@@ -620,6 +626,7 @@ export class Engine {
         const d = 60 / state.tempo / 4;
         const length = Math.ceil((bars * 16 * d + 2) * rate);
         const offline = new OfflineAudioContext(2, length, rate), bus = createBus(offline, offline.destination, state);
+        this.renderSamplerOffline?.(offline, bus.input, bars * 16 * d);
         if (state.melodyEnabled)
             for (let bar = 0; bar < bars; bar++)
                 this.scheduleMelody(offline, bus.input, state.style, bar * 16 * d + .02, state.tempo, state.scene);

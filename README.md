@@ -11,3 +11,7 @@ Groove generation now produces different fills, accents, bass and rhythmic densi
 ## Verification
 
 `npm run check` checks TypeScript, compiles, packages and runs Node tests. `python3 tests/browser-qa.py chromium` and `python3 tests/browser-qa.py webkit` cover the interactive mobile flows when Playwright browser binaries are available. Native iOS release builds and on-device audio latency/FPS measurements require a Mac and physical iPhone; this PWA does not claim native CoreAudio performance.
+
+## Dark Melodic Techno — Abyss (PRE_MT_2026_10)
+
+32 original local WAV sounds at 124 BPM in Am. Open **ABYSS · 32 ЗВУКА** and switch between A (16 loops) and B (16 one shots). The sampler uses bar or half-bar quantization, per-group choke, a damped room, 3/8 delay and kick-triggered ducking, mixed into the existing protected master. The four-by-two drum performance pads and existing local projects remain intact. Vocal pads are synthetic vowel/breath textures, not intelligible spoken words.

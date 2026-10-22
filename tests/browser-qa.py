@@ -161,6 +161,24 @@ with sync_playwright() as playwright:
  page.locator('#drawerPresets').tap()
  assert page.locator('.library-style').count()==16
  assert page.locator('#libraryFan').get_attribute('open') is not None
+ # Abyss is an audible two-page sampler, not a list of file names.
+ page.locator('#abyssOpen').tap()
+ assert page.locator('#abyssPads button').count()==16
+ assert page.locator('#bpm').inner_text()=='124'
+ assert page.locator('#abyssPads').evaluate("el=>getComputedStyle(el).gridTemplateColumns.split(' ').length")==4
+ page.locator('[data-abyss-id="5"]').tap()
+ page.wait_for_function("document.querySelector('[data-abyss-id=\"5\"]').getAttribute('aria-pressed')==='true'",timeout=15000)
+ page.locator('[data-abyss-id="6"]').tap()
+ page.wait_for_function("document.querySelector('[data-abyss-id=\"6\"]').getAttribute('aria-pressed')==='true'",timeout=15000)
+ assert page.locator('[data-abyss-id="5"]').get_attribute('aria-pressed')=='false','Bass choke failed'
+ page.locator('[data-abyss-page="1"]').tap()
+ assert page.locator('#abyssPads button').count()==16
+ assert page.locator('[data-abyss-id="32"]').is_visible()
+ page.locator('[data-abyss-id="17"]').tap()
+ page.wait_for_function("document.querySelector('#abyssStatus').textContent.includes('Analog Lead')",timeout=8000)
+ page.locator('#abyssStop').tap()
+ page.locator('[data-abyss-page="0"]').tap()
+ assert page.locator('[data-abyss-id="6"]').get_attribute('aria-pressed')=='false'
  page.locator('#bank').select_option('12')
  assert page.locator('#melodyToggle').get_attribute('aria-pressed')=='true'
  page.locator('#melodyToggle').tap()

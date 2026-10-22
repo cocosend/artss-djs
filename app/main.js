@@ -1,5 +1,7 @@
 import { defaultSession, importSession, PAD_NAMES, STYLES, SCENES, toggle, STEPS, sanitizeSession } from './model.js';
 import { Engine } from './engine.js';
+import { AbyssPlayer } from './abyss-player.js';
+import { ABYSS_PADS, ABYSS_BPM } from './abyss.js';
 import { composeGroove } from './arranger.js';
 import { knobDragValue } from './touch.js';
 import { AutoMixPlayer } from './automix-player.js';
@@ -14,6 +16,7 @@ const getStorage = () => { for (const key of ['artss-live-session-v19', 'artss-l
 } return defaultSession(); };
 const state = getStorage();
 const engine = new Engine(() => state);
+const abyss = new AbyssPlayer(engine);
 const STYLE_LABELS = ['АНДЕГРАУНД', 'ЖЁСТКОЕ ТЕХНО', 'ЭЙСИД', 'ТЁМНОЕ ТЕХНО', 'РЕЙВ', 'ФОНК', 'ИНДАСТРИАЛ', 'ГИПНОТИК', 'ПИК-ТАЙМ', 'БРЕЙКС', 'МИНИМАЛ', 'ЭЛЕКТРО', 'ФЕСТИВАЛЬ EDM', 'ПИАНО ХАУС', 'ТРАНС', 'ФЬЮЧЕР БЕЙС'];
 const SCENE_LABELS = ['ГРУВ', 'ВСТУПЛЕНИЕ', 'РАЗГОН', 'ДРОП', 'БРЕЙК'];
 const styleLabel = (i) => STYLE_LABELS[i] ?? 'СТИЛЬ', sceneLabel = (i) => SCENE_LABELS[i] ?? 'РИТМ';
@@ -381,9 +384,50 @@ const paintLibrary = () => {
     STYLES.forEach((style, i) => { const btn = h('button', styleLabel(i), 'library-style'); btn.classList.toggle('on', i === state.style); btn.addEventListener('click', () => { ($('#bank')).value = String(i); $('#bank').dispatchEvent(new Event('change')); setPane('main'); }); frag.append(btn); });
     host.replaceChildren(frag);
 };
+let abyssPage = 0;
+function updateAbyss() {
+    for (const button of document.querySelectorAll('#abyssPads button')) {
+        const id = Number(button.dataset.abyssId), on = abyss.isActive(id);
+        button.classList.toggle('active', on);
+        button.setAttribute('aria-pressed', String(on));
+    }
+}
+function paintAbyss() {
+    const host = $('#abyssPads'), fragment = document.createDocumentFragment();
+    host.setAttribute('aria-label', `16 пэдов страницы ${abyssPage === 0 ? 'A' : 'B'}`);
+    for (const pad of ABYSS_PADS.slice(abyssPage * 16, abyssPage * 16 + 16)) {
+        const button = h('button', '', 'abyss-pad');
+        button.type = 'button';
+        button.dataset.abyssId = String(pad.id);
+        button.style.setProperty('--abyss-tone', pad.color);
+        button.setAttribute('aria-label', `${pad.id} ${pad.name}, ${pad.type === 'loop' ? 'петля' : 'один удар'}, ${pad.group}`);
+        button.append(h('small', `${String(pad.id).padStart(2, '0')} · ${pad.group.toUpperCase()}`), h('strong', pad.name), h('span', pad.type === 'loop' ? `LOOP · ${pad.quantize}` : pad.quantize === 'none' ? 'LIVE' : `FX · ${pad.quantize}`));
+        const play = () => {
+            button.classList.add('pressed');
+            $('#abyssStatus').textContent = `${pad.name} · ${pad.quantize === 'none' ? 'ИГРАЕТ' : 'ОЖИДАНИЕ ТАКТА'}`;
+            void abyss.trigger(pad.id).then(() => updateAbyss()).catch(error => { $('#abyssStatus').textContent = error instanceof Error ? error.message : 'ОШИБКА ЗВУКА'; button.classList.remove('pressed'); });
+            window.setTimeout(() => button.classList.remove('pressed'), 85);
+        };
+        button.addEventListener('pointerdown', event => { if (event.pointerType === 'mouse' && event.button !== 0)
+            return; event.preventDefault(); play(); }, { passive: false });
+        button.addEventListener('click', event => { if (event.detail === 0)
+            play(); });
+        fragment.append(button);
+    }
+    host.replaceChildren(fragment);
+    updateAbyss();
+    for (const b of document.querySelectorAll('[data-abyss-page]'))
+        b.classList.toggle('active', Number(b.dataset.abyssPage) === abyssPage);
+}
+abyss.onChange = updateAbyss;
 const init = () => {
     engine.updateMix();
     refreshKitButtons();
+    paintAbyss();
+    $('#abyssOpen').addEventListener('click', () => { state.tempo = ABYSS_BPM; save(); ($('#bpmRange')).value = String(ABYSS_BPM); $('#bpm').textContent = String(ABYSS_BPM); setPane('library'); $('#abyssPanel').scrollIntoView({ block: 'start' }); });
+    $('#abyssStop').addEventListener('click', () => { abyss.stop(); $('#abyssStatus').textContent = 'ОСТАНОВЛЕНО'; });
+    for (const button of document.querySelectorAll('[data-abyss-page]'))
+        button.addEventListener('click', () => { abyssPage = Number(button.dataset.abyssPage); paintAbyss(); });
     // Automatic DJ transitions process real user-owned music files, not sequencer presets.
     const trackStatus = $('#trackMixStatus'), mixStart = $('#startTrackMix'), mixStop = $('#stopTrackMix');
     const mixPlayer = new AutoMixPlayer(engine, (current, message) => {
@@ -574,7 +618,7 @@ const init = () => {
         flushSave();
     else if (engine.state === 'PLAY' && engine.ctx?.state === 'suspended')
         setStatus('TAP PLAY TO RESTORE AUDIO'); });
-    window.addEventListener('pagehide', () => { flushSave(); mixPlayer.dispose(); for (const url of takeUrls)
+    window.addEventListener('pagehide', () => { flushSave(); mixPlayer.dispose(); abyss.dispose(); for (const url of takeUrls)
         URL.revokeObjectURL(url); takeUrls = []; });
     $('#play').addEventListener('click', () => void safe(async () => { if (engine.state === 'PLAY' && engine.ctx?.state === 'suspended')
         await engine.unlock();
@@ -583,7 +627,7 @@ const init = () => {
     else
         await engine.start(); mixPlayer.setPadOverlay(engine.state === 'PLAY'); updateTransport(); }));
     $('#record').addEventListener('click', () => void safe(async () => { await engine.toggleRecord(); mixPlayer.setPadOverlay(engine.state === 'PLAY'); updateTransport(); }));
-    $('#stop').addEventListener('click', () => { mixPlayer.stop(); engine.stop(); updateTransport(); for (const button of document.querySelectorAll('[data-loop]')) {
+    $('#stop').addEventListener('click', () => { mixPlayer.stop(); abyss.stop(); engine.stop(); updateTransport(); for (const button of document.querySelectorAll('[data-loop]')) {
         const on = button.dataset.loop === '0';
         button.classList.toggle('active', on);
         button.setAttribute('aria-pressed', String(on));

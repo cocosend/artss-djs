@@ -1,12 +1,14 @@
 import {defaultSession,importSession,PAD_NAMES,STYLES,SCENES,toggle,STEPS,sanitizeSession,type Session} from './model.js';
 import {Engine} from './engine.js';
+import {AbyssPlayer} from './abyss-player.js';
+import {ABYSS_PADS,ABYSS_BPM} from './abyss.js';
 import { composeGroove } from './arranger.js';
 import {knobDragValue} from './touch.js';
 import type {LoopSize} from './performance-loop.js';
 import {AutoMixPlayer,type AutoMixState} from './automix-player.js';
 const $=<T extends HTMLElement=HTMLElement>(q:string)=>document.querySelector<T>(q)!;
 const getStorage=():Session=>{for(const key of ['artss-live-session-v19','artss-live-session-v18']){try{const v=localStorage.getItem(key);if(v)return importSession(v)}catch{}}return defaultSession()};
-const state=getStorage();const engine=new Engine(()=>state);
+const state=getStorage();const engine=new Engine(()=>state);const abyss=new AbyssPlayer(engine);
 const STYLE_LABELS=['АНДЕГРАУНД','ЖЁСТКОЕ ТЕХНО','ЭЙСИД','ТЁМНОЕ ТЕХНО','РЕЙВ','ФОНК','ИНДАСТРИАЛ','ГИПНОТИК','ПИК-ТАЙМ','БРЕЙКС','МИНИМАЛ','ЭЛЕКТРО','ФЕСТИВАЛЬ EDM','ПИАНО ХАУС','ТРАНС','ФЬЮЧЕР БЕЙС'] as const;
 const SCENE_LABELS=['ГРУВ','ВСТУПЛЕНИЕ','РАЗГОН','ДРОП','БРЕЙК'] as const;
 const styleLabel=(i:number)=>STYLE_LABELS[i]??'СТИЛЬ',sceneLabel=(i:number)=>SCENE_LABELS[i]??'РИТМ';
@@ -187,8 +189,30 @@ const paintLibrary=()=>{const host=$('#libraryStyles');const frag=document.creat
  STYLES.forEach((style,i)=>{const btn=h('button',styleLabel(i),'library-style') as HTMLButtonElement;btn.classList.toggle('on',i===state.style);btn.addEventListener('click',()=>{($<HTMLSelectElement>('#bank')).value=String(i);$('#bank').dispatchEvent(new Event('change'));setPane('main')});frag.append(btn)});
  host.replaceChildren(frag);
 };
+let abyssPage=0;
+function updateAbyss(){for(const button of document.querySelectorAll<HTMLButtonElement>('#abyssPads button')){
+ const id=Number(button.dataset.abyssId),on=abyss.isActive(id);button.classList.toggle('active',on);button.setAttribute('aria-pressed',String(on));
+}}
+function paintAbyss(){const host=$('#abyssPads'),fragment=document.createDocumentFragment();host.setAttribute('aria-label',`16 пэдов страницы ${abyssPage===0?'A':'B'}`);
+ for(const pad of ABYSS_PADS.slice(abyssPage*16,abyssPage*16+16)){
+  const button=h('button','','abyss-pad') as HTMLButtonElement;button.type='button';button.dataset.abyssId=String(pad.id);
+  button.style.setProperty('--abyss-tone',pad.color);button.setAttribute('aria-label',`${pad.id} ${pad.name}, ${pad.type==='loop'?'петля':'один удар'}, ${pad.group}`);
+  button.append(h('small',`${String(pad.id).padStart(2,'0')} · ${pad.group.toUpperCase()}`),h('strong',pad.name),h('span',pad.type==='loop'?`LOOP · ${pad.quantize}`:pad.quantize==='none'?'LIVE':`FX · ${pad.quantize}`));
+  const play=()=>{button.classList.add('pressed');$('#abyssStatus').textContent=`${pad.name} · ${pad.quantize==='none'?'ИГРАЕТ':'ОЖИДАНИЕ ТАКТА'}`;
+   void abyss.trigger(pad.id).then(()=>updateAbyss()).catch(error=>{$('#abyssStatus').textContent=error instanceof Error?error.message:'ОШИБКА ЗВУКА';button.classList.remove('pressed')});
+   window.setTimeout(()=>button.classList.remove('pressed'),85);
+  };
+  button.addEventListener('pointerdown',event=>{if(event.pointerType==='mouse'&&event.button!==0)return;event.preventDefault();play()},{passive:false});
+  button.addEventListener('click',event=>{if(event.detail===0)play()});fragment.append(button);
+ }
+ host.replaceChildren(fragment);updateAbyss();for(const b of document.querySelectorAll<HTMLButtonElement>('[data-abyss-page]'))b.classList.toggle('active',Number(b.dataset.abyssPage)===abyssPage);
+}
+abyss.onChange=updateAbyss;
 const init=()=>{
-engine.updateMix();refreshKitButtons();
+engine.updateMix();refreshKitButtons();paintAbyss();
+$('#abyssOpen').addEventListener('click',()=>{state.tempo=ABYSS_BPM;save();($<HTMLInputElement>('#bpmRange')).value=String(ABYSS_BPM);$('#bpm').textContent=String(ABYSS_BPM);setPane('library');$('#abyssPanel').scrollIntoView({block:'start'});});
+$('#abyssStop').addEventListener('click',()=>{abyss.stop();$('#abyssStatus').textContent='ОСТАНОВЛЕНО'});
+for(const button of document.querySelectorAll<HTMLButtonElement>('[data-abyss-page]'))button.addEventListener('click',()=>{abyssPage=Number(button.dataset.abyssPage);paintAbyss()});
 // Automatic DJ transitions process real user-owned music files, not sequencer presets.
 const trackStatus=$('#trackMixStatus'),mixStart=$<HTMLButtonElement>('#startTrackMix'),mixStop=$<HTMLButtonElement>('#stopTrackMix');
 const mixPlayer=new AutoMixPlayer(engine,(current:AutoMixState,message:string)=>{
@@ -285,10 +309,10 @@ mixStop.addEventListener('click',()=>{mixPlayer.stop();updateTransport()});
  let lastTap=0;const recentTaps:number[]=[];
  $('#tapTempo').addEventListener('click',()=>{const now=performance.now(),elapsed=now-lastTap;lastTap=now;if(elapsed>2000){recentTaps.length=0;setStatus('TAP AGAIN TO SET BPM');return;}if(elapsed<300||elapsed>1000)return;recentTaps.push(elapsed);if(recentTaps.length>4)recentTaps.shift();const sorted=[...recentTaps].sort((a,b)=>a-b);const median=sorted[Math.floor(sorted.length/2)]??elapsed;changeTempo(60000/median);setStatus(`BPM ${state.tempo}`)});
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushSave();else if(engine.state==='PLAY'&&engine.ctx?.state==='suspended')setStatus('TAP PLAY TO RESTORE AUDIO')});
- window.addEventListener('pagehide',()=>{flushSave();mixPlayer.dispose();for(const url of takeUrls)URL.revokeObjectURL(url);takeUrls=[]});
+ window.addEventListener('pagehide',()=>{flushSave();mixPlayer.dispose();abyss.dispose();for(const url of takeUrls)URL.revokeObjectURL(url);takeUrls=[]});
  $('#play').addEventListener('click',()=>void safe(async()=>{if(engine.state==='PLAY'&&engine.ctx?.state==='suspended')await engine.unlock();else if(engine.state==='PLAY')engine.pause();else await engine.start();mixPlayer.setPadOverlay(engine.state==='PLAY');updateTransport()}));
  $('#record').addEventListener('click',()=>void safe(async()=>{await engine.toggleRecord();mixPlayer.setPadOverlay(engine.state==='PLAY');updateTransport()}));
- $('#stop').addEventListener('click',()=>{mixPlayer.stop();engine.stop();updateTransport();for(const button of document.querySelectorAll<HTMLButtonElement>('[data-loop]')){const on=button.dataset.loop==='0';button.classList.toggle('active',on);button.setAttribute('aria-pressed',String(on));}});
+ $('#stop').addEventListener('click',()=>{mixPlayer.stop();abyss.stop();engine.stop();updateTransport();for(const button of document.querySelectorAll<HTMLButtonElement>('[data-loop]')){const on=button.dataset.loop==='0';button.classList.toggle('active',on);button.setAttribute('aria-pressed',String(on));}});
  const autoMixButton=$<HTMLButtonElement>('#autoMixToggle');
  autoMixButton.addEventListener('click',()=>{engine.setAutoMix(!engine.autoMixEnabled);autoMixButton.setAttribute('aria-pressed',String(engine.autoMixEnabled));autoMixButton.classList.toggle('active',engine.autoMixEnabled);autoMixButton.textContent=engine.autoMixEnabled?'АВТОМИКС · ВКЛ':'АВТОМИКС · ВЫКЛ';setStatus(engine.autoMixEnabled?'АВТОМИКС ВКЛ':'АВТОМИКС ВЫКЛ')});
  const cross=$<HTMLInputElement>('#crossfade');cross.value=String(Math.round(state.crossfader*100));cross.addEventListener('input',()=>{if(engine.autoMixEnabled){engine.setAutoMix(false);autoMixButton.classList.remove('active');autoMixButton.setAttribute('aria-pressed','false');autoMixButton.textContent='АВТОМИКС · ВЫКЛ';}state.crossfader=Number(cross.value)/100;engine.updateMix();scheduleSave()});

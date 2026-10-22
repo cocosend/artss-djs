@@ -51,6 +51,7 @@ function createBus(ctx:BaseAudioContext,destination:AudioNode,settings:Session){
 export class Engine{
  ctx:AudioContext|null=null;bank=new SoundBank();private bus:ReturnType<typeof createBus>|null=null;
  private melodicBuffers=new Map<number,AudioBuffer>();private melodicLoads=new Map<number,Promise<void>>();
+ renderSamplerOffline:((ctx:OfflineAudioContext,bus:AudioNode,seconds:number)=>void)|null=null;
  private clock:AudioWorkletNode|null=null;private fallback:number|null=null;
  private pending=false;private running=false;private recordArmed=false;private origin=0;private nextStep=0;private nextTime=0;private stopAt=0;
  private active=new Set<{stop:()=>void;until:number}>();
@@ -140,6 +141,10 @@ export class Engine{
     void this.enableWorklet(this.ctx);
   }
   this.events.onState?.('AUDIO READY');
+ }
+ getSamplerOutput():{context:AudioContext;output:AudioNode}{
+  if(!this.ctx||!this.bus||this.ctx.state!=='running')throw Error('Звук не готов');
+  return {context:this.ctx,output:this.bus.input};
  }
  private async enableWorklet(ctx:AudioContext):Promise<void>{
   try{if(!ctx.audioWorklet)return;await ctx.audioWorklet.addModule('/app/clock.js');if(this.ctx!==ctx)return;
@@ -313,6 +318,7 @@ export class Engine{
 
  async exportWav(bars=4):Promise<Blob>{await this.unlock();await this.bank.warm(this.ctx!);const state=this.getSession();if(state.melodyEnabled)await this.warmMelody(state.style);const rate=sampleRate;const d=60/state.tempo/4;const length=Math.ceil((bars*16*d+2)*rate);
   const offline=new OfflineAudioContext(2,length,rate),bus=createBus(offline,offline.destination,state);
+  this.renderSamplerOffline?.(offline,bus.input,bars*16*d);
   if(state.melodyEnabled)for(let bar=0;bar<bars;bar++)this.scheduleMelody(offline,bus.input,state.style,bar*16*d+.02,state.tempo,state.scene);
   for(let step=0;step<bars*16;step++)for(let pad=0;pad<8;pad++){
    const current=this.loopLength?(this.loopStart+step%this.loopLength)%STEPS:step%STEPS;const velocity=state.pattern[pad]?.[current]??0;if(!velocity||state.muted[pad])continue;

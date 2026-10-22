@@ -191,3 +191,17 @@ test('DJ music clock locks first beat to live pad bar without pausing sequencer'
  assert.doesNotMatch(player,/this\.engine\.pause\(\)/);
  assert.match(player,/setPadOverlay\(playing:boolean\)/);
 });
+
+test('Abyss has 32 distinct playable PCM WAVs with the requested groups and bounded signal',async()=>{
+ const {readFileSync}=await import('node:fs');const {ABYSS_PADS,ABYSS_FX,ABYSS_BPM}=await import('../app/abyss.js');
+ assert.equal(ABYSS_BPM,124);assert.equal(ABYSS_PADS.length,32);assert.equal(new Set(ABYSS_PADS.map(p=>p.file)).size,32);
+ assert.deepEqual(ABYSS_PADS.map(p=>p.id),Array.from({length:32},(_,i)=>i+1));
+ assert.ok(ABYSS_PADS.slice(0,16).every(p=>p.type==='loop'));assert.ok(ABYSS_PADS.slice(16).every(p=>p.type==='one_shot'));
+ assert.equal(ABYSS_FX.delay.feedback,.4);assert.equal(ABYSS_FX.sidechain_compressor.source,'pad_1');
+ for(const pad of ABYSS_PADS){const bytes=readFileSync('dist/samples/abyss/'+pad.file);
+  assert.equal(bytes.toString('ascii',0,4),'RIFF',pad.file);assert.equal(bytes.toString('ascii',8,12),'WAVE',pad.file);
+  assert.equal(bytes.readUInt16LE(20),1,pad.file);assert.equal(bytes.readUInt16LE(34),16,pad.file);
+  const count=(bytes.length-44)/2;let peak=0,energy=0;for(let i=0;i<count;i++){const v=bytes.readInt16LE(44+i*2);peak=Math.max(peak,Math.abs(v));energy+=v*v;}
+  assert.ok(peak>600&&peak<29000,pad.file+' peak '+peak);assert.ok(Math.sqrt(energy/count)>35,pad.file+' is silent');
+ }
+});
