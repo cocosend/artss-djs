@@ -27,12 +27,19 @@ with sync_playwright() as playwright:
   context.route('https://artss.test/**',serve_static)
   URL='https://artss.test/'
  page.on('crash',lambda _:errors.append('Browser renderer crashed'))
- page.goto(URL,wait_until='networkidle');assert 'NEXUS 29' in page.title(),page.title()
+ page.goto(URL,wait_until='networkidle');assert 'NEXUS 30' in page.title(),page.title()
  try:
   page.wait_for_function("document.querySelectorAll('#pads .pad').length===8",timeout=15000)
  except Exception as exc:
   raise AssertionError(f"Startup did not render eight pads: errors={errors}, url={page.url}, ready={page.evaluate('document.readyState')}") from exc
  assert page.locator('.pad').count()==8
+ assert page.locator('#musicPads .music-pad').count()==8
+ for group in ['acid','piano','fx']:
+  page.locator(f'[data-sound-page="{group}"]').tap()
+  assert page.locator('#musicPads .music-pad').count()==8
+  page.locator('#musicPads .music-pad').first.tap()
+ page.locator('#musicKey').select_option('5')
+ assert page.locator('#musicKey').input_value()=='5'
  assert page.locator('.pad[data-pad="4"]').is_visible()
  assert page.locator('.pad[data-pad="7"]').is_visible()
  assert page.locator('#kitBanks button').count()==4
@@ -99,6 +106,29 @@ with sync_playwright() as playwright:
  assert page.locator('#crossfade').count()==1
  assert page.locator('#autoMixToggle').count()==0
  assert page.locator('#trackAutoMix').count()==0
+ page.locator('[data-cue="50"]').tap()
+ assert page.locator('#trackCue').input_value()=='50'
+ assert 'DROP' in page.locator('#cuePosition').inner_text()
+ page.locator('[data-cue="0"]').tap()
+ # A local recording plays through the same master bus with no second deck.
+ frames=[]
+ for n in range(44100*6):
+  t=n/44100;beat=t%0.5
+  amplitude=math.exp(-beat*28)*.4 if beat<.24 else 0
+  frames.append(struct.pack('<h',int(amplitude*math.sin(2*math.pi*110*t)*32767)))
+ output=io.BytesIO()
+ with wave.open(output,'wb') as wav:
+  wav.setnchannels(1);wav.setsampwidth(2);wav.setframerate(44100);wav.writeframes(b''.join(frames))
+ page.locator('#trackInput').set_input_files({'name':'local-groove.wav','mimeType':'audio/wav','buffer':output.getvalue()})
+ page.wait_for_function("document.querySelector('#startAutoMix').disabled===false",timeout=20000)
+ assert 'local-groove.wav' in page.locator('#trackQueue').inner_text()
+ page.locator('#mixIntro').uncheck()
+ page.locator('#startAutoMix').tap()
+ page.wait_for_function("document.querySelector('#mixStatus').textContent.includes('Автосводка')",timeout=15000)
+ page.wait_for_function("parseFloat(document.querySelector('#outputMeter').style.width)>0",timeout=4000)
+ page.wait_for_function("parseFloat(document.querySelector('#mixProgressFill').style.width)>0",timeout=4000)
+ page.locator('#stopAutoMix').tap()
+ assert page.locator('#startAutoMix').is_enabled()
  page.locator('#tapTempo').tap()
  page.wait_for_timeout(450)
  page.locator('#tapTempo').tap()

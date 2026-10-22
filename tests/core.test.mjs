@@ -123,13 +123,24 @@ test('pad-only recording never requests microphone permission',async()=>{
  assert.ok(engine.includes('if(this.recordArmed&&this.running)'));
 });
 
-test('manual mixer has one crossfader and no automatic mix controllers',async()=>{
+test('one manual crossfader and one local-track AutoMix workflow',async()=>{
  const {readFileSync,existsSync}=await import('node:fs');
  const html=readFileSync('index.html','utf8'),engine=readFileSync('src/engine.ts','utf8');
  assert.equal((html.match(/id="crossfade"/g)??[]).length,1);
- assert.ok(!html.includes('autoMixToggle')&&!html.includes('trackAutoMix'));
+ assert.equal((html.match(/id="startAutoMix"/g)??[]).length,1);
  assert.ok(!engine.includes('setAutoMix('));
- assert.equal(existsSync('src/automix-player.ts'),false);
+ assert.equal(existsSync('src/automix-player.ts'),true);
+});
+
+test('all 24 performance pads use real bounded WAV masters',async()=>{
+ const {readFileSync}=await import('node:fs');
+ for(const group of ['acid','piano','fx'])for(let i=1;i<=8;i++){
+  const path=`samples/performance/${group}-${String(i).padStart(2,'0')}.wav`;
+  const wav=readFileSync(path);assert.equal(wav.toString('ascii',0,4),'RIFF');
+  assert.ok(wav.length>4000);
+  let peak=0;for(let pos=44;pos+1<wav.length;pos+=2)peak=Math.max(peak,Math.abs(wav.readInt16LE(pos)));
+  assert.ok(peak>800&&peak<28000,`${path}: peak ${peak}`);
+ }
 });
 
 test('audio worklet pulse stops sending messages while no pad loop is playing',async()=>{

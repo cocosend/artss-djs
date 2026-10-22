@@ -1,5 +1,6 @@
 import { defaultSession, importSession, PAD_NAMES, STYLES, toggle, STEPS, sanitizeSession } from './model.js';
 import { Engine } from './engine.js';
+import { AutoMixPlayer } from './automix-player.js';
 import { composeGroove } from './arranger.js';
 import { knobDragValue } from './touch.js';
 const $ = (q) => document.querySelector(q);
@@ -13,6 +14,26 @@ const getStorage = () => { for (const key of ['artss-live-session-v19', 'artss-l
 } return defaultSession(); };
 const state = getStorage();
 const engine = new Engine(() => state);
+const autoMix = new AutoMixPlayer(engine, (status, message) => {
+    const line = document.querySelector('#mixStatus');
+    if (line)
+        line.textContent = message;
+    const start = document.querySelector('#startAutoMix'), stop = document.querySelector('#stopAutoMix');
+    if (start)
+        start.disabled = status === 'loading' || status === 'playing' || status === 'idle' || status === 'error';
+    if (stop)
+        stop.disabled = status !== 'playing';
+    const cue = document.querySelector('#trackCue');
+    if (cue)
+        cue.disabled = status === 'playing' || status === 'loading';
+    for (const button of document.querySelectorAll('[data-cue]'))
+        button.disabled = status === 'playing' || status === 'loading';
+    const fill = document.querySelector('#mixProgressFill');
+    if (fill)
+        fill.style.width = status === 'playing' ? autoMix.position.percent + '%' : '0%';
+});
+const SOUND_LABELS = { acid: ['SUB 303', 'SLIDE', 'RESONANCE', 'PULSE', 'SQUELCH', 'STAB', 'DRIVE', 'OCTAVE'], piano: ['C', 'D', 'E♭', 'F', 'G', 'A♭', 'B♭', 'C⁵'], fx: ['METAL HIT', 'MINOR STAB', 'RISER', 'SUB DROP', 'CLAP HIT', 'DARK CHORD', 'FALL', 'IMPACT'] };
+let soundPage = 'acid';
 const STYLE_LABELS = ['АНДЕГРАУНД', 'ЖЁСТКОЕ ТЕХНО', 'ЭЙСИД', 'ТЁМНОЕ ТЕХНО', 'РЕЙВ', 'ФОНК', 'ИНДАСТРИАЛ', 'ГИПНОТИК', 'ПИК-ТАЙМ', 'БРЕЙКС', 'МИНИМАЛ', 'ЭЛЕКТРО'];
 const styleLabel = (i) => STYLE_LABELS[i] ?? 'ПАТТЕРН';
 const localStatus = (value) => {
@@ -386,6 +407,72 @@ const paintLibrary = () => {
 const init = () => {
     engine.updateMix();
     refreshKitButtons();
+    const renderSoundPads = () => {
+        const host = $('#musicPads'), fragment = document.createDocumentFragment();
+        SOUND_LABELS[soundPage].forEach((label, index) => {
+            const button = h('button', '', 'music-pad');
+            button.type = 'button';
+            button.setAttribute('aria-label', `Играть ${soundPage} ${label}`);
+            button.append(h('small', String(index + 1).padStart(2, '0')), h('strong', label));
+            button.addEventListener('pointerdown', event => {
+                if (event.pointerType === 'mouse' && event.button !== 0)
+                    return;
+                event.preventDefault();
+                button.classList.add('pressed');
+                const path = `/samples/performance/${soundPage}-${String(index + 1).padStart(2, '0')}.wav`;
+                const shift = soundPage === 'fx' ? 0 : Number($('#musicKey').value);
+                void engine.playPerformance(path, 2 ** (shift / 12)).catch(error => setStatus(error instanceof Error ? error.message : 'ЗВУК НЕДОСТУПЕН'));
+            }, { passive: false });
+            for (const action of ['pointerup', 'pointercancel', 'lostpointercapture'])
+                button.addEventListener(action, () => button.classList.remove('pressed'));
+            button.addEventListener('click', event => { if (event.detail !== 0)
+                return; const path = `/samples/performance/${soundPage}-${String(index + 1).padStart(2, '0')}.wav`; void engine.playPerformance(path, soundPage === 'fx' ? 1 : 2 ** (Number($('#musicKey').value) / 12)).catch(error => setStatus(String(error))); });
+            button.addEventListener('contextmenu', event => event.preventDefault());
+            fragment.append(button);
+        });
+        host.replaceChildren(fragment);
+        for (const button of document.querySelectorAll('[data-sound-page]'))
+            button.classList.toggle('active', button.dataset.soundPage === soundPage);
+    };
+    for (const button of document.querySelectorAll('[data-sound-page]'))
+        button.addEventListener('click', () => { soundPage = button.dataset.soundPage; renderSoundPads(); });
+    renderSoundPads();
+    const updateCue = () => {
+        const value = Number($('#trackCue').value);
+        const labels = { 0: 'INTRO', 25: 'BREAK', 50: 'DROP', 85: 'OUTRO' };
+        $('#cuePosition').textContent = `${labels[value] ?? 'ТОЧКА'} · ${value}%`;
+        for (const button of document.querySelectorAll('[data-cue]'))
+            button.classList.toggle('active', Number(button.dataset.cue) === value);
+    };
+    $('#trackCue').addEventListener('input', updateCue);
+    for (const button of document.querySelectorAll('[data-cue]'))
+        button.addEventListener('click', () => { const slider = $('#trackCue'); slider.value = button.dataset.cue ?? '0'; updateCue(); });
+    updateCue();
+    $('#chooseTracks').addEventListener('click', () => $('#trackInput').click());
+    $('#trackInput').addEventListener('change', () => void safe(async () => {
+        const input = $('#trackInput');
+        try {
+            if (!input.files?.length)
+                return;
+            $('#trackQueue').textContent = 'Анализ треков…';
+            try {
+                await autoMix.load(input.files);
+            }
+            catch (error) {
+                $('#trackQueue').textContent = 'Треки не загружены';
+                throw error;
+            }
+            $('#trackQueue').replaceChildren(...autoMix.loaded.map((track, index) => h('div', `${String(index + 1).padStart(2, '0')} · ${track.name} · ${track.confidence >= .17 ? `${track.bpm} BPM` : 'BPM вручную / без синхронизации'}`, 'track-chip')));
+        }
+        finally {
+            input.value = '';
+        }
+    }));
+    $('#startAutoMix').addEventListener('click', () => void safe(async () => {
+        await autoMix.start($('#mixPads').checked, $('#mixIntro').checked, Number($('#trackCue').value) / 100);
+        updateTransport();
+    }));
+    $('#stopAutoMix').addEventListener('click', () => { autoMix.stop(); updateTransport(); });
     $('#filter').addEventListener('input', () => { state.filter = Number(($('#filter')).value) / 100; $('#filterValue').textContent = state.filter > .97 ? 'ОТКРЫТ' : `${Math.round(state.filter * 100)}%`; engine.updateMix(); scheduleSave(); });
     $('#filter').value = String(Math.round(state.filter * 100));
     $('#filterValue').textContent = state.filter > .97 ? 'ОТКРЫТ' : `${Math.round(state.filter * 100)}%`;
@@ -533,7 +620,7 @@ const init = () => {
     else
         await engine.start(); updateTransport(); }));
     $('#record').addEventListener('click', () => void safe(async () => { await engine.toggleRecord(); updateTransport(); }));
-    $('#stop').addEventListener('click', () => { engine.stop(); updateTransport(); });
+    $('#stop').addEventListener('click', () => { autoMix.stop(); engine.stop(); updateTransport(); });
     const cross = $('#crossfade');
     cross.value = String(Math.round(state.crossfader * 100));
     cross.addEventListener('input', () => { state.crossfader = Number(cross.value) / 100; engine.updateMix(); scheduleSave(); });

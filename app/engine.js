@@ -134,6 +134,8 @@ export class Engine {
     offlineSampleHits = [];
     sampleTarget = null;
     events = {};
+    performanceBuffers = new Map();
+    performanceVoices = new Set();
     constructor(getSession) {
         this.getSession = getSession;
         if (typeof indexedDB !== 'undefined')
@@ -142,6 +144,76 @@ export class Engine {
     get state() { return this.running ? 'PLAY' : this.stopAt ? 'PAUSE' : 'STOP'; }
     get recording() { return this.recordArmed; }
     get sampling() { return this.offlineSampleActive || this.sampleRecorder.active; }
+    /** Music and instrument previews share the existing master EQ, limiter and meter. */
+    connectMusicSource(node) {
+        if (!this.ctx || !this.bus || this.ctx.state !== 'running')
+            throw Error('Аудиодвижок недоступен');
+        const level = this.ctx.createGain();
+        level.gain.value = .72;
+        node.connect(level).connect(this.bus.input);
+        return () => { try {
+            node.disconnect(level);
+            level.disconnect();
+        }
+        catch { } };
+    }
+    getMusicSyncPoint() {
+        const tempo = this.getSession().tempo, now = this.ctx?.currentTime ?? 0, d = 60 / tempo / 4;
+        if (!this.running || !this.ctx)
+            return { time: now + .12, tempo, playing: false };
+        this.pump();
+        const delta = (STEPS - this.nextStep % STEPS) % STEPS;
+        let at = this.nextTime + delta * d;
+        while (at < now + .12)
+            at += STEPS * d;
+        return { time: at, tempo, playing: true };
+    }
+    async preparePerformance(path) {
+        if (!/^\/samples\/performance\/(acid|piano|fx)-0[1-8]\.wav$/.test(path))
+            throw Error('Неизвестный звук');
+        await this.unlock();
+        if (this.performanceBuffers.has(path))
+            return;
+        const response = await fetch(path);
+        if (!response.ok)
+            throw Error('Звук недоступен: ' + path);
+        this.performanceBuffers.set(path, await this.ctx.decodeAudioData(await response.arrayBuffer()));
+    }
+    /** A real bundled WAV, rate-shifted only when a musical key is selected. */
+    async playPerformance(path, rate = 1, at, level = .53) {
+        await this.preparePerformance(path);
+        const ctx = this.ctx, bus = this.bus, buffer = this.performanceBuffers.get(path);
+        if (this.active.size >= 28) {
+            const oldest = this.active.values().next().value;
+            if (oldest) {
+                oldest.stop();
+                this.active.delete(oldest);
+            }
+        }
+        const when = Math.max(ctx.currentTime + .002, at ?? ctx.currentTime + .002);
+        const source = ctx.createBufferSource(), amp = ctx.createGain();
+        source.buffer = buffer;
+        source.playbackRate.value = clamp(rate, .5, 2);
+        const peak = clamp(level, 0, .75), end = when + buffer.duration / source.playbackRate.value;
+        amp.gain.setValueAtTime(0, when);
+        amp.gain.linearRampToValueAtTime(peak, when + .005);
+        amp.gain.setValueAtTime(peak, Math.max(when + .005, end - .018));
+        amp.gain.linearRampToValueAtTime(0, end);
+        source.connect(amp).connect(bus.input);
+        const voice = { when, until: end + .02, stop: () => { try {
+                source.stop();
+            }
+            catch { } } };
+        source.onended = () => { source.disconnect(); amp.disconnect(); this.active.delete(voice); this.performanceVoices.delete(voice); };
+        this.active.add(voice);
+        this.performanceVoices.add(voice);
+        source.start(when);
+        source.stop(end + .004);
+    }
+    stopPerformance() { for (const voice of this.performanceVoices) {
+        voice.stop();
+        this.active.delete(voice);
+    } this.performanceVoices.clear(); }
     updateMix() {
         const tempo = this.getSession().tempo;
         if (this.running && this.ctx && tempo !== this.scheduledTempo)
