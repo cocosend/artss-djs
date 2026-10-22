@@ -7,3 +7,5 @@ One existing Web Audio engine, two real mix buses (A drums/B synths), equal-powe
 The LIVE REC transport records pad presses into the 16-step loop independently from START/STOP SAMPLE, which captures a reusable audio snippet. MASTER TAKE records a full set. Old session localStorage and existing IndexedDB audio are preserved.
 
 Automated validation: TypeScript check, Node tests, Chromium + WebKit browser smoke (record→pad binding→reload→per-style isolation), production smoke, no file uploads to servers. Real iPhone latency and subjective professional audio quality require hardware testing. **Not a neural AI model or stem separation.**
+## NEXUS 30 PERFORMANCE
+Keeps the NEXUS 28 neon visual reference with four audibly distinct authored WAV drum kits, 1/2/4 beat loops, and Safari-compatible PCM WAV takes capped at 90 seconds. Original commercial tracks and neural stem separation are not bundled. Hardware iOS verification remains necessary.
