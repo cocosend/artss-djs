@@ -34,7 +34,14 @@ const applyLanguage=()=>{
 };
 document.querySelector('#languageToggle')?.addEventListener('click',()=>{language=language==='ru'?'en':'ru';try{localStorage.setItem(languageKey,language)}catch{}applyLanguage()});
 let languageRefreshPending=false;
-const languageObserver=new MutationObserver(()=>{if(language==='en'&&!languageRefreshPending){languageRefreshPending=true;queueMicrotask(()=>{languageRefreshPending=false;applyLanguage()})}});
+const languageObserver=new MutationObserver(records=>{
+ // Numeric transport updates and playhead changes never require translation.
+ const hasLabels=records.some(record=>Array.from(record.addedNodes).some(node=>/[А-ЯЁа-яё]/.test(node.textContent??'')));
+ if(language==='en'&&hasLabels&&!languageRefreshPending){
+  languageRefreshPending=true;
+  requestAnimationFrame(()=>{languageRefreshPending=false;if(language==='en')applyLanguage()});
+ }
+});
 languageObserver.observe(document.body,{childList:true,subtree:true});
 queueMicrotask(applyLanguage);
 type Pane='main'|'sounds'|'library'|'takes'|'mix'|'profile';
@@ -348,7 +355,8 @@ mixStop.addEventListener('click',()=>{mixPlayer.stop();updateTransport()});
   lastStep=current;if(current===null)return;
   for(const el of document.querySelectorAll<HTMLElement>(`#steps .step[data-step="${current}"],#patternOverview .pattern-cell[data-step="${current}"]`))el.classList.add('playhead');
   const total=60/state.tempo/4*16,elapsed=current*60/state.tempo/4;
-  $('#transportTime').textContent=`${String(Math.floor(elapsed/60)).padStart(2,'0')}:${String(Math.floor(elapsed%60)).padStart(2,'0')} / ${String(Math.floor(total/60)).padStart(2,'0')}:${String(Math.ceil(total%60)).padStart(2,'0')}`;
+  const timeText=`${String(Math.floor(elapsed/60)).padStart(2,'0')}:${String(Math.floor(elapsed%60)).padStart(2,'0')} / ${String(Math.floor(total/60)).padStart(2,'0')}:${String(Math.ceil(total%60)).padStart(2,'0')}`;
+  const timeLabel=$('#transportTime');if(timeLabel.textContent!==timeText)timeLabel.textContent=timeText;
  };
  engine.events.onClip=(pad)=>{scheduleSave();for(let step=0;step<STEPS;step++)syncPatternCells(pad,step)};engine.events.onSamples=paintPads;engine.events.onState=v=>{setStatus(v);};
  paintPads();paintSteps();setPane('main');updateTransport();

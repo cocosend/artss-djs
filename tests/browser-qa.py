@@ -272,10 +272,16 @@ with sync_playwright() as playwright:
  assert 'Автосводка' in page.locator('#trackMixStatus').inner_text()
  page.locator('#stopTrackMix').tap()
  assert page.locator('#stopTrackMix').is_disabled()
- # Switch languages without losing the loaded audio session or local projects.
+ # Switch languages during active playback; repeat to expose translation starvation.
  page.locator('#languageToggle').tap()
  assert page.locator('html').get_attribute('lang')=='en'
  assert 'DRUM PADS' in page.locator('.pad-head').inner_text()
+ for _ in range(3):
+  page.locator('#languageToggle').tap(timeout=5000)
+  assert page.locator('html').get_attribute('lang')=='ru'
+  page.locator('#languageToggle').tap(timeout=5000)
+  assert page.locator('html').get_attribute('lang')=='en'
+ assert page.locator('#play').inner_text().find('PAUSE')>=0
  page.reload(wait_until='networkidle')
  assert page.locator('html').get_attribute('lang')=='en'
  page.locator('#languageToggle').tap()
