@@ -50,6 +50,7 @@
   <p>Загрузи до трёх своих аудиотреков. Подвод и переходы звучат через общий мастер. Музыка остаётся на устройстве.</p>
   <div class="dj-actions"><button id="chooseTracks" type="button">＋ ДОБАВИТЬ ТРЕКИ</button><button id="startAutoMix" type="button" disabled>▶ АВТОСВОДКА</button><button id="stopAutoMix" type="button" disabled>■</button></div>
   <div id="trackQueue" class="track-queue" aria-live="polite">Пока нет треков</div>
+  <div class="cue-workflow"><div class="cue-head"><span>ФОРМА ТРЕКА · ТОЧКА ВХОДА</span><strong id="cuePosition">СТАРТ · 0%</strong></div><input id="trackCue" type="range" min="0" max="85" value="0" aria-label="Точка входа в первый трек"><div class="cue-progress"><i id="mixProgressFill"></i></div><div class="cue-markers"><button type="button" data-cue="0">INTRO</button><button type="button" data-cue="25">BREAK</button><button type="button" data-cue="50">DROP</button><button type="button" data-cue="85">OUTRO</button></div></div>
   <div class="dj-options"><label><input id="mixIntro" type="checkbox" checked> ПОДВОД 2 ТАКТА</label><label><input id="mixPads" type="checkbox"> ДРАМ-ЛУП В МИКСЕ</label></div>
   <div id="mixStatus" class="mix-status" role="status">Выбери локальный аудиофайл · 1–3 трека</div>
  </section>

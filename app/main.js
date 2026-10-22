@@ -23,6 +23,14 @@ const autoMix = new AutoMixPlayer(engine, (status, message) => {
         start.disabled = status === 'loading' || status === 'playing' || status === 'idle' || status === 'error';
     if (stop)
         stop.disabled = status !== 'playing';
+    const cue = document.querySelector('#trackCue');
+    if (cue)
+        cue.disabled = status === 'playing' || status === 'loading';
+    for (const button of document.querySelectorAll('[data-cue]'))
+        button.disabled = status === 'playing' || status === 'loading';
+    const fill = document.querySelector('#mixProgressFill');
+    if (fill)
+        fill.style.width = status === 'playing' ? autoMix.position.percent + '%' : '0%';
 });
 const SOUND_LABELS = { acid: ['SUB 303', 'SLIDE', 'RESONANCE', 'PULSE', 'SQUELCH', 'STAB', 'DRIVE', 'OCTAVE'], piano: ['C', 'D', 'E♭', 'F', 'G', 'A♭', 'B♭', 'C⁵'], fx: ['METAL HIT', 'MINOR STAB', 'RISER', 'SUB DROP', 'CLAP HIT', 'DARK CHORD', 'FALL', 'IMPACT'] };
 let soundPage = 'acid';
@@ -429,6 +437,17 @@ const init = () => {
     for (const button of document.querySelectorAll('[data-sound-page]'))
         button.addEventListener('click', () => { soundPage = button.dataset.soundPage; renderSoundPads(); });
     renderSoundPads();
+    const updateCue = () => {
+        const value = Number($('#trackCue').value);
+        const labels = { 0: 'INTRO', 25: 'BREAK', 50: 'DROP', 85: 'OUTRO' };
+        $('#cuePosition').textContent = `${labels[value] ?? 'ТОЧКА'} · ${value}%`;
+        for (const button of document.querySelectorAll('[data-cue]'))
+            button.classList.toggle('active', Number(button.dataset.cue) === value);
+    };
+    $('#trackCue').addEventListener('input', updateCue);
+    for (const button of document.querySelectorAll('[data-cue]'))
+        button.addEventListener('click', () => { const slider = $('#trackCue'); slider.value = button.dataset.cue ?? '0'; updateCue(); });
+    updateCue();
     $('#chooseTracks').addEventListener('click', () => $('#trackInput').click());
     $('#trackInput').addEventListener('change', () => void safe(async () => {
         const input = $('#trackInput');
@@ -450,7 +469,7 @@ const init = () => {
         }
     }));
     $('#startAutoMix').addEventListener('click', () => void safe(async () => {
-        await autoMix.start($('#mixPads').checked, $('#mixIntro').checked);
+        await autoMix.start($('#mixPads').checked, $('#mixIntro').checked, Number($('#trackCue').value) / 100);
         updateTransport();
     }));
     $('#stopAutoMix').addEventListener('click', () => { autoMix.stop(); updateTransport(); });

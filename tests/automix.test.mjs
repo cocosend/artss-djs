@@ -18,6 +18,7 @@ test('phrase transition matches nearby tempos but never forces a remote speed',(
  assert.ok(plan.startNext>100&&plan.startNext<a.duration);
  assert.ok(Math.abs(plan.playbackRate-128/130)<.001);
  assert.ok(plan.fadeSeconds>=.35&&plan.fadeSeconds<=12);
+ assert.ok(Math.abs(plan.fadeSeconds/(240/a.bpm)-Math.round(plan.fadeSeconds/(240/a.bpm)))<1e-8);
  const far=planTransition(a,{...b,bpm:165});
  assert.equal(far.matchable,false);assert.equal(far.playbackRate,1);
  const uncertain=planTransition(a,{...b,confidence:0});

@@ -10,6 +10,14 @@ export class AutoMixPlayer {
  private generation=0;private status:AutoMixState='idle';private ticker:number|null=null;private timeline:Timeline[]=[];
  constructor(private engine:Engine,private onStatus:(state:AutoMixState,message:string)=>void){}
  get state(){return this.status}
+ get position(){
+  const now=this.engine.ctx?.currentTime??0;
+  const index=this.timeline.reduce((current,item,i)=>now>=item.time?i:current,0);
+  const item=this.timeline[index];
+  if(!item)return {index:0,percent:0};
+  const at=Math.max(0,item.offset+(now-item.time)*item.rate);
+  return {index,percent:Math.min(100,Math.max(0,Math.round(100*at/item.track.buffer.duration)))};
+ }
  /** Music makes space for active drum pads, without muting or stopping the DJ track. */
  setPadOverlay(playing:boolean){if(!this.mixOutput||!this.engine.ctx)return;
   this.mixOutput.gain.setTargetAtTime(playing?.55:.76,this.engine.ctx.currentTime,.08);
@@ -38,7 +46,7 @@ export class AutoMixPlayer {
    this.tracks=decoded;this.update('ready',decoded.map(t=>t.name.slice(0,22)+' · '+t.analysis.bpm+' BPM').join(' → '));
   }catch(error){if(epoch===this.generation){this.tracks=[];this.update('error',error instanceof Error?error.message:'Ошибка анализа')}throw error}
  }
- async start(joinPads=false,intro=true):Promise<void>{
+ async start(joinPads=false,intro=true,cue=0):Promise<void>{
   if(this.status==='loading')throw Error('Подожди завершения анализа');
   if(this.tracks.length<1)throw Error('Загрузи аудиотрек');
   this.stop(false);const epoch=++this.generation;
@@ -51,7 +59,11 @@ export class AutoMixPlayer {
   this.mixOutput=mix;this.detach=this.engine.connectMusicSource(mix);
   const first=this.tracks[0]!,initialRate=sync.playing&&first.analysis.confidence>=.17
    ?Math.min(1.06,Math.max(.94,sync.tempo/first.analysis.bpm)):1;
-  const firstOffset=intro||sync.playing?Math.min(first.analysis.firstBeat,Math.max(0,first.buffer.duration-2)):0;
+  const bar=240/first.analysis.bpm;
+  const desired=Math.min(.85,Math.max(0,cue))*first.buffer.duration;
+  const cueOffset=cue>0?first.analysis.firstBeat+Math.floor(Math.max(0,desired-first.analysis.firstBeat)/bar)*bar:0;
+  const firstOffset=cue>0?Math.min(cueOffset,Math.max(0,first.buffer.duration-2)):
+   intro||sync.playing?Math.min(first.analysis.firstBeat,Math.max(0,first.buffer.duration-2)):0;
   const introBeat=60/(sync.playing?sync.tempo:first.analysis.bpm);
   if(intro){
    const cue=['/samples/performance/fx-01.wav','/samples/performance/fx-02.wav','/samples/performance/fx-03.wav'];
@@ -76,6 +88,8 @@ export class AutoMixPlayer {
    sequence.push({track:next,time:start,offset:plan.offsetNext,rate:plan.playbackRate,fadeStart:0,fadeDuration:0});
   }
   this.timeline=sequence;const {incoming,outgoing}=crossfadeCurve();
+  if(sequence.length>1)await Promise.all(['/samples/performance/fx-03.wav','/samples/performance/fx-01.wav'].map(path=>this.engine.preparePerformance(path)));
+  if(epoch!==this.generation)return;
   try{
    for(let i=0;i<sequence.length;i++){
     const entry=sequence[i]!,source=ctx.createBufferSource(),bass=ctx.createBiquadFilter(),volume=ctx.createGain();
@@ -98,6 +112,10 @@ export class AutoMixPlayer {
     source.start(entry.time,entry.offset);
     source.onended=()=>{if(epoch===this.generation&&i===sequence.length-1)this.stop()};
     this.scheduled.push({source,volume,bass});
+    if(i>0){const prev=sequence[i-1]!;
+     void this.engine.playPerformance('/samples/performance/fx-03.wav',1,Math.max(entry.time,prev.fadeStart+prev.fadeDuration-1.55),.16);
+     void this.engine.playPerformance('/samples/performance/fx-01.wav',1,prev.fadeStart+prev.fadeDuration,.24);
+    }
    }
    if(epoch!==this.generation)return;
    this.update('playing','Автосводка · '+sequence[0]!.track.name);

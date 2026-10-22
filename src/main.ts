@@ -11,6 +11,9 @@ const autoMix=new AutoMixPlayer(engine,(status,message)=>{
  const start=document.querySelector<HTMLButtonElement>('#startAutoMix'),stop=document.querySelector<HTMLButtonElement>('#stopAutoMix');
  if(start)start.disabled=status==='loading'||status==='playing'||status==='idle'||status==='error';
  if(stop)stop.disabled=status!=='playing';
+ const cue=document.querySelector<HTMLInputElement>('#trackCue');if(cue)cue.disabled=status==='playing'||status==='loading';
+ for(const button of document.querySelectorAll<HTMLButtonElement>('[data-cue]'))button.disabled=status==='playing'||status==='loading';
+ const fill=document.querySelector<HTMLElement>('#mixProgressFill');if(fill)fill.style.width=status==='playing'?autoMix.position.percent+'%':'0%';
 });
 const SOUND_LABELS={acid:['SUB 303','SLIDE','RESONANCE','PULSE','SQUELCH','STAB','DRIVE','OCTAVE'],piano:['C','D','E♭','F','G','A♭','B♭','C⁵'],fx:['METAL HIT','MINOR STAB','RISER','SUB DROP','CLAP HIT','DARK CHORD','FALL','IMPACT']} as const;
 type SoundPage=keyof typeof SOUND_LABELS;
@@ -224,6 +227,14 @@ engine.updateMix();refreshKitButtons();
  };
  for(const button of document.querySelectorAll<HTMLButtonElement>('[data-sound-page]'))button.addEventListener('click',()=>{soundPage=button.dataset.soundPage as SoundPage;renderSoundPads()});
  renderSoundPads();
+ const updateCue=()=>{const value=Number($<HTMLInputElement>('#trackCue').value);
+  const labels:Record<number,string>={0:'INTRO',25:'BREAK',50:'DROP',85:'OUTRO'};
+  $('#cuePosition').textContent=`${labels[value]??'ТОЧКА'} · ${value}%`;
+  for(const button of document.querySelectorAll<HTMLButtonElement>('[data-cue]'))button.classList.toggle('active',Number(button.dataset.cue)===value);
+ };
+ $('#trackCue').addEventListener('input',updateCue);
+ for(const button of document.querySelectorAll<HTMLButtonElement>('[data-cue]'))button.addEventListener('click',()=>{const slider=$<HTMLInputElement>('#trackCue');slider.value=button.dataset.cue??'0';updateCue()});
+ updateCue();
  $('#chooseTracks').addEventListener('click',()=>$<HTMLInputElement>('#trackInput').click());
  $('#trackInput').addEventListener('change',()=>void safe(async()=>{
   const input=$<HTMLInputElement>('#trackInput');try{
@@ -234,7 +245,7 @@ engine.updateMix();refreshKitButtons();
   }finally{input.value='';}
  }));
  $('#startAutoMix').addEventListener('click',()=>void safe(async()=>{
-  await autoMix.start($<HTMLInputElement>('#mixPads').checked,$<HTMLInputElement>('#mixIntro').checked);
+  await autoMix.start($<HTMLInputElement>('#mixPads').checked,$<HTMLInputElement>('#mixIntro').checked,Number($<HTMLInputElement>('#trackCue').value)/100);
   updateTransport();
  }));
  $('#stopAutoMix').addEventListener('click',()=>{autoMix.stop();updateTransport()});

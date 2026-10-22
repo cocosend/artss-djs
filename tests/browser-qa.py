@@ -106,6 +106,10 @@ with sync_playwright() as playwright:
  assert page.locator('#crossfade').count()==1
  assert page.locator('#autoMixToggle').count()==0
  assert page.locator('#trackAutoMix').count()==0
+ page.locator('[data-cue="50"]').tap()
+ assert page.locator('#trackCue').input_value()=='50'
+ assert 'DROP' in page.locator('#cuePosition').inner_text()
+ page.locator('[data-cue="0"]').tap()
  # A local recording plays through the same master bus with no second deck.
  frames=[]
  for n in range(44100*6):
@@ -122,6 +126,7 @@ with sync_playwright() as playwright:
  page.locator('#startAutoMix').tap()
  page.wait_for_function("document.querySelector('#mixStatus').textContent.includes('Автосводка')",timeout=15000)
  page.wait_for_function("parseFloat(document.querySelector('#outputMeter').style.width)>0",timeout=4000)
+ page.wait_for_function("parseFloat(document.querySelector('#mixProgressFill').style.width)>0",timeout=4000)
  page.locator('#stopAutoMix').tap()
  assert page.locator('#startAutoMix').is_enabled()
  page.locator('#tapTempo').tap()
