@@ -1,9 +1,10 @@
 import {SampleRecorder,preferPcmRecording,type CaptureSource} from './sample-recorder.js';
+import {loopedStep,loopAnchor,type LoopSize} from './performance-loop.js';
 import {STEPS,STYLES,type Session,note} from './model.js';
 import {placeSample} from './arranger.js';
 import {SoundBank,type Sound} from './sounds.js';
 import {AUDIO_HEADROOM,crossfadeGains,voiceGain,lowpassHz,recordingExtension,autoMixPosition} from './audio-quality.js';
-export type EngineEvents={onStep?:(step:number)=>void;onState?:(state:string)=>void;onMeter?:(value:number)=>void;onClip?:(pad:number)=>void;onSamples?:()=>void};
+export type EngineEvents={onStep?:(step:number)=>void;onState?:(state:string)=>void;onMeter?:(value:number)=>void;onClip?:(pad:number)=>void;onSamples?:()=>void;onTake?:()=>void};
 const clamp=(x:number,lo:number,hi:number)=>Math.min(hi,Math.max(lo,x));
 const sampleRate=44100;
 function wavExport(buffer:AudioBuffer):Blob {
@@ -54,7 +55,9 @@ export class Engine{
  private active=new Set<{stop:()=>void;until:number}>();
  private generation=0;private scheduledTempo=136;private recorder:MediaRecorder|null=null;private capture:MediaStreamAudioDestinationNode|null=null;
  private recorded:Blob[]=[];private currentChunks:Blob[]=[];
- private gain=1;private autoMix=false;private musicDucker:GainNode|null=null;private sampleRecorder=new SampleRecorder();
+ private gain=1;private autoMix=false;private musicDucker:GainNode|null=null;private loopLength:LoopSize=0;private loopStart=0;
+ private takeRecorder=new SampleRecorder();private takeEnding:Promise<void>|null=null;
+ private sampleRecorder=new SampleRecorder();
  private offlineSampleActive=false;private offlineSampleAt=0;private offlineSampleTimer:number|null=null;
  private offlineSampleHits:Array<{pad:number;at:number;velocity:number;style:number;level:number}>=[];
  private sampleTarget:{pad:number;style:number}|null=null;events:EngineEvents={};
@@ -62,6 +65,10 @@ export class Engine{
  get state(){return this.running?'PLAY':this.stopAt?'PAUSE':'STOP';}
  get recording(){return this.recordArmed;}
  get sampling(){return this.offlineSampleActive||this.sampleRecorder.active;}
+ get taking(){return this.takeRecorder.active;}
+ get performanceLoop(){return this.loopLength;}
+ setLoop(length:LoopSize){this.loopLength=length;this.loopStart=loopAnchor(this.absoluteStep(),length);this.events.onState?.(length?`LOOP ${length/4} BEAT`:'LOOP OFF');}
+ setSoundKit(index:number){this.bank.setKit(index);if(this.ctx)void this.bank.warm(this.ctx).then(()=>this.events.onSamples?.()).catch(()=>this.events.onState?.('SAMPLE LOAD ERROR'));}
  updateMix(){this.bus?.update(this.getSession());if(this.autoMix)this.updateAutoMix();}
  /** Connect local music files before master EQ, protection and stereo meter. */
  connectMusicSource(node:AudioNode):()=>void {
@@ -81,7 +88,8 @@ export class Engine{
  private meterData=new Uint8Array(256);
  get meterLevel(){if(!this.bus)return 0;this.bus.meter.getByteTimeDomainData(this.meterData);let energy=0;for(let i=0;i<this.meterData.length;i++){const v=(this.meterData[i]!-128)/128;energy+=v*v;}return Math.min(1,Math.sqrt(energy/this.meterData.length)*2.8);}
  readWaveform(output:Uint8Array):boolean{if(!this.bus||!this.ctx||this.ctx.state!=='running')return false;this.bus.meter.getByteTimeDomainData(output);return true;}
- get currentStep(){if(!this.ctx||!this.running)return 0;const d=60/this.getSession().tempo/4;return ((Math.floor((this.time-this.origin)/d+1e-4)%STEPS)+STEPS)%STEPS;}
+ private absoluteStep(){if(!this.ctx||!this.running)return 0;const d=60/this.getSession().tempo/4;return Math.max(0,Math.floor((this.time-this.origin)/d+1e-4));}
+ get currentStep(){return loopedStep(this.absoluteStep(),this.loopLength,this.loopStart);}
  /** Phase-lock music playback to the NEXT actual 16-step pad downbeat (AudioContext clock). */
  getMusicSyncPoint():{time:number;tempo:number;playing:boolean}{
   const tempo=this.getSession().tempo,now=this.ctx?.currentTime??0,d=60/tempo/4;
@@ -121,7 +129,7 @@ export class Engine{
   this.scheduledTempo=this.getSession().tempo;this.running=true;this.stopAt=0;this.generation++;this.clock?.port.postMessage('start');this.pump();this.events.onState?.('PLAY');
  }
  pause(){if(!this.running)return;this.running=false;this.stopAt=this.time;this.generation++;this.clock?.port.postMessage('pause');this.silence();this.events.onState?.('PAUSE');}
- stop(){this.running=false;this.stopAt=0;this.recordArmed=false;this.nextStep=0;this.nextTime=0;this.generation++;this.clock?.port.postMessage('pause');this.silence();this.events.onState?.('STOP');}
+ stop(){this.running=false;this.stopAt=0;this.recordArmed=false;this.nextStep=0;this.nextTime=0;this.generation++;this.clock?.port.postMessage('pause');this.loopLength=0;this.loopStart=0;this.silence();this.events.onState?.('STOP');}
  async toggleRecord(){await this.unlock();if(!this.running)await this.start();if(!this.running)return this.recordArmed;this.recordArmed=!this.recordArmed;this.events.onState?.(this.recordArmed?'REC ON':'REC OFF');return this.recordArmed;}
  async hit(pad:number,velocity=1){if(!Number.isInteger(pad)||pad<0||pad>7||this.getSession().muted[pad])return;
   // Do not await resume or worklet setup once AudioContext is already running. Trigger voice on pointerdown.
@@ -131,7 +139,7 @@ export class Engine{
   this.voice(this.ctx!,((pad===1||pad>=6)?this.bus!.b:this.bus!.a),pad,now,velocity,this.getSession().style,this.getSession().levels[pad]??1);
   if(this.recordArmed&&this.running){const d=60/this.getSession().tempo/4;
    const quant=this.getSession().quantize?Math.round((now-this.origin)/d):Math.floor((now-this.origin)/d);
-   const at=((quant%STEPS)+STEPS)%STEPS;note(this.getSession().pattern,pad,at,Math.min(1,velocity));this.events.onClip?.(pad);}
+   const at=loopedStep(Math.max(0,quant),this.loopLength,this.loopStart);note(this.getSession().pattern,pad,at,Math.min(1,velocity));this.events.onClip?.(pad);}
  }
  private silence(){for(const v of this.active){try{v.stop();}catch{}}this.active.clear();}
  private pump(){if(!this.ctx||!this.running||!this.bus)return;
@@ -140,7 +148,7 @@ export class Engine{
   if(this.scheduledTempo!==tempo){this.origin=this.nextTime-this.nextStep*d;this.scheduledTempo=tempo;}
   // Safari background suspension: fast-forward stale transport steps instead of bursting delayed notes.
   if(this.nextTime<now-.035){const skip=Math.max(1,Math.ceil((now-this.nextTime-.008)/d));this.nextStep+=skip;this.nextTime+=skip*d;}
-  while(this.nextTime<now+.115){const step=this.nextStep%STEPS,session=this.getSession();
+  while(this.nextTime<now+.115){const step=loopedStep(this.nextStep,this.loopLength,this.loopStart),session=this.getSession();
    for(let p=0;p<8;p++){let velocity=session.pattern[p]?.[step]??0;if(session.muted[p]||velocity===0)continue;
     if(session.scene===1&&p>3)continue; // intro reduced
     if(session.scene===4&&p===0&&step%8!==0)continue; // break
@@ -251,15 +259,28 @@ export class Engine{
   this.events.onState?.(`SAMPLE SAVED · PAD ${target.pad+1}`);
   return {pad:result.pad,style:target.style,name:file.name};
  }
- async beginTake():Promise<void>{await this.unlock();if(typeof MediaRecorder==='undefined')throw Error('Audio take недоступен — используй EXPORT WAV');if(this.recorder?.state==='recording')return;
-  const capture=this.ensureCapture();
-  const types=['audio/mp4','audio/webm;codecs=opus','audio/webm'];const type=types.find(t=>MediaRecorder.isTypeSupported(t));
-  const r=new MediaRecorder(capture.stream,type?{mimeType:type}:{});this.currentChunks=[];
-  r.ondataavailable=e=>{if(e.data.size)this.currentChunks.push(e.data)};
-  r.onstop=()=>{const blob=new Blob(this.currentChunks,{type:r.mimeType||'audio/webm'});if(blob.size){this.recorded.unshift(blob);void this.storeTake(blob);this.events.onState?.('TAKE SAVED');}};
-  r.start(250);this.recorder=r;this.events.onState?.('TAKE RECORDING');
+ async beginTake():Promise<void>{
+  if(this.takeRecorder.active)return;
+  await this.unlock();if(!this.ctx||!this.bus)throw Error('AudioContext unavailable');
+  const direct=preferPcmRecording(navigator.userAgent,typeof MediaRecorder!=='undefined')&&!!this.ctx.audioWorklet;
+  const capture=direct?null:this.ensureCapture();
+  await this.takeRecorder.start('live',capture?.stream??null,this.ctx,
+   ()=>{void this.endTake().catch(()=>this.events.onState?.('TAKE SAVE ERROR'));},
+   error=>this.events.onState?.('TAKE ERROR · '+error.message),direct?this.bus.master:null,90000);
+  this.events.onState?.('TAKE RECORDING');
  }
- endTake(){if(this.recorder?.state==='recording')this.recorder.stop();}
+ async endTake():Promise<void>{
+  if(this.takeEnding)return this.takeEnding;
+  if(!this.takeRecorder.active)return;
+  const finalize=async()=>{
+   const blob=await this.takeRecorder.stop();
+   if(blob.size>44){this.recorded.unshift(blob);this.recorded.length=Math.min(this.recorded.length,20);
+    void this.storeTake(blob).catch(()=>this.events.onState?.('STORAGE FULL'));
+    this.events.onState?.('TAKE SAVED');this.events.onTake?.();}
+  };
+  const pending=finalize().finally(()=>{if(this.takeEnding===pending)this.takeEnding=null;});this.takeEnding=pending;
+  await pending;
+ }
  private openTakes():Promise<IDBDatabase|null>{return new Promise(resolve=>{let r:IDBOpenDBRequest;try{r=indexedDB.open('artss-live-takes-v18',1)}catch{resolve(null);return;}r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains('takes'))r.result.createObjectStore('takes',{autoIncrement:true})};r.onsuccess=()=>resolve(r.result);r.onerror=()=>resolve(null);r.onblocked=()=>resolve(null)})}
  private async storeTake(blob:Blob){const db=await this.openTakes();if(!db)return;try{const tx=db.transaction('takes','readwrite');tx.objectStore('takes').add(blob)}catch{}finally{db.close()}}
  private async restoreTakes(){const db=await this.openTakes();if(!db)return;try{const r=db.transaction('takes','readonly').objectStore('takes').getAll();r.onsuccess=()=>{for(const b of (r.result as Blob[]).reverse())if(b.size)this.recorded.push(b)};}catch{}finally{db.close()}}
@@ -267,8 +288,9 @@ export class Engine{
  async exportWav(bars=4):Promise<Blob>{await this.unlock();await this.bank.warm(this.ctx!);const state=this.getSession();const rate=sampleRate;const d=60/state.tempo/4;const length=Math.ceil((bars*16*d+2)*rate);
   const offline=new OfflineAudioContext(2,length,rate),bus=createBus(offline,offline.destination,state);
   for(let step=0;step<bars*16;step++)for(let pad=0;pad<8;pad++){
-   const velocity=state.pattern[pad]?.[step%16]??0;if(!velocity||state.muted[pad])continue;
-   this.voice(offline,((pad===1||pad>=6)?bus.b:bus.a),pad,step*d+.02,velocity,state.style,state.levels[pad]??1);
+   const current=this.loopLength?(this.loopStart+step%this.loopLength)%STEPS:step%STEPS;const velocity=state.pattern[pad]?.[current]??0;if(!velocity||state.muted[pad])continue;
+   if(state.scene===1&&pad>3)continue;if(state.scene===4&&pad===0&&current%8!==0)continue;
+   this.voice(offline,((pad===1||pad>=6)?bus.b:bus.a),pad,step*d+.02,state.scene===2&&pad===3&&current%2===1?.48:velocity,state.style,state.levels[pad]??1);
   }
   return wavExport(await offline.startRendering());
  }
