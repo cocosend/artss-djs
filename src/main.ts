@@ -237,13 +237,14 @@ mixStop.addEventListener('click',()=>{mixPlayer.stop();updateTransport()});
   pen.stroke();pen.strokeStyle='#ff2736';pen.lineWidth=2.5;pen.beginPath();pen.moveTo(width*.52,2);pen.lineTo(width*.52,height-2);pen.stroke();
  };
  let visualAt=0,meterAt=0,meterPercent=-1;
+ const outputMeter=$<HTMLElement>('#outputMeter'),pulseDot=$<HTMLElement>('#pulseDot');
   const vu=(now:number)=>{requestAnimationFrame(vu);
    if(document.visibilityState!=='visible'||pane!=='main')return;
    if(now-meterAt>=55){meterAt=now;const value=Math.round(Math.min(100,engine.meterLevel*100));
-    if(value!==meterPercent){meterPercent=value;$('#outputMeter').style.width=value+'%';}
-    $('#pulseDot').classList.toggle('on',engine.state==='PLAY');
+    if(value!==meterPercent){meterPercent=value;outputMeter.style.width=value+'%';}
+    pulseDot.classList.toggle('on',engine.state==='PLAY');
    }
-   if(now-visualAt>=42){visualAt=now;drawSignal();}
+   if(now-visualAt>=50){visualAt=now;drawSignal();}
   };drawSignal();requestAnimationFrame(vu);
  $('#bank').replaceChildren(...STYLES.map((s,i)=>{const o=h('option',styleLabel(i)) as HTMLOptionElement;o.value=String(i);return o}));
  ($('#bank') as HTMLSelectElement).value=String(state.style);
