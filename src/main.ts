@@ -216,29 +216,30 @@ mixStop.addEventListener('click',()=>{mixPlayer.stop();updateTransport()});
  const signalData=new Uint8Array(256),width=canvas.width,height=canvas.height;
  const drawSignal=()=>{
   if(!pen)return;
-  pen.fillStyle='#010103';pen.fillRect(0,0,width,height);
+  pen.fillStyle='#000000';pen.fillRect(0,0,width,height);
   pen.strokeStyle='#28292e';pen.lineWidth=1;pen.beginPath();
   for(let x=0;x<width;x+=48){pen.moveTo(x,0);pen.lineTo(x,height);}
   pen.stroke();pen.strokeStyle='#454750';pen.beginPath();pen.moveTo(0,height/2);pen.lineTo(width,height/2);pen.stroke();
   const hasAudio=engine.readWaveform(signalData);
   // Batch strokes; avoid per-bar shadowBlur, which stalls WebKit during audio capture.
-  pen.lineWidth=3;pen.strokeStyle='#ffe400';pen.beginPath();
+  pen.lineWidth=3;pen.strokeStyle='#00d9cd';pen.beginPath();
   for(let i=0;i<104;i+=4){
    const x=i*width/256;const y=hasAudio?((signalData[i]??128)-128)/128:0;
    const amp=hasAudio?Math.max(2,Math.abs(y)*(height*.37)):2;
    pen.moveTo(x,height/2-amp);pen.lineTo(x,height/2+amp);
   }
-  pen.stroke();pen.strokeStyle='#f8faff';pen.beginPath();
+  pen.stroke();pen.strokeStyle='#ffffff';pen.beginPath();
   for(let i=104;i<256;i+=4){
    const x=i*width/256;const y=hasAudio?((signalData[i]??128)-128)/128:0;
    const amp=hasAudio?Math.max(2,Math.abs(y)*(height*.37)):2;
    pen.moveTo(x,height/2-amp);pen.lineTo(x,height/2+amp);
   }
-  pen.stroke();pen.strokeStyle='#ff2736';pen.lineWidth=2.5;pen.beginPath();pen.moveTo(width*.52,2);pen.lineTo(width*.52,height-2);pen.stroke();
+  pen.stroke();pen.strokeStyle='#d41432';pen.lineWidth=2.5;pen.beginPath();pen.moveTo(width*.52,2);pen.lineTo(width*.52,height-2);pen.stroke();
  };
  let visualAt=0,meterAt=0,meterPercent=-1;
   const vu=(now:number)=>{requestAnimationFrame(vu);
    if(document.visibilityState!=='visible'||pane!=='main')return;
+   paintPlayhead();
    if(now-meterAt>=55){meterAt=now;const value=Math.round(Math.min(100,engine.meterLevel*100));
     if(value!==meterPercent){meterPercent=value;$('#outputMeter').style.width=value+'%';}
     $('#pulseDot').classList.toggle('on',engine.state==='PLAY');
@@ -338,17 +339,16 @@ mixStop.addEventListener('click',()=>{mixPlayer.stop();updateTransport()});
  $('#export').addEventListener('click',()=>void safe(async()=>{setStatus('RENDERING WAV');const blob=await engine.exportWav();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='ARTSS-NEXUS-LIVE.wav';a.click();window.setTimeout(()=>URL.revokeObjectURL(url),30000);setStatus('WAV EXPORTED')}));
  $('#reset').addEventListener('click',()=>{if(!confirm('Очистить записанные шаги?'))return;state.pattern=Array.from({length:8},()=>Array(16).fill(0));save();paintSteps()});
  for(const el of document.querySelectorAll('[data-pane]'))el.addEventListener('click',()=>{closeDrawer();setPane((el as HTMLElement).dataset.pane as Pane)});
- let pendingStep:number|null=null,lastStep:number|null=null,stepFrame=0;
- engine.events.onStep=step=>{
-  if(document.visibilityState!=='visible'||pane!=='main')return;
-  pendingStep=step;if(stepFrame)return;
-  stepFrame=requestAnimationFrame(()=>{stepFrame=0;const current=engine.currentStep;pendingStep=null;if(current===null||current===lastStep)return;
-   if(lastStep!==null)for(const el of document.querySelectorAll<HTMLElement>(`[data-step="${lastStep}"].playhead`))el.classList.remove('playhead');
-   for(const el of document.querySelectorAll<HTMLElement>(`#steps .step[data-step="${current}"],#patternOverview .pattern-cell[data-step="${current}"]`))el.classList.add('playhead');
-   lastStep=current;
-   const total=60/state.tempo/4*16,elapsed=current*60/state.tempo/4;
-   $('#transportTime').textContent=`${String(Math.floor(elapsed/60)).padStart(2,'0')}:${String(Math.floor(elapsed%60)).padStart(2,'0')} / ${String(Math.floor(total/60)).padStart(2,'0')}:${String(Math.ceil(total%60)).padStart(2,'0')}`;
-  });
+ let lastStep:number|null=null;
+ // Read the audible clock every visible frame, never the ahead-of-time scheduling pulse.
+ const paintPlayhead=()=>{
+  const current=engine.state==='PLAY'?engine.currentStep:null;
+  if(current===lastStep)return;
+  if(lastStep!==null)for(const el of document.querySelectorAll<HTMLElement>(`[data-step="${lastStep}"].playhead`))el.classList.remove('playhead');
+  lastStep=current;if(current===null)return;
+  for(const el of document.querySelectorAll<HTMLElement>(`#steps .step[data-step="${current}"],#patternOverview .pattern-cell[data-step="${current}"]`))el.classList.add('playhead');
+  const total=60/state.tempo/4*16,elapsed=current*60/state.tempo/4;
+  $('#transportTime').textContent=`${String(Math.floor(elapsed/60)).padStart(2,'0')}:${String(Math.floor(elapsed%60)).padStart(2,'0')} / ${String(Math.floor(total/60)).padStart(2,'0')}:${String(Math.ceil(total%60)).padStart(2,'0')}`;
  };
  engine.events.onClip=(pad)=>{scheduleSave();for(let step=0;step<STEPS;step++)syncPatternCells(pad,step)};engine.events.onSamples=paintPads;engine.events.onState=v=>{setStatus(v);};
  paintPads();paintSteps();setPane('main');updateTransport();

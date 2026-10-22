@@ -209,8 +209,27 @@ with sync_playwright() as playwright:
  # No browser audio capture: REC writes pad events to the looping sequencer.
  assert page.locator('#sampleStart').count()==0
  assert page.locator('#drawerSample').count()==0
+ # STOP cancels an already queued source: verify rendered PCM, not only mocks.
+ result=page.evaluate("""async()=>{
+  const {Engine}=await import('/app/engine.js');
+  const {defaultSession}=await import('/app/model.js');
+  async function render(cancel){
+   const ctx=new OfflineAudioContext(2,12000,48000),engine=new Engine(defaultSession);
+   const buffer=ctx.createBuffer(1,4800,48000),data=buffer.getChannelData(0);
+   for(let i=0;i<data.length;i++)data[i]=.3*Math.sin(2*Math.PI*220*i/48000);
+   engine.ctx=ctx;engine.bank.resolve=()=>({buffer,gain:1,lowCut:20,highCut:16000});
+   engine.voice(ctx,ctx.destination,0,.05,1,0,1);
+   if(cancel)engine.stop();
+   const rendered=await ctx.startRendering();let peak=0;
+   for(const x of rendered.getChannelData(0))peak=Math.max(peak,Math.abs(x));
+   return peak;
+  }
+  return {playing:await render(false),stopped:await render(true)};
+ }""")
+ assert result['playing']>.1,result
+ assert result['stopped']==0,result
  # Additional responsive widths
- for width in [320,375,390,430]:
+ for width in [320,375,390,430,768,1280,1920]:
   page.set_viewport_size({'width':width,'height':844})
   assert page.locator('body').evaluate('(el)=>el.scrollWidth <= innerWidth+2'),width
  assert not errors,errors
@@ -265,4 +284,4 @@ with sync_playwright() as playwright:
  mix_context.close()
  browser.close()
 srv.shutdown()
-print(f'PASS browser smoke ({browser_type}) and 4 mobile viewport widths')
+print(f'PASS browser smoke ({browser_type}) and 7 mobile/tablet/desktop viewport widths')

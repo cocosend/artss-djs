@@ -5,8 +5,8 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#020208",
-  "theme_color": "#020208",
+  "background_color": "#000000",
+  "theme_color": "#000000",
   "description": "DJ creator with local track BPM and smooth automix transitions, eight pads and RU/EN language selection.",
   "icons": [
     {

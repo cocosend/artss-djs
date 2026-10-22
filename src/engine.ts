@@ -122,11 +122,13 @@ export class Engine{
  }
  pause(){if(!this.running)return;this.running=false;this.stopAt=this.time;this.generation++;this.clock?.port.postMessage('pause');this.silence();this.events.onState?.('PAUSE');}
  stop(){this.running=false;this.stopAt=0;this.recordArmed=false;this.nextStep=0;this.nextTime=0;this.generation++;this.clock?.port.postMessage('pause');this.silence();this.events.onState?.('STOP');}
- async toggleRecord(){await this.unlock();if(!this.running)await this.start();if(!this.running)return this.recordArmed;this.recordArmed=!this.recordArmed;this.events.onState?.(this.recordArmed?'REC ON':'REC OFF');return this.recordArmed;}
+ async toggleRecord(){const generation=this.generation;await this.unlock();if(generation!==this.generation)return this.recordArmed;if(!this.running)await this.start();if(!this.running)return this.recordArmed;this.recordArmed=!this.recordArmed;this.events.onState?.(this.recordArmed?'REC ON':'REC OFF');return this.recordArmed;}
  async hit(pad:number,velocity=1){if(!Number.isInteger(pad)||pad<0||pad>7||this.getSession().muted[pad])return;
+  const generation=this.generation;
   // Do not await resume or worklet setup once AudioContext is already running. Trigger voice on pointerdown.
   if(!this.ctx||this.ctx.state!=='running'||!this.bus)await this.unlock();
   if(!this.bank.resolve(pad,this.getSession().style))await this.bank.ensurePad(this.ctx!,pad);
+  if(generation!==this.generation||this.getSession().muted[pad])return;
   const now=this.ctx!.currentTime+.002;
   this.voice(this.ctx!,((pad===1||pad>=6)?this.bus!.b:this.bus!.a),pad,now,velocity,this.getSession().style,this.getSession().levels[pad]??1);
   if(this.recordArmed&&this.running){const d=60/this.getSession().tempo/4;
@@ -174,7 +176,7 @@ export class Engine{
   const attack=.003,release=.012;
   low.connect(high).connect(amp).connect(bus);
   const playing:{stop:()=>void;until:number}={stop:()=>{},until:when+1};
-  const cleanup=()=>{try{low.disconnect();high.disconnect();amp.disconnect()}catch{}this.active.delete(playing)};
+  const cleanup=()=>{try{source.disconnect();low.disconnect();high.disconnect();amp.disconnect()}catch{}this.active.delete(playing)};
   amp.gain.setValueAtTime(0,when);amp.gain.linearRampToValueAtTime(Math.max(.00001,baseline),when+attack);
 
    const source=ctx.createBufferSource();source.buffer=sample.buffer;source.connect(low);
@@ -183,7 +185,19 @@ export class Engine{
    amp.gain.linearRampToValueAtTime(0,end);
    source.onended=cleanup;source.start(when);source.stop(end+.004);
    playing.until=end+.025;
-   playing.stop=()=>{try{const now=Math.max(ctx.currentTime,when);amp.gain.cancelScheduledValues(now);amp.gain.setTargetAtTime(0,now,.003);source.stop(now+.018)}catch{cleanup()}};
+   playing.stop=()=>{try{
+    const now=ctx.currentTime;
+    // A scheduled note must never start after STOP or voice stealing.
+    if(now<=when){source.stop(now);cleanup();return;}
+    if(typeof amp.gain.cancelAndHoldAtTime==='function')amp.gain.cancelAndHoldAtTime(now);
+    else {
+     // Preserve the envelope level when cancelling an attack/release ramp.
+     const peak=Math.max(.00001,baseline),releaseAt=Math.max(when+attack,end-fade);
+     const held=now<when+attack?peak*(now-when)/attack:now<releaseAt?peak:peak*Math.max(0,(end-now)/(end-releaseAt));
+     amp.gain.cancelScheduledValues(now);amp.gain.setValueAtTime(held,now);
+    }
+    amp.gain.linearRampToValueAtTime(0,now+.012);source.stop(now+.018);
+   }catch{cleanup()}};
   if(live)this.active.add(playing);
  }
 
