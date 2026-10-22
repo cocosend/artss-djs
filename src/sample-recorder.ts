@@ -45,7 +45,7 @@ export class SampleRecorder {
 
   get active(): boolean {return this.capturingPCM || this.recorder?.state === 'recording';}
 
-  async start(source: CaptureSource, liveStream: MediaStream | null, context: AudioContext, onLimit: () => void, onFailure: (error: Error) => void = () => {}, directInput: AudioNode | null = null): Promise<void> {
+  async start(source: CaptureSource, liveStream: MediaStream | null, context: AudioContext, onLimit: () => void, onFailure: (error: Error) => void = () => {}, directInput: AudioNode | null = null, maxDurationMs=12000): Promise<void> {
     if (this.active || this.stopPromise) throw Error('Запись сэмпла уже идёт');
     if(source!=='live')throw Error('Доступна только запись внутреннего микса');
      const stream=liveStream;
@@ -102,7 +102,7 @@ export class SampleRecorder {
         };
         recorder.start(100);
       }
-      this.timeout=window.setTimeout(onLimit,12000);
+      this.timeout=window.setTimeout(onLimit,Math.min(60000,Math.max(1000,maxDurationMs)));
     } catch(error) {this.dispose();throw error;}
   }
 
