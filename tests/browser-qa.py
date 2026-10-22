@@ -27,7 +27,7 @@ with sync_playwright() as playwright:
   context.route('https://artss.test/**',serve_static)
   URL='https://artss.test/'
  page.on('crash',lambda _:errors.append('Browser renderer crashed'))
- page.goto(URL,wait_until='networkidle');assert 'NEXUS 30' in page.title(),page.title()
+ page.goto(URL,wait_until='networkidle');assert 'NEXUS 31' in page.title(),page.title()
  try:
   page.wait_for_function("document.querySelectorAll('#pads .pad').length===8",timeout=15000)
  except Exception as exc:
@@ -72,6 +72,15 @@ with sync_playwright() as playwright:
  assert page.locator('[data-pane="profile"]').is_visible()
  assert page.locator('#sourceForm').count()==0
  assert page.locator('#waveform').count()==1
+ assert page.locator('#jogWheel').count()==1
+ assert page.locator('#jogWheel').evaluate("el=>getComputedStyle(el).touchAction")=='none'
+ assert page.locator('#cueOverdub').count()==1
+ assert page.locator('#presetVault').count()==1
+ assert '3 145 728' in page.locator('#presetCount').inner_text()
+ page.locator('[data-jog-mode="filter"]').tap()
+ page.locator('#jogWheel').focus()
+ page.keyboard.press('ArrowDown')
+ page.wait_for_function("Number(document.querySelector('#filter').value)===99")
  assert page.locator('#eqLow').evaluate("el=>getComputedStyle(el).touchAction")=='none'
  # A pad touch must retain editor step DOM nodes instead of rebuilding the sequencer.
  page.evaluate("window.__stepBefore=document.querySelector('#steps .step')")
@@ -110,6 +119,19 @@ with sync_playwright() as playwright:
  assert page.locator('#trackCue').input_value()=='50'
  assert 'DROP' in page.locator('#cuePosition').inner_text()
  page.locator('[data-cue="0"]').tap()
+ # Preset generator and local pocket folders survive reload without disturbing legacy session keys.
+ page.locator('#presetNumber').fill('3145728')
+ page.locator('#presetNumber').dispatch_event('change')
+ assert page.locator('#presetGenre').input_value()=='11'
+ page.locator('#presetApply').tap()
+ page.locator('#folderName').fill('QA POCKET')
+ page.locator('#folderCreate').tap()
+ page.locator('#presetTitle').fill('QA LIVE RHYTHM')
+ page.locator('#presetSave').tap()
+ assert page.locator('.pocket-item').count()==1
+ page.reload(wait_until='networkidle')
+ assert page.locator('#presetFolder').input_value()=='QA POCKET'
+ assert page.locator('.pocket-item').count()==1
  # A local recording plays through the same master bus with no second deck.
  frames=[]
  for n in range(44100*6):
