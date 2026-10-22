@@ -2,6 +2,7 @@ import {defaultSession,importSession,PAD_NAMES,STYLES,toggle,STEPS,sanitizeSessi
 import {Engine} from './engine.js';
 import {AutoMixPlayer} from './automix-player.js';
 import { composeGroove } from './arranger.js';
+import {mountPresetVault} from './preset-vault.js';
 import {knobDragValue} from './touch.js';
 const $=<T extends HTMLElement=HTMLElement>(q:string)=>document.querySelector<T>(q)!;
 const getStorage=():Session=>{for(const key of ['artss-live-session-v19','artss-live-session-v18']){try{const v=localStorage.getItem(key);if(v)return importSession(v)}catch{}}return defaultSession()};
@@ -293,11 +294,62 @@ engine.updateMix();refreshKitButtons();
  const showTrack=()=>{$('#trackName').textContent=`${styleLabel(state.style)} · BANK ${'ABCD'[kits.active]}`;($('#bpmRange') as HTMLInputElement).value=String(state.tempo);$('#bpm').textContent=String(state.tempo);
   const nodes=document.querySelectorAll('#styleLights i');nodes.forEach((el,i)=>el.classList.toggle('active',i===state.style%nodes.length));};
  const changeTempo=(tempo:number)=>{state.tempo=Math.max(80,Math.min(175,Math.round(tempo)));showTrack();engine.updateMix();scheduleSave()};
+ const jog=$<HTMLButtonElement>('#jogWheel');
+ type JogMode='filter'|'tempo'|'echo'|'cue';
+ let jogMode:JogMode='filter',jogPointer:number|null=null,lastAngle=0;
+ const jogInput=()=>jogMode==='filter'?$<HTMLInputElement>('#filter'):jogMode==='tempo'?$<HTMLInputElement>('#bpmRange'):jogMode==='echo'?$<HTMLInputElement>('#echo'):$<HTMLInputElement>('#trackCue');
+ const renderJog=()=>{
+  const input=jogInput(),min=Number(input.min)||0,max=Number(input.max)||100,value=Number(input.value);
+  const fraction=(value-min)/(max-min);
+  jog.style.setProperty('--jog-turn',String(-135+fraction*270)+'deg');
+  $('#jogValue').textContent=(jogMode==='tempo'?'BPM ':jogMode.toUpperCase()+' ')+Math.round(value)+(jogMode==='tempo'?'':'%');
+  jog.setAttribute('aria-valuemin',String(min));jog.setAttribute('aria-valuemax',String(max));jog.setAttribute('aria-valuenow',String(value));
+  jog.setAttribute('aria-valuetext',$('#jogValue').textContent??'');
+ };
+ const turnJog=(delta:number)=>{
+  const input=jogInput();if(input.disabled)return;
+  const min=Number(input.min)||0,max=Number(input.max)||100;
+  const value=Math.round(Math.min(max,Math.max(min,Number(input.value)+delta*(max-min)/100)));
+  if(value!==Number(input.value)){input.value=String(value);input.dispatchEvent(new Event('input',{bubbles:true}));}
+  renderJog();
+ };
+ for(const button of document.querySelectorAll<HTMLButtonElement>('[data-jog-mode]'))button.addEventListener('click',()=>{
+  jogMode=button.dataset.jogMode as JogMode;
+  for(const item of document.querySelectorAll<HTMLButtonElement>('[data-jog-mode]'))item.classList.toggle('active',item===button);
+  renderJog();
+ });
+ const pointerAngle=(event:PointerEvent)=>{const rect=jog.getBoundingClientRect();return Math.atan2(event.clientY-(rect.top+rect.height/2),event.clientX-(rect.left+rect.width/2));};
+ jog.addEventListener('pointerdown',event=>{
+  if(event.pointerType==='mouse'&&event.button!==0||jogPointer!==null)return;
+  event.preventDefault();jogPointer=event.pointerId;lastAngle=pointerAngle(event);jog.classList.add('turning');
+  try{jog.setPointerCapture(event.pointerId)}catch{}
+ },{passive:false});
+ jog.addEventListener('pointermove',event=>{
+  if(jogPointer!==event.pointerId)return;
+  event.preventDefault();const next=pointerAngle(event);
+  const diff=Math.atan2(Math.sin(next-lastAngle),Math.cos(next-lastAngle));
+  lastAngle=next;turnJog(diff*100/(Math.PI*1.5));
+ },{passive:false});
+ for(const type of ['pointerup','pointercancel','lostpointercapture'] as const)jog.addEventListener(type,event=>{
+  if(jogPointer!==event.pointerId)return;jogPointer=null;jog.classList.remove('turning');
+ });
+ jog.addEventListener('keydown',event=>{
+  if(event.key==='ArrowUp'||event.key==='ArrowRight'){event.preventDefault();turnJog(1);}
+  if(event.key==='ArrowDown'||event.key==='ArrowLeft'){event.preventDefault();turnJog(-1);}
+  if(event.key==='Home'){event.preventDefault();turnJog(-100);}
+  if(event.key==='End'){event.preventDefault();turnJog(100);}
+ });
+ for(const id of ['filter','echo','bpmRange','trackCue'])$('#'+id).addEventListener('input',()=>{if(jogInput().id===id)renderJog()});
+ renderJog();
  const changeStyle=(offset:number)=>{const el=$<HTMLSelectElement>('#bank');el.value=String((state.style+offset+STYLES.length)%STYLES.length);el.dispatchEvent(new Event('change'))};
  $('#stylePrev').addEventListener('click',()=>changeStyle(-1));$('#styleNext').addEventListener('click',()=>changeStyle(1));
  let generation=0,previousPattern:number[][]|null=null;
  const undoButton=$<HTMLButtonElement>('#undoGroove');
  const rememberPattern=()=>{previousPattern=clonePattern(state.pattern);undoButton.disabled=false};
+ mountPresetVault({capture:()=>({style:state.style,tempo:state.tempo,pattern:clonePattern(state.pattern)}),apply:({style,tempo,pattern})=>{
+  rememberPattern();state.style=style;state.tempo=tempo;state.pattern=clonePattern(pattern);
+  $<HTMLSelectElement>('#bank').value=String(style);showTrack();engine.updateMix();save();paintPads();paintSteps();setStatus('PATTERN LOADED');
+ }});
  const applySelectedPattern=()=>{rememberPattern();generation++;const energy=Number($<HTMLInputElement>('#density').value)/100;state.pattern=composeGroove(state.style,energy,generation);save();paintSteps();setStatus('PATTERN LOADED')};
  $('#bank').addEventListener('change',()=>{rememberPattern();state.style=Number($<HTMLSelectElement>('#bank').value);state.tempo=STYLES[state.style]?.bpm??136;state.pattern=composeGroove(state.style,Number($<HTMLInputElement>('#density').value)/100,0);showTrack();engine.updateMix();save();paintPads();paintSteps();updateSampleTarget();setStatus('PATTERN LOADED')});
  $('#applyPattern').addEventListener('click',applySelectedPattern);
@@ -321,6 +373,10 @@ engine.updateMix();refreshKitButtons();
  window.addEventListener('pagehide',()=>{flushSave();for(const url of takeUrls)URL.revokeObjectURL(url);takeUrls=[]});
  $('#play').addEventListener('click',()=>void safe(async()=>{if(engine.state==='PLAY'&&engine.ctx?.state==='suspended')await engine.unlock();else if(engine.state==='PLAY')engine.pause();else await engine.start();updateTransport()}));
  $('#record').addEventListener('click',()=>void safe(async()=>{await engine.toggleRecord();updateTransport()}));
+ $('#cueOverdub').addEventListener('click',()=>void safe(async()=>{
+  if(engine.cueMicActive)engine.stopCueMic();else await engine.startCueMic();
+  updateTransport();
+ }));
  $('#stop').addEventListener('click',()=>{autoMix.stop();engine.stop();updateTransport()});
  const cross=$<HTMLInputElement>('#crossfade');cross.value=String(Math.round(state.crossfader*100));cross.addEventListener('input',()=>{state.crossfader=Number(cross.value)/100;engine.updateMix();scheduleSave()});
  for(const field of ['eqLow','eqMid','eqHigh'] as const){
@@ -394,5 +450,5 @@ engine.updateMix();refreshKitButtons();
  paintPads();paintSteps();setPane('main');updateTransport();
  if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
 };
-function updateTransport(){const play=$('#play');play.querySelector('.deck-label')!.textContent=engine.state==='PLAY'?'ПАУЗА':'ПУСК';play.querySelector('.deck-play-icon')!.textContent=engine.state==='PLAY'?'Ⅱ':'▶';play.classList.toggle('on',engine.state==='PLAY');$('#record').classList.toggle('on',engine.recording);$('#record').querySelector('.deck-label')!.textContent=engine.recording?'СТОП ЗАПИСИ':'ЗАПИСЬ';$('#runState').textContent=localStatus(engine.state);if(engine.state==='STOP')$('#transportTime').textContent='00:00 / ЦИКЛ';}
+function updateTransport(){const play=$('#play');play.querySelector('.deck-label')!.textContent=engine.state==='PLAY'?'ПАУЗА':'ПУСК';play.querySelector('.deck-play-icon')!.textContent=engine.state==='PLAY'?'Ⅱ':'▶';play.classList.toggle('on',engine.state==='PLAY');$('#record').classList.toggle('on',engine.recording);$('#record').querySelector('.deck-label')!.textContent=engine.recording?'СТОП ЗАПИСИ':'ЗАПИСЬ';const cue=$<HTMLButtonElement>('#cueOverdub');cue.classList.toggle('on',engine.cueMicActive);cue.setAttribute('aria-pressed',String(engine.cueMicActive));cue.textContent=engine.cueMicActive?'● CUE · MIC ON':'CUE · MIC';$('#runState').textContent=localStatus(engine.state);if(engine.state==='STOP')$('#transportTime').textContent='00:00 / ЦИКЛ';}
 init();
