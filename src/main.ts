@@ -2,6 +2,7 @@ import {defaultSession,importSession,PAD_NAMES,STYLES,SCENES,toggle,STEPS,saniti
 import {Engine} from './engine.js';
 import { composeGroove } from './arranger.js';
 import {knobDragValue} from './touch.js';
+import type {LoopSize} from './performance-loop.js';
 import {AutoMixPlayer,type AutoMixState} from './automix-player.js';
 const $=<T extends HTMLElement=HTMLElement>(q:string)=>document.querySelector<T>(q)!;
 const getStorage=():Session=>{for(const key of ['artss-live-session-v19','artss-live-session-v18']){try{const v=localStorage.getItem(key);if(v)return importSession(v)}catch{}}return defaultSession()};
@@ -50,7 +51,7 @@ const loadKits=():{active:number;patterns:number[][][]}=>{
  }catch{}
  return {active:0,patterns:[clonePattern(state.pattern),composeGroove(state.style,.7,1),composeGroove(state.style,.82,2),composeGroove(state.style,.6,3)]};
 };
-const kits=loadKits();
+const kits=loadKits();engine.setSoundKit(kits.active);
 const refreshKitButtons=()=>{for(const btn of document.querySelectorAll<HTMLButtonElement>('[data-kit]')){const active=Number(btn.dataset.kit)===kits.active;btn.classList.toggle('active',active);btn.setAttribute('aria-pressed',String(active))}};
 const persistKits=()=>{kits.patterns[kits.active]=clonePattern(state.pattern);try{localStorage.setItem(KIT_KEY,JSON.stringify(kits))}catch{}};
 
@@ -178,7 +179,7 @@ function paintMix(){const wrap=$('#mixRows');wrap.replaceChildren();PAD_NAMES.fo
 let takeUrls:string[]=[];
 function paintTakes(){for(const url of takeUrls)URL.revokeObjectURL(url);takeUrls=[];const el=$('#takesList');el.replaceChildren();for(let i=0;i<engine.takes.length;i++){
  const blob=engine.takes[i]!;const a=h('a',`TAKE ${String(i+1).padStart(2,'0')}  ·  ${Math.round(blob.size/1024)} KB`,'take') as HTMLAnchorElement;
- a.href=URL.createObjectURL(blob);takeUrls.push(a.href);a.download=`artss-live-take-${i+1}.${blob.type.includes('mp4')?'m4a':'webm'}`;el.append(a);
+ a.href=URL.createObjectURL(blob);takeUrls.push(a.href);a.download=`artss-live-take-${i+1}.${blob.type.includes('wav')?'wav':blob.type.includes('mp4')?'m4a':'webm'}`;el.append(a);
  }if(!engine.takes.length)el.append(h('p','Запиши первый дубль.','dim'));
 }
 async function safe(task:()=>Promise<void>){if(busy)return;busy=true;try{await task()}catch(e){setStatus(e instanceof Error?e.message:'ERROR')}finally{busy=false;}}
@@ -267,9 +268,13 @@ mixStop.addEventListener('click',()=>{mixPlayer.stop();updateTransport()});
  $('#seqEdit').addEventListener('click',()=>{const advanced=$<HTMLDetailsElement>('#advancedEditor');advanced.open=!advanced.open;if(advanced.open)advanced.scrollIntoView({block:'nearest',behavior:'smooth'})});
  for(const btn of document.querySelectorAll<HTMLButtonElement>('[data-kit]'))btn.addEventListener('click',()=>{
   const to=Number(btn.dataset.kit);if(to===kits.active||!Number.isInteger(to)||to<0||to>3)return;
-  kits.patterns[kits.active]=clonePattern(state.pattern);kits.active=to;state.pattern=clonePattern(kits.patterns[to]??state.pattern);save();refreshKitButtons();paintSteps();setStatus(`PAD BANK ${'ABCD'[to]}`);
+  kits.patterns[kits.active]=clonePattern(state.pattern);kits.active=to;state.pattern=clonePattern(kits.patterns[to]??state.pattern);engine.setSoundKit(to);save();refreshKitButtons();paintSteps();setStatus(`PAD BANK ${'ABCD'[to]}`);
  });
  $('#undoGroove').addEventListener('click',()=>{if(!previousPattern)return;state.pattern=previousPattern;previousPattern=null;save();paintSteps();$('#undoGroove').hidden=true;setStatus('GROOVE RESTORED')});
+ for(const button of document.querySelectorAll<HTMLButtonElement>('[data-loop]'))button.addEventListener('click',()=>{
+  const size=Number(button.dataset.loop) as LoopSize;if(!([0,4,8,16] as number[]).includes(size))return;
+  engine.setLoop(size);for(const item of document.querySelectorAll<HTMLButtonElement>('[data-loop]')){const on=Number(item.dataset.loop)===size;item.classList.toggle('active',on);item.setAttribute('aria-pressed',String(on));}
+ });
  $('#scene').addEventListener('change',()=>{state.scene=Number(($<HTMLSelectElement>('#scene')).value);showTrack();save()});
  $('#tempoDown').addEventListener('click',()=>changeTempo(state.tempo-1));
  $('#tempoUp').addEventListener('click',()=>changeTempo(state.tempo+1));
@@ -280,7 +285,7 @@ mixStop.addEventListener('click',()=>{mixPlayer.stop();updateTransport()});
  window.addEventListener('pagehide',()=>{flushSave();mixPlayer.dispose();for(const url of takeUrls)URL.revokeObjectURL(url);takeUrls=[]});
  $('#play').addEventListener('click',()=>void safe(async()=>{if(engine.state==='PLAY'&&engine.ctx?.state==='suspended')await engine.unlock();else if(engine.state==='PLAY')engine.pause();else await engine.start();mixPlayer.setPadOverlay(engine.state==='PLAY');updateTransport()}));
  $('#record').addEventListener('click',()=>void safe(async()=>{await engine.toggleRecord();mixPlayer.setPadOverlay(engine.state==='PLAY');updateTransport()}));
- $('#stop').addEventListener('click',()=>{mixPlayer.stop();engine.stop();updateTransport()});
+ $('#stop').addEventListener('click',()=>{mixPlayer.stop();engine.stop();updateTransport();for(const button of document.querySelectorAll<HTMLButtonElement>('[data-loop]')){const on=button.dataset.loop==='0';button.classList.toggle('active',on);button.setAttribute('aria-pressed',String(on));}});
  const autoMixButton=$<HTMLButtonElement>('#autoMixToggle');
  autoMixButton.addEventListener('click',()=>{engine.setAutoMix(!engine.autoMixEnabled);autoMixButton.setAttribute('aria-pressed',String(engine.autoMixEnabled));autoMixButton.classList.toggle('active',engine.autoMixEnabled);autoMixButton.textContent=engine.autoMixEnabled?'АВТОМИКС · ВКЛ':'АВТОМИКС · ВЫКЛ';setStatus(engine.autoMixEnabled?'АВТОМИКС ВКЛ':'АВТОМИКС ВЫКЛ')});
  const cross=$<HTMLInputElement>('#crossfade');cross.value=String(Math.round(state.crossfader*100));cross.addEventListener('input',()=>{if(engine.autoMixEnabled){engine.setAutoMix(false);autoMixButton.classList.remove('active');autoMixButton.setAttribute('aria-pressed','false');autoMixButton.textContent='АВТОМИКС · ВЫКЛ';}state.crossfader=Number(cross.value)/100;engine.updateMix();scheduleSave()});
@@ -335,7 +340,9 @@ mixStop.addEventListener('click',()=>{mixPlayer.stop();updateTransport()});
    paintPads();updateSampleTarget();
   }finally{input.value='';importSlot=undefined;}
  }));
- $('#take').addEventListener('click',()=>void safe(async()=>{if(($('#take') as HTMLButtonElement).classList.contains('on')){engine.endTake();$('#take').classList.remove('on');$('#take').textContent='● ЗАПИСАТЬ АУДИО';window.setTimeout(paintTakes,400)}else{await engine.beginTake();$('#take').classList.add('on');$('#take').textContent='■ ЗАВЕРШИТЬ ДУБЛЬ'}}));
+ const updateTakeButton=()=>{const el=$<HTMLButtonElement>('#take');el.classList.toggle('on',engine.taking);el.textContent=engine.taking?'■ ЗАВЕРШИТЬ ДУБЛЬ':'● ЗАПИСАТЬ АУДИО';};
+ engine.events.onTake=()=>{updateTakeButton();paintTakes();};
+ $('#take').addEventListener('click',()=>void safe(async()=>{if(engine.taking)await engine.endTake();else await engine.beginTake();updateTakeButton();paintTakes();}));
  $('#export').addEventListener('click',()=>void safe(async()=>{setStatus('RENDERING WAV');const blob=await engine.exportWav();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='ARTSS-NEXUS-LIVE.wav';a.click();window.setTimeout(()=>URL.revokeObjectURL(url),30000);setStatus('WAV EXPORTED')}));
  $('#reset').addEventListener('click',()=>{if(!confirm('Очистить записанные шаги?'))return;state.pattern=Array.from({length:8},()=>Array(16).fill(0));save();paintSteps()});
  for(const el of document.querySelectorAll('[data-pane]'))el.addEventListener('click',()=>{closeDrawer();setPane((el as HTMLElement).dataset.pane as Pane)});
