@@ -1,13 +1,13 @@
 {
   "id": "/",
-  "name": "ARTSS NEXUS 28 DJ",
+  "name": "ARTSS NEXUS 31 JOG STUDIO",
   "short_name": "NEXUS",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000",
-  "description": "DJ creator with local track BPM and smooth automix transitions, eight pads and RU/EN language selection.",
+  "description": "Single-jog DJ studio, local-track beat-matched AutoMix, 8 live drum pads, 3.1M generative rhythmic variations, preset folders and opt-in CUE microphone overdub.",
   "icons": [
     {
       "src": "/icon.svg",
