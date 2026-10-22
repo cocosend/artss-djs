@@ -176,6 +176,13 @@ with sync_playwright() as playwright:
  assert page.locator('[data-abyss-id="32"]').is_visible()
  page.locator('[data-abyss-id="17"]').tap()
  page.wait_for_function("document.querySelector('#abyssStatus').textContent.includes('Analog Lead')",timeout=8000)
+ # An active Abyss loop must survive page switching and export through the master.
+ page.locator('[data-pane="takes"]').tap()
+ with page.expect_download(timeout=60000) as abyss_event: page.locator('#export').tap()
+ with wave.open(str(abyss_event.value.path()),'rb') as exported:
+  assert exported.getnchannels()==2 and exported.getnframes()>100000
+ page.locator('#abyssOpen').tap()
+ assert page.locator('[data-abyss-id="6"]').get_attribute('aria-pressed')=='true'
  page.locator('#abyssStop').tap()
  page.locator('[data-abyss-page="0"]').tap()
  assert page.locator('[data-abyss-id="6"]').get_attribute('aria-pressed')=='false'
