@@ -182,6 +182,7 @@ with sync_playwright() as playwright:
  with wave.open(str(abyss_event.value.path()),'rb') as exported:
   assert exported.getnchannels()==2 and exported.getnframes()>100000
  page.locator('#abyssOpen').tap()
+ page.locator('[data-abyss-page="0"]').tap()
  assert page.locator('[data-abyss-id="6"]').get_attribute('aria-pressed')=='true'
  page.locator('#abyssStop').tap()
  page.locator('[data-abyss-page="0"]').tap()
