@@ -260,7 +260,7 @@ export class Engine{
   r.start(250);this.recorder=r;this.events.onState?.('TAKE RECORDING');
  }
  endTake(){if(this.recorder?.state==='recording')this.recorder.stop();}
- private openTakes():Promise<IDBDatabase|null>{return new Promise(resolve=>{const r=indexedDB.open('artss-live-takes-v18',1);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains('takes'))r.result.createObjectStore('takes',{autoIncrement:true})};r.onsuccess=()=>resolve(r.result);r.onerror=()=>resolve(null);r.onblocked=()=>resolve(null)})}
+ private openTakes():Promise<IDBDatabase|null>{return new Promise(resolve=>{let r:IDBOpenDBRequest;try{r=indexedDB.open('artss-live-takes-v18',1)}catch{resolve(null);return;}r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains('takes'))r.result.createObjectStore('takes',{autoIncrement:true})};r.onsuccess=()=>resolve(r.result);r.onerror=()=>resolve(null);r.onblocked=()=>resolve(null)})}
  private async storeTake(blob:Blob){const db=await this.openTakes();if(!db)return;try{const tx=db.transaction('takes','readwrite');tx.objectStore('takes').add(blob)}catch{}finally{db.close()}}
  private async restoreTakes(){const db=await this.openTakes();if(!db)return;try{const r=db.transaction('takes','readonly').objectStore('takes').getAll();r.onsuccess=()=>{for(const b of (r.result as Blob[]).reverse())if(b.size)this.recorded.push(b)};}catch{}finally{db.close()}}
 
