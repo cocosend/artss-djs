@@ -59,7 +59,7 @@ export class Engine{
  private active=new Set<{stop:()=>void;until:number;when:number}>();
  private generation=0;private scheduledTempo=136;private recorder:MediaRecorder|null=null;private capture:MediaStreamAudioDestinationNode|null=null;
  private recorded:Blob[]=[];private currentChunks:Blob[]=[];
- private gain=1;private sampleRecorder=new SampleRecorder();
+ private gain=1;private sampleRecorder=new SampleRecorder();private takeCapture=new SampleRecorder();private takeActive=false;
  private offlineSampleActive=false;private offlineSampleAt=0;private offlineSampleTimer:number|null=null;
  private offlineSampleHits:Array<{pad:number;at:number;velocity:number;style:number;level:number}>=[];
  private sampleTarget:{pad:number;style:number}|null=null;events:EngineEvents={};
@@ -71,6 +71,7 @@ export class Engine{
  get recording(){return this.recordArmed;}
  get sampling(){return this.offlineSampleActive||this.sampleRecorder.active;}
  get cueMicActive(){return this.cueStream!==null;}
+ get taking(){return this.takeActive||this.recorder?.state==='recording';}
  /** Explicit opt-in live microphone overdub into the existing master, recorder and limiter. */
  async startCueMic():Promise<void>{
   if(this.cueStream)return;
@@ -319,15 +320,48 @@ export class Engine{
   this.events.onState?.(`SAMPLE SAVED · PAD ${target.pad+1}`);
   return {pad:result.pad,style:target.style,name:file.name};
  }
- async beginTake():Promise<void>{await this.unlock();if(typeof MediaRecorder==='undefined')throw Error('Audio take недоступен — используй EXPORT WAV');if(this.recorder?.state==='recording')return;
+ async beginTake():Promise<void>{
+  await this.unlock();if(this.taking)return;
+  if(preferPcmRecording(navigator.userAgent,typeof MediaRecorder!=='undefined')){
+   if(!this.bus||!this.ctx)throw Error('Аудиодвижок не готов');
+   this.takeActive=true;
+   try{
+    // Safari: post-limiter PCM direct to capture-only worklet; no MediaStream roundtrip.
+    const fallbackStream=this.ctx.audioWorklet?null:this.ensureCapture().stream;
+    await this.takeCapture.start('live',fallbackStream,this.ctx,
+     ()=>{void this.endTake().catch(error=>this.events.onState?.('ERROR · '+String(error)))},
+     error=>{this.takeActive=false;this.events.onState?.('ERROR · '+error.message)},
+     this.bus.master,60000);
+   }catch(error){this.takeActive=false;throw error}
+   this.events.onState?.('TAKE RECORDING');return;
+  }
   const capture=this.ensureCapture();
   const types=['audio/mp4','audio/webm;codecs=opus','audio/webm'];const type=types.find(t=>MediaRecorder.isTypeSupported(t));
   const r=new MediaRecorder(capture.stream,type?{mimeType:type}:{});this.currentChunks=[];
   r.ondataavailable=e=>{if(e.data.size)this.currentChunks.push(e.data)};
-  r.onstop=()=>{const blob=new Blob(this.currentChunks,{type:r.mimeType||'audio/webm'});if(blob.size){this.recorded.unshift(blob);void this.storeTake(blob);this.events.onState?.('TAKE SAVED');}};
+  r.onstop=()=>{const blob=new Blob(this.currentChunks,{type:r.mimeType||'audio/webm'});this.recorder=null;
+   if(blob.size){this.recorded.unshift(blob);void this.storeTake(blob);this.events.onState?.('TAKE SAVED');}
+  };
+  r.onerror=()=>this.events.onState?.('ERROR · аудиозапись прервана');
   r.start(250);this.recorder=r;this.events.onState?.('TAKE RECORDING');
  }
- endTake(){if(this.recorder?.state==='recording')this.recorder.stop();}
+ async endTake():Promise<void>{
+  if(this.takeActive){
+   this.takeActive=false;
+   const blob=await this.takeCapture.stop();
+   if(blob.size>2048){this.recorded.unshift(blob);void this.storeTake(blob);this.events.onState?.('TAKE SAVED');}
+   return;
+  }
+  if(this.recorder?.state==='recording'){
+   const recorder=this.recorder;
+   await new Promise<void>((resolve,reject)=>{
+    const previous=recorder.onstop;
+    recorder.onstop=event=>{previous?.call(recorder,event);resolve()};
+    recorder.addEventListener('error',()=>reject(Error('Ошибка аудиозаписи')),{once:true});
+    try{recorder.stop()}catch(error){reject(error)}
+   });
+  }
+ }
  private openTakes():Promise<IDBDatabase|null>{return new Promise(resolve=>{const r=indexedDB.open('artss-live-takes-v18',1);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains('takes'))r.result.createObjectStore('takes',{autoIncrement:true})};r.onsuccess=()=>resolve(r.result);r.onerror=()=>resolve(null);r.onblocked=()=>resolve(null)})}
  private async storeTake(blob:Blob){const db=await this.openTakes();if(!db)return;try{const tx=db.transaction('takes','readwrite');tx.objectStore('takes').add(blob)}catch{}finally{db.close()}}
  private async restoreTakes(){const db=await this.openTakes();if(!db)return;try{const r=db.transaction('takes','readonly').objectStore('takes').getAll();r.onsuccess=()=>{for(const b of (r.result as Blob[]).reverse())if(b.size)this.recorded.push(b)};}catch{}finally{db.close()}}
