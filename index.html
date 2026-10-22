@@ -53,15 +53,6 @@
   </div>
  </section>
  <div class="status-strip"><span id="status" class="status" role="status">ГОТОВО</span><span>СТЕРЕО · АУДИО</span></div>
- <section class="dj-workflow" aria-label="DJ автосводка пользовательских треков">
-  <div class="dj-title"><span>01 / DJ WORKFLOW</span><strong>ТВОЙ ТРЕК → ПОДВОД → ДРОП</strong></div>
-  <p>Загрузи до трёх своих аудиотреков. Подвод и переходы звучат через общий мастер. Музыка остаётся на устройстве.</p>
-  <div class="dj-actions"><button id="chooseTracks" type="button">＋ ДОБАВИТЬ ТРЕКИ</button><button id="startAutoMix" type="button" disabled>▶ АВТОСВОДКА</button><button id="stopAutoMix" type="button" disabled>■</button></div>
-  <div id="trackQueue" class="track-queue" aria-live="polite">Пока нет треков</div>
-  <div class="cue-workflow"><div class="cue-head"><span>ФОРМА ТРЕКА · ТОЧКА ВХОДА</span><strong id="cuePosition">СТАРТ · 0%</strong></div><input id="trackCue" type="range" min="0" max="85" value="0" aria-label="Точка входа в первый трек"><div class="cue-progress"><i id="mixProgressFill"></i></div><div class="cue-markers"><button type="button" data-cue="0">INTRO</button><button type="button" data-cue="25">BREAK</button><button type="button" data-cue="50">DROP</button><button type="button" data-cue="85">OUTRO</button></div></div>
-  <div class="dj-options"><label><input id="mixIntro" type="checkbox" checked> ПОДВОД 2 ТАКТА</label><label><input id="mixPads" type="checkbox"> ДРАМ-ЛУП В МИКСЕ</label></div>
-  <div id="mixStatus" class="mix-status" role="status">Выбери локальный аудиофайл · 1–3 трека</div>
- </section>
  <section class="control-deck" aria-label="Паттерн, темп и запись">
   <div class="select-unit">
    <strong>ПАТТЕРН</strong><div class="arrow-select"><button type="button" id="stylePrev" aria-label="Предыдущий паттерн">‹</button><select id="bank" aria-label="Паттерн музыки"></select><button type="button" id="styleNext" aria-label="Следующий паттерн">›</button></div>
@@ -87,6 +78,16 @@
  <main id="mainPanel">
   <div class="section-heading pad-head"><div class="headline"><span class="heading-icon">▦</span><h2>ДРАМ-ПЭДЫ</h2></div><div id="kitBanks" class="kit-banks" role="group" aria-label="Банки паттернов"><button type="button" data-kit="0" class="active">A</button><button type="button" data-kit="1">B</button><button type="button" data-kit="2">C</button><button type="button" data-kit="3">D</button></div></div>
   <div id="pads" class="pads" aria-label="Все восемь звуковых пэдов"></div>
+ <section class="dj-workflow" aria-label="DJ автосводка пользовательских треков">
+  <div class="dj-title"><span>01 / DJ WORKFLOW</span><strong>ТВОЙ ТРЕК → ПОДВОД → ДРОП</strong></div>
+  <p>Загрузи до трёх своих аудиотреков. Подвод и переходы звучат через общий мастер. Музыка остаётся на устройстве.</p>
+  <div class="dj-actions"><button id="chooseTracks" type="button">＋ ДОБАВИТЬ ТРЕКИ</button><button id="startAutoMix" type="button" disabled>▶ АВТОСВОДКА</button><button id="stopAutoMix" type="button" disabled>■</button></div>
+  <div id="trackQueue" class="track-queue" aria-live="polite">Пока нет треков</div>
+  <div class="cue-workflow"><div class="cue-head"><span>ФОРМА ТРЕКА · ТОЧКА ВХОДА</span><strong id="cuePosition">СТАРТ · 0%</strong></div><input id="trackCue" type="range" min="0" max="85" value="0" aria-label="Точка входа в первый трек"><div class="cue-progress"><i id="mixProgressFill"></i></div><div class="cue-markers"><button type="button" data-cue="0">INTRO</button><button type="button" data-cue="25">BREAK</button><button type="button" data-cue="50">DROP</button><button type="button" data-cue="85">OUTRO</button></div></div>
+  <div class="dj-options"><label><input id="mixIntro" type="checkbox" checked> ПОДВОД 2 ТАКТА</label><label><input id="mixPads" type="checkbox"> ДРАМ-ЛУП В МИКСЕ</label></div>
+  <div id="mixStatus" class="mix-status" role="status">Выбери локальный аудиофайл · 1–3 трека</div>
+ </section>
+
   <section class="sound-pages" aria-label="Музыкальные пэды">
    <div class="section-heading"><div class="headline"><span class="heading-icon">♫</span><h2>МУЗЫКАЛЬНЫЕ ПЭДЫ</h2></div><span class="sound-count">24 ЗВУКА</span></div>
    <div class="sound-tabs" role="group" aria-label="Банк музыкальных звуков"><button type="button" data-sound-page="acid" class="active">ACID 303</button><button type="button" data-sound-page="piano">PIANO</button><button type="button" data-sound-page="fx">FX / HITS</button></div>
