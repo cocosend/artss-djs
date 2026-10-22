@@ -435,7 +435,14 @@ const init = () => {
         try {
             if (!input.files?.length)
                 return;
-            await autoMix.load(input.files);
+            $('#trackQueue').textContent = 'Анализ треков…';
+            try {
+                await autoMix.load(input.files);
+            }
+            catch (error) {
+                $('#trackQueue').textContent = 'Треки не загружены';
+                throw error;
+            }
             $('#trackQueue').replaceChildren(...autoMix.loaded.map((track, index) => h('div', `${String(index + 1).padStart(2, '0')} · ${track.name} · ${track.confidence >= .17 ? `${track.bpm} BPM` : 'BPM вручную / без синхронизации'}`, 'track-chip')));
         }
         finally {

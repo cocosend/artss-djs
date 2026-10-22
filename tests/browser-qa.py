@@ -121,7 +121,7 @@ with sync_playwright() as playwright:
  page.locator('#mixIntro').uncheck()
  page.locator('#startAutoMix').tap()
  page.wait_for_function("document.querySelector('#mixStatus').textContent.includes('Автосводка')",timeout=15000)
- page.wait_for_function("document.querySelector('#outputMeter').style.width !== '0%'",timeout=4000)
+ page.wait_for_function("parseFloat(document.querySelector('#outputMeter').style.width)>0",timeout=4000)
  page.locator('#stopAutoMix').tap()
  assert page.locator('#startAutoMix').is_enabled()
  page.locator('#tapTempo').tap()
