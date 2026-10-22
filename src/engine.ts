@@ -65,10 +65,35 @@ export class Engine{
  private sampleTarget:{pad:number;style:number}|null=null;events:EngineEvents={};
  private performanceBuffers=new Map<string,AudioBuffer>();
  private performanceVoices=new Set<{stop:()=>void;until:number;when:number}>();
+ private cueStream:MediaStream|null=null;private cueSource:MediaStreamAudioSourceNode|null=null;private cueGain:GainNode|null=null;private cueEpoch=0;
  constructor(readonly getSession:()=>Session){if(typeof indexedDB!=='undefined')void this.restoreTakes();}
  get state(){return this.running?'PLAY':this.stopAt?'PAUSE':'STOP';}
  get recording(){return this.recordArmed;}
  get sampling(){return this.offlineSampleActive||this.sampleRecorder.active;}
+ get cueMicActive(){return this.cueStream!==null;}
+ /** Explicit opt-in live microphone overdub into the existing master, recorder and limiter. */
+ async startCueMic():Promise<void>{
+  if(this.cueStream)return;
+  if(!navigator.mediaDevices?.getUserMedia)throw Error('CUE: микрофон недоступен — нужен HTTPS и разрешение');
+  const epoch=++this.cueEpoch;
+  await this.unlock();
+  const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:false},video:false});
+  if(epoch!==this.cueEpoch||!this.ctx||!this.bus){stream.getTracks().forEach(track=>track.stop());return;}
+  try{
+   const source=this.ctx.createMediaStreamSource(stream),gain=this.ctx.createGain();
+   gain.gain.value=.3;source.connect(gain).connect(this.bus.input);
+   this.cueStream=stream;this.cueSource=source;this.cueGain=gain;
+   for(const track of stream.getAudioTracks())track.addEventListener('ended',()=>{if(this.cueStream===stream)this.stopCueMic()},{once:true});
+   this.events.onState?.('CUE MIC ON');
+  }catch(error){stream.getTracks().forEach(track=>track.stop());throw error;}
+ }
+ stopCueMic():void{
+  ++this.cueEpoch;
+  try{this.cueSource?.disconnect();this.cueGain?.disconnect();}catch{}
+  this.cueStream?.getTracks().forEach(track=>track.stop());
+  const wasActive=this.cueStream!==null;this.cueStream=null;this.cueSource=null;this.cueGain=null;
+  if(wasActive)this.events.onState?.('CUE MIC OFF');
+ }
  /** Music and instrument previews share the existing master EQ, limiter and meter. */
  connectMusicSource(node:AudioNode):()=>void{
   if(!this.ctx||!this.bus||this.ctx.state!=='running')throw Error('Аудиодвижок недоступен');
@@ -159,8 +184,8 @@ export class Engine{
   else{this.origin=this.time+.05;this.nextStep=0;this.nextTime=this.origin;}
   this.scheduledTempo=this.getSession().tempo;this.running=true;this.stopAt=0;this.generation++;this.clock?.port.postMessage('start');this.pump();this.events.onState?.('PLAY');
  }
- pause(){if(!this.running)return;this.running=false;this.stopAt=this.time;this.generation++;this.clock?.port.postMessage('pause');this.silence();this.events.onState?.('PAUSE');}
- stop(){this.running=false;this.stopAt=0;this.recordArmed=false;this.nextStep=0;this.nextTime=0;this.generation++;this.clock?.port.postMessage('pause');this.silence();this.events.onState?.('STOP');}
+ pause(){this.stopCueMic();if(!this.running)return;this.running=false;this.stopAt=this.time;this.generation++;this.clock?.port.postMessage('pause');this.silence();this.events.onState?.('PAUSE');}
+ stop(){this.stopCueMic();this.running=false;this.stopAt=0;this.recordArmed=false;this.nextStep=0;this.nextTime=0;this.generation++;this.clock?.port.postMessage('pause');this.silence();this.events.onState?.('STOP');}
  async toggleRecord(){const generation=this.generation;await this.unlock();if(generation!==this.generation)return this.recordArmed;if(!this.running)await this.start();if(!this.running)return this.recordArmed;this.recordArmed=!this.recordArmed;this.events.onState?.(this.recordArmed?'REC ON':'REC OFF');return this.recordArmed;}
  async hit(pad:number,velocity=1){if(!Number.isInteger(pad)||pad<0||pad>7||this.getSession().muted[pad])return;
   const generation=this.generation;
