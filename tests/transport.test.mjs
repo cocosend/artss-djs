@@ -48,3 +48,17 @@ test('changing BPM cancels old lookahead notes and preserves audible beat phase'
  assert.ok(e.nextTime>=ctx.currentTime);
  assert.equal(e.nextStep,1);
 });
+test('BPM change during initial preroll reschedules the first downbeat',()=>{
+ const session=defaultSession(),{e,ctx}=fixture(1);
+ e.getSession=()=>session;e.running=true;e.origin=1.05;e.scheduledTempo=120;
+ e.nextStep=1;e.nextTime=1.175;
+ const queued={when:1.05,until:2,stopped:false,stop(){this.stopped=true}};
+ e.active.add(queued);
+ const played=[];e.bus={channels:Array(8).fill({}),update(){}};
+ e.voice=(_ctx,_bus,pad,when)=>played.push({pad,when});
+ session.tempo=150;e.updateMix();
+ assert.equal(queued.stopped,true);
+ assert.ok(played.some(v=>v.pad===0&&Math.abs(v.when-1.05)<1e-9));
+ assert.equal(e.nextStep,1);
+ assert.ok(Math.abs(e.origin-1.05)<1e-9);
+});

@@ -152,14 +152,16 @@ export class Engine {
         if (!this.ctx || !this.running)
             return;
         const now = this.ctx.currentTime, oldStep = 60 / this.scheduledTempo / 4, newStep = 60 / tempo / 4;
+        const beforeFirstStep = now < this.origin;
         const phase = Math.max(0, (now - this.origin) / oldStep);
         for (const voice of [...this.active])
             if (voice.when > now) {
                 voice.stop();
                 this.active.delete(voice);
             }
-        this.origin = now - phase * newStep;
-        this.nextStep = Math.max(0, Math.ceil(phase + 1e-7));
+        if (!beforeFirstStep)
+            this.origin = now - phase * newStep;
+        this.nextStep = beforeFirstStep ? 0 : Math.max(0, Math.ceil(phase + 1e-7));
         this.nextTime = this.origin + this.nextStep * newStep;
         this.scheduledTempo = tempo;
         this.pump();

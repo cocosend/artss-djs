@@ -58,3 +58,8 @@ Engineering priorities: **sound integrity → correctness/data preservation → 
 - The local-track DJ AutoMix can combine with the live 16-step pad session (checkbox enabled by default). Match pad BPM to detected track BPM on explicit Start, quantize the first music downbeat to the sequencer's future 16-step bar, permit live drum hits and ongoing overdub while tracks transition. Turning off the checkbox allows isolated track DJ listening.
 - Mixer audio feeds existing master EQ/limiter. During simultaneous pad+music playback keep music gain moderate and duck short kick/clap transients by about 1–2 dB, without changing source pad timbres or adding a duplicate mixer.
 - User-authorized palette: deepest black, saturated amethyst purple, high-contrast turquoise, pearl-white gloss, red record accent. Avoid perpetual animated blur and pixel-heavy filters. Maintain 8 pads/4x2, A–D pattern banks, 5 navigation tabs.
+
+## v29 manual DJ workflow supersedes v28 AutoMix
+- The later user request removes the AI MIXER and competing automatic track/pad mixing workflows. The current release is a manual pad sequencer with one A/B crossfader, eight live channel controls, EQ, FX and recording. Do not restore the former `AutoMixPlayer`, `Engine.autoMix`, or their panels as a release requirement.
+- Style selection previews a pattern; loading it is an explicit action. Manual BPM must not be silently changed by a track analyzer. Keep the original eight pad sounds and existing saved session, sample and take data.
+- A future local-track DJ flow requires a separate product decision and physical-device audio verification before implementation.
