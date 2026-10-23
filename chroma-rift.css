@@ -82,3 +82,8 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;background:rad
 .nexus-app .auto-track-panel input[type=checkbox],.nexus-app .utility-actions input[type=range],.nexus-app .main-mixer input[type=range]{accent-color:var(--lime)!important}
 .nexus-app .source-frame,.nexus-app .melody-panel,.nexus-app .abyss-panel{background:linear-gradient(145deg,#281737,#100c1f)!important;border-color:#80529c!important;color:#fff!important;border-radius:17px!important}
 @media(max-width:430px){.nexus-app .live-pad-stage{padding:8px!important}.nexus-app .live-pad-stage #pads{gap:5px!important}.nexus-app .live-pad-stage #pads .pad{height:clamp(76px,23vw,105px)!important;min-height:75px!important}}
+
+/* Persistent reachable navigation: sticky footer was pushed outside the touch viewport
+   after switching to expanded performance panes in mobile WebKit/Chromium. */
+.nexus-app{padding-bottom:calc(105px + env(safe-area-inset-bottom))!important}
+.nexus-app .bottomnav{position:fixed!important;bottom:0!important;left:50%!important;transform:translateX(-50%)!important;width:min(630px,calc(100vw - 16px))!important;margin:0!important;z-index:100!important;border-radius:20px 20px 0 0!important}
