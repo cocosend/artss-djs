@@ -1,6 +1,6 @@
 import {mkdir,copyFile,writeFile,readFile,readdir,stat} from 'node:fs/promises';import {join,dirname} from 'node:path';
 const root=process.cwd(),out=join(root,'dist');async function copy(from,to){await mkdir(dirname(to),{recursive:true});await copyFile(from,to)}
-for(const file of ['index.html','studio27.css','manifest.webmanifest','sw.js'])await copy(join(root,file),join(out,file));
+for(const file of ['index.html','studio27.css','chroma-rift.css','manifest.webmanifest','sw.js'])await copy(join(root,file),join(out,file));
 await copy(join(root,'public/icon.svg'),join(out,'icon.svg'));
 for(const f of await readdir(join(root,'app')))if(f.endsWith('.js'))await copy(join(root,'app',f),join(out,'app',f));
 const release={name:'ARTSS DJ CREATOR',version:'32.0.0',engine:'Web Audio + AudioWorklet',pads:8,visiblePads:8,steps:16,styles:16,melodicStyles:4,abyssPreset:{id:'PRE_MT_2026_10',bpm:124,key:'Am',pages:2,sounds:32},record:true,autoMix:true,autoGroove:true,nativeCoreSource:true,sampleImport:true,sampleRecord:true,styleScopedSamples:true,offline:true};await writeFile(join(out,'release.json'),JSON.stringify(release));

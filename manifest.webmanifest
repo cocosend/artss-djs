@@ -1,12 +1,12 @@
 {
   "id": "/",
-  "name": "ARTSS / LIVE 32 PERFORMANCE STUDIO",
-  "short_name": "NEXUS",
+  "name": "ARTSS CHROMA / LIVE 32 PERFORMANCE STUDIO",
+  "short_name": "CHROMA",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#020208",
-  "theme_color": "#020208",
+  "background_color": "#150b20",
+  "theme_color": "#150b20",
   "description": "DJ creator with local track BPM and smooth automix transitions, eight pads and RU/EN language selection.",
   "icons": [
     {
