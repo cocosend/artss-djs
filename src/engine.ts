@@ -123,7 +123,7 @@ export class Engine{
    if(this.fallback!==null){window.clearInterval(this.fallback);this.fallback=null;}
   }catch{}
  }
- async start(){const generation=this.generation;await this.unlock();if(this.running||this.generation!==generation)return;await this.bank.warm(this.ctx!);if(this.running||this.generation!==generation)return;const d=60/this.getSession().tempo/4;
+ async start(){const generation=this.generation;await this.unlock();if(this.running||this.generation!==generation)return;await this.bank.warm(this.ctx!);this.events.onSamples?.();if(this.running||this.generation!==generation)return;const d=60/this.getSession().tempo/4;
   if(this.stopAt>0){const progress=this.stopAt-this.origin;this.origin=this.time-progress;this.nextStep=Math.max(0,Math.ceil((this.time-this.origin)/d));this.nextTime=this.origin+this.nextStep*d;}
   else{this.origin=this.time+.05;this.nextStep=0;this.nextTime=this.origin;}
   this.scheduledTempo=this.getSession().tempo;this.running=true;this.stopAt=0;this.generation++;this.clock?.port.postMessage('start');this.pump();this.events.onState?.('PLAY');
