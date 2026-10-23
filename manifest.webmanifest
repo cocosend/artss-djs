@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "ARTSS NEXUS 30 NEON DJ",
-  "short_name": "NEXUS",
+  "name": "AEP37 DJ CREATOR · NEXUS 31",
+  "short_name": "AEP37",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -9,6 +9,12 @@
   "theme_color": "#020208",
   "description": "DJ creator with local track BPM and smooth automix transitions, eight pads and RU/EN language selection.",
   "icons": [
+    {
+      "src": "/aep37-icon.webp",
+      "sizes": "160x160",
+      "type": "image/webp",
+      "purpose": "any"
+    },
     {
       "src": "/icon.svg",
       "sizes": "any",

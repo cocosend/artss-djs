@@ -8,6 +8,9 @@ const $=<T extends HTMLElement=HTMLElement>(q:string)=>document.querySelector<T>
 const getStorage=():Session=>{for(const key of ['artss-live-session-v19','artss-live-session-v18']){try{const v=localStorage.getItem(key);if(v)return importSession(v)}catch{}}return defaultSession()};
 const state=getStorage();const engine=new Engine(()=>state);
 const STYLE_LABELS=['АНДЕГРАУНД','ЖЁСТКОЕ ТЕХНО','ЭЙСИД','ТЁМНОЕ ТЕХНО','РЕЙВ','ФОНК','ИНДАСТРИАЛ','ГИПНОТИК','ПИК-ТАЙМ','БРЕЙКС','МИНИМАЛ','ЭЛЕКТРО'] as const;
+const AEP_NAMES_RU=['БОЧКА','БАС D#','ХЛОПОК','ХЭТ','НОТА D#','НОТА F','НОТА F#','НОТА G#'] as const;
+const AEP_NAMES_EN=['KICK','BASS D#','CLAP','HAT','NOTE D#','NOTE F','NOTE F#','NOTE G#'] as const;
+const padLabel=(i:number)=>engine.bank.activeKit===3?(language==='en'?AEP_NAMES_EN[i]:AEP_NAMES_RU[i])??'PAD':PAD_NAMES[i]??'PAD';
 const SCENE_LABELS=['ГРУВ','ВСТУПЛЕНИЕ','РАЗГОН','ДРОП','БРЕЙК'] as const;
 const styleLabel=(i:number)=>STYLE_LABELS[i]??'СТИЛЬ',sceneLabel=(i:number)=>SCENE_LABELS[i]??'РИТМ';
 const localStatus=(value:string):string=>{
@@ -61,8 +64,8 @@ const scheduleSave=()=>{if(pendingSave!==null)clearTimeout(pendingSave);pendingS
 const flushSave=()=>{if(pendingSave!==null){clearTimeout(pendingSave);pendingSave=null;save()}};
 const setStatus=(v:string)=>{$('#status').textContent=localStatus(v);$('#status').classList.toggle('live',v.includes('REC')||v==='PLAY')};
 const h=(name:string,text:string,cls='')=>{const el=document.createElement(name);el.className=cls;el.textContent=text;return el;};
-function paintPads(){const wrap=$('#pads');wrap.replaceChildren();for(let i=0;i<8;i++){const name=PAD_NAMES[i]??'PAD';
- const p=h('button','','pad') as HTMLButtonElement;p.type='button';p.style.setProperty('--tone',['#fd3f59','#7df7e4','#f7faff','#79f6e1','#effbff','#aabacc','#f46b91','#6adfd5'][i]??'#f7faff');p.setAttribute('aria-label',`Играть ${name}`);p.dataset.pad=String(i);
+function paintPads(){const wrap=$('#pads');wrap.replaceChildren();for(let i=0;i<8;i++){const name=padLabel(i);
+ const p=h('button','','pad') as HTMLButtonElement;p.type='button';p.style.setProperty('--tone',(engine.bank.activeKit===3?['#ff3448','#2dd4bf','#488aff','#a3e635','#ff4fbd','#ff4fbd','#ff4fbd','#ff4fbd']:['#fd3f59','#7df7e4','#f7faff','#79f6e1','#effbff','#aabacc','#f46b91','#6adfd5'])[i]??'#f7faff');p.setAttribute('aria-label',`Играть ${name}`);p.dataset.pad=String(i);
  const top=h('span',`${String(i+1).padStart(2,'0')}`,'pad-number'),short=h('span',name,'pad-name');
  const dot=h('span',engine.bank.customInfo(i,state.style)?'СВОЙ':'','pad-own');
  const glyphPaths=[
@@ -98,6 +101,8 @@ function paintPads(){const wrap=$('#pads');wrap.replaceChildren();for(let i=0;i<
  p.addEventListener('contextmenu',e=>e.preventDefault());
  wrap.append(p);
  }
+ const hint=$('#aep37PadHint');hint.hidden=engine.bank.activeKit!==3;
+ hint.textContent=engine.bank.activeKit===3?(engine.bank.kitReady()?'● AEP37 · СЭМПЛЫ ГОТОВЫ · 1–8':'○ AEP37 · НАЖМИ ПУСК ДЛЯ ЗАГРУЗКИ · 1–8'):'';
  $('#selectedPad').textContent=PAD_NAMES[state.selected]??'KICK';updateSampleTarget();
 }
 function updateSampleTarget(){
@@ -171,7 +176,7 @@ function setPane(next:Pane){
  if(next==='profile')$('#deviceStatus').textContent=`Session stored locally · ${engine.takes.length} audio takes · ${STYLES.length} music styles`;
  if(next!=='main')$<HTMLDetailsElement>('#'+fanIds[next]).scrollIntoView({block:'nearest',behavior:'auto'});
 }
-function paintMix(){const wrap=$('#mixRows');wrap.replaceChildren();PAD_NAMES.forEach((name,i)=>{
+function paintMix(){const wrap=$('#mixRows');wrap.replaceChildren();PAD_NAMES.forEach((_,i)=>{const name=padLabel(i);
  const row=h('div','','mixrow');const label=h('span',name,'mix-name');const range=document.createElement('input');range.type='range';range.min='0';range.max='120';range.step='1';range.value=String(Math.round((state.levels[i]??1)*100));
  range.setAttribute('aria-label',`Громкость ${name}`);range.addEventListener('input',()=>{state.levels[i]=Number(range.value)/100;scheduleSave()});
  const mute=h('button',state.muted[i]?'ON':'OFF',state.muted[i]?'mute active':'mute') as HTMLButtonElement;mute.setAttribute('aria-label',`Mute ${name}`);mute.addEventListener('click',()=>{state.muted[i]=!state.muted[i];save();paintMix();paintPads()});row.append(label,range,mute);wrap.append(row);
@@ -268,7 +273,7 @@ mixStop.addEventListener('click',()=>{mixPlayer.stop();updateTransport()});
  $('#seqEdit').addEventListener('click',()=>{const advanced=$<HTMLDetailsElement>('#advancedEditor');advanced.open=!advanced.open;if(advanced.open)advanced.scrollIntoView({block:'nearest',behavior:'smooth'})});
  for(const btn of document.querySelectorAll<HTMLButtonElement>('[data-kit]'))btn.addEventListener('click',()=>{
   const to=Number(btn.dataset.kit);if(to===kits.active||!Number.isInteger(to)||to<0||to>3)return;
-  kits.patterns[kits.active]=clonePattern(state.pattern);kits.active=to;state.pattern=clonePattern(kits.patterns[to]??state.pattern);engine.setSoundKit(to);save();refreshKitButtons();paintSteps();setStatus(`PAD BANK ${'ABCD'[to]}`);
+  kits.patterns[kits.active]=clonePattern(state.pattern);kits.active=to;state.pattern=clonePattern(kits.patterns[to]??state.pattern);engine.setSoundKit(to);save();refreshKitButtons();paintSteps();paintPads();paintMix();setStatus(to===3?'AEP37 MELODY · D# / BRASS':`PAD BANK ${'ABCD'[to]}`);
  });
  $('#undoGroove').addEventListener('click',()=>{if(!previousPattern)return;state.pattern=previousPattern;previousPattern=null;save();paintSteps();$('#undoGroove').hidden=true;setStatus('GROOVE RESTORED')});
  for(const button of document.querySelectorAll<HTMLButtonElement>('[data-loop]'))button.addEventListener('click',()=>{
@@ -359,6 +364,15 @@ mixStop.addEventListener('click',()=>{mixPlayer.stop();updateTransport()});
   });
  };
  engine.events.onClip=(pad)=>{scheduleSave();for(let step=0;step<STEPS;step++)syncPatternCells(pad,step)};engine.events.onSamples=paintPads;engine.events.onState=v=>{setStatus(v);};
+ window.addEventListener('keydown',event=>{
+  if(event.repeat||event.altKey||event.ctrlKey||event.metaKey||!(/^[1-8]$/).test(event.key))return;
+  const target=event.target;if(target instanceof HTMLElement&&(target.isContentEditable||target.closest('input,textarea,select,[contenteditable="true"]')))return;
+  event.preventDefault();const pad=Number(event.key)-1;
+  const button=document.querySelector<HTMLButtonElement>(`#pads .pad[data-pad="${pad}"]`);
+  if(button){button.classList.add('pressed');window.setTimeout(()=>button.classList.remove('pressed'),140);}
+  void engine.hit(pad,1).catch(error=>setStatus(error instanceof Error?error.message:'AUDIO ERROR'));
+  selectPad(pad);
+ });
  paintPads();paintSteps();setPane('main');updateTransport();
  if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
 };

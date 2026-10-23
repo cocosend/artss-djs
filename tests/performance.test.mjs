@@ -28,3 +28,12 @@ test('UI preserves minimal layout, loops and WAV take export',()=>{
  assert.equal((html.match(/data-loop="/g)??[]).length,4);
  assert.match(sw,/app\/performance-loop.js/);
 });
+
+test('AEP37 eight pad assignments and shipped WAV assets',()=>{
+ const names=['kick.wav','sub_bass.wav','clap.wav','hat.wav','brass_D_sharp.wav','brass_F.wav','brass_F_sharp.wav','brass_G_sharp.wav'];
+ for(let i=0;i<8;i++){assert.equal(KIT_VARIANTS[3][i],'/samples/'+names[i]);assert.ok(existsSync('./samples/'+names[i]));}
+ const main=readFileSync('src/main.ts','utf8'),html=readFileSync('index.html','utf8');
+ assert.match(main,/window.addEventListener\('keydown',event/);
+ assert.match(main,/engine.hit\(pad,1\)/);
+ assert.match(html,/aep37-icon.webp/);
+});

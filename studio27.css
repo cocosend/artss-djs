@@ -699,3 +699,14 @@ body{min-width:300px;background:radial-gradient(ellipse 95% 34% at 50% -17%,#301
 .nexus-app .hero-wave .loop-tools button.active{color:#020d0e;background:linear-gradient(120deg,#acfff4,#51e4d5);border-color:#81ffed;box-shadow:inset 0 1px 0 #fff8}
 .nexus-app .hero-wave .loop-tools button:focus-visible{outline:2px solid #fff!important;outline-offset:2px}
 @media(max-width:360px){.nexus-app .hero-wave .loop-tools span{font-size:7px}.nexus-app .hero-wave .loop-tools button{min-width:20px;padding:1px 3px}}
+
+/* AEP37 signature branding and compact melodic sampler. */
+.nexus-app .nexus-header .aep-brand{display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:center!important;gap:3px!important;min-width:0;overflow:hidden}
+.nexus-app .nexus-header .aep37-mark{display:block;flex:none;width:clamp(28px,8vw,37px);height:clamp(28px,8vw,37px);object-fit:contain;border-radius:9px}
+.nexus-app .nexus-header .aep-wordmark{display:flex;flex-direction:column;align-items:flex-start;min-width:0}
+.nexus-app .nexus-header .aep-wordmark b{font-size:clamp(12px,3.5vw,16px)!important;letter-spacing:.06em!important;text-indent:0!important;color:#fff!important}
+.nexus-app .nexus-header .aep-wordmark span{font-size:7px;letter-spacing:.08em!important;text-indent:0!important;color:#4fffe0!important;white-space:nowrap}
+.nexus-app .aep37-pad-hint:not([hidden]){display:block;color:#5de9d8;letter-spacing:.06em;font:800 9px/1.2 system-ui,sans-serif;padding:1px 4px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nexus-app #kitBanks button[data-kit="3"]{color:#ff55b4!important}
+.nexus-app #kitBanks button[data-kit="3"].active{color:#05090c!important;background:linear-gradient(130deg,#00f6ce,#ff59ac)!important;border-color:#76ffe0!important}
+.nexus-app #pads .pad{touch-action:manipulation;-webkit-tap-highlight-color:transparent}

@@ -6,18 +6,18 @@
  <meta name="theme-color" content="#020208">
  <meta name="apple-mobile-web-app-capable" content="yes">
  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
- <meta name="apple-mobile-web-app-title" content="ARTSS NEXUS">
+ <meta name="apple-mobile-web-app-title" content="AEP37 DJ">
  <meta name="description" content="ARTSS NEXUS DJ Creator — eight live pads, 16-step sequencer, recording, DSP mixer and local WAV export for iPhone.">
- <link rel="icon" href="/icon.svg" type="image/svg+xml">
+ <link rel="icon" href="/aep37-icon.webp" type="image/webp"><link rel="apple-touch-icon" href="/aep37-icon.webp">
  <link rel="manifest" href="/manifest.webmanifest">
  <link rel="stylesheet" href="/studio27.css">
- <title>ARTSS NEXUS 30.0 — PERFORMANCE DJ STUDIO</title>
+ <title>AEP37 × NEXUS 31 — DANSE PERFORMANCE</title>
 </head>
 <body>
 <div class="app nexus-app">
  <header class="nexus-header">
   <button type="button" id="menuToggle" class="chrome-icon menu-toggle" aria-label="Открыть меню" aria-expanded="false"><span class="hamburger"><i></i><i></i><i></i></span></button>
-  <div class="brand-stack"><b>NEXUS</b><span>DJ CREATOR</span></div>
+  <div class="brand-stack aep-brand"><img src="/aep37-icon.webp" alt="AEP37" class="aep37-mark" width="37" height="37" decoding="async"><div class="aep-wordmark"><b>AEP37</b><span>DJ CREATOR</span></div></div>
   <div class="head-tools">
    <button id="languageToggle" class="language-toggle" type="button" aria-label="Switch language" aria-pressed="false">RU <span>/</span> EN</button>
    <button id="quickUpload" class="chrome-icon" type="button" aria-label="Импортировать сэмпл"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7 9m5-5 5 5M5 15c-3 0-3 5 1 5h12c4 0 4-6 0-6h-1"/></svg></button>
@@ -78,8 +78,8 @@
  </details>
  <div class="utility-actions"><button id="autoMixToggle" class="auto-mix-toggle" type="button" aria-pressed="false">АВТОМИКС · ВЫКЛ</button><label for="density">ПЛОТНОСТЬ <input id="density" type="range" min="25" max="100" value="70" aria-label="Плотность ритма"></label><button id="undoGroove" class="undo" hidden>↶ ОТМЕНИТЬ</button></div>
  <main id="mainPanel">
-  <div class="section-heading pad-head"><div class="headline"><span class="heading-icon">▦</span><h2>ДРАМ-ПЭДЫ</h2></div><div id="kitBanks" class="kit-banks" role="group" aria-label="Банки паттернов"><button type="button" data-kit="0" class="active">A</button><button type="button" data-kit="1">B</button><button type="button" data-kit="2">C</button><button type="button" data-kit="3">D</button></div></div>
-  <div id="pads" class="pads" aria-label="Все восемь звуковых пэдов"></div>
+  <div class="section-heading pad-head"><div class="headline"><span class="heading-icon">▦</span><h2>ДРАМ-ПЭДЫ</h2></div><div id="kitBanks" class="kit-banks" role="group" aria-label="Банки паттернов"><button type="button" data-kit="0" class="active">A</button><button type="button" data-kit="1">B</button><button type="button" data-kit="2">C</button><button type="button" data-kit="3" title="AEP37 · D# BASS + BRASS" aria-label="AEP37 melodic bank">37</button></div></div>
+  <div id="pads" class="pads" aria-label="Все восемь звуковых пэдов"></div><div id="aep37PadHint" class="aep37-pad-hint" hidden></div>
   <div class="section-heading seqheading"><div class="headline"><span class="heading-icon">▦</span><h2>ШАГОВЫЙ СЕКВЕНСОР</h2></div><button type="button" id="seqEdit" class="sequencer-edit" aria-label="Редактирование всех пэдов">DRUMS <span>⌄</span></button></div>
   <div id="patternOverview" class="pattern-overview" aria-label="Редактируемый 16-шаговый ритм"></div>
   <details id="advancedEditor" class="advanced-editor"><summary>РЕДАКТОР ПЭДА <em id="selectedPad">KICK</em><small id="stepLabel">01–08 / 16</small></summary>

@@ -16,13 +16,15 @@ export const KIT_VARIANTS:readonly (readonly string[])[]=[
  ['/samples/kicks/punch-01.wav','/samples/kicks/deep-01.wav','/samples/claps/classic-01.wav','/samples/hats/closed-01.wav','/samples/hats/open-01.wav','/samples/percs/tom-01.wav','/samples/percs/blip-01.wav','/samples/cymbals/ride-01.wav'],
  ['/samples/kicks/punch-03.wav','/samples/kicks/tight-02.wav','/samples/claps/classic-03.wav','/samples/hats/closed-05.wav','/samples/hats/open-03.wav','/samples/percs/shaker-01.wav','/samples/percs/tick-02.wav','/samples/snares/snap-01.wav'],
  ['/samples/kicks/deep-01.wav','/samples/kicks/punch-03.wav','/samples/snares/snap-01.wav','/samples/hats/closed-05.wav','/samples/hats/open-01.wav','/samples/percs/tick-02.wav','/samples/percs/blip-01.wav','/samples/cymbals/ride-01.wav'],
- ['/samples/kicks/tight-02.wav','/samples/kicks/punch-01.wav','/samples/claps/classic-03.wav','/samples/hats/closed-01.wav','/samples/hats/open-03.wav','/samples/percs/tom-01.wav','/samples/percs/shaker-01.wav','/samples/snares/snap-01.wav']
+ ['/samples/kick.wav','/samples/sub_bass.wav','/samples/clap.wav','/samples/hat.wav','/samples/brass_D_sharp.wav','/samples/brass_F.wav','/samples/brass_F_sharp.wav','/samples/brass_G_sharp.wav']
 ];
 export type Sound={buffer:AudioBuffer;gain:number;lowCut:number;highCut:number;name:string;user:boolean};
 export class SoundBank {
  private kit=0;private restored=false;private deleted=new Set<string>();private decoding=new Map<string,Promise<void>>();private defaultBuffers=new Map<string,AudioBuffer>();private warming:Promise<void>|null=null;private raw=new Map<string,Promise<ArrayBuffer>>();private custom=new Map<string,Sound>();
  constructor(){this.preload();}
  setKit(index:number){if(Number.isInteger(index)&&index>=0&&index<KIT_VARIANTS.length)this.kit=index;}
+ get activeKit(){return this.kit;}
+ kitReady(){return KIT_VARIANTS[this.kit]!.every(path=>this.defaultBuffers.has(path));}
  private kitPath(pad:number){return KIT_VARIANTS[this.kit]?.[pad]??paths[pad]?.[0];}
  private preload(){for(const path of new Set(KIT_VARIANTS.flat())){if(!this.raw.has(path))this.raw.set(path,fetch(path,{cache:'force-cache'}).then(r=>{if(!r.ok)throw Error('sample unavailable');return r.arrayBuffer()}).catch(()=>new ArrayBuffer(0)));}}
  private async decodePath(ctx:AudioContext,path:string):Promise<void>{

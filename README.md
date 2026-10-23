@@ -9,3 +9,6 @@ The LIVE REC transport records pad presses into the 16-step loop independently f
 Automated validation: TypeScript check, Node tests, Chromium + WebKit browser smoke (record→pad binding→reload→per-style isolation), production smoke, no file uploads to servers. Real iPhone latency and subjective professional audio quality require hardware testing. **Not a neural AI model or stem separation.**
 ## NEXUS 30 PERFORMANCE
 Keeps the NEXUS 28 neon visual reference with four audibly distinct authored WAV drum kits, 1/2/4 beat loops, and Safari-compatible PCM WAV takes capped at 90 seconds. Original commercial tracks and neural stem separation are not bundled. Hardware iOS verification remains necessary.
+
+## AEP37 melody sampler (bank 37)
+Eight real locally hosted WAVs: [1] kick, [2] D#2 bass, [3] clap, [4] hat, [5] D#4, [6] F4, [7] F#4, [8] G#4 brass. Bank **37** uses the existing Web Audio sample engine and recorder (no duplicate audio context), `pointerdown` and physical keyboard keys 1–8. User-owned samples may replace factory sounds. Original commercial song audio is not bundled.
