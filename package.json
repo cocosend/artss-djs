@@ -1,5 +1,5 @@
 {
-  "name": "artss-dj-creator", "version": "31.1.1", "private": true, "type": "module",
+  "name": "artss-dj-creator", "version": "32.0.0", "private": true, "type": "module",
   "devDependencies": {"typescript": "5.8.3"},
   "scripts": {
     "typecheck": "tsc --noEmit",

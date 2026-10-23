@@ -11,13 +11,13 @@
  <link rel="icon" href="/icon.svg" type="image/svg+xml">
  <link rel="manifest" href="/manifest.webmanifest">
  <link rel="stylesheet" href="/studio27.css">
- <title>ARTSS NEXUS 31.1.1 — EDM PERFORMANCE STUDIO</title>
+ <title>ARTSS / LIVE 32 — PERFORMANCE STUDIO</title>
 </head>
 <body>
 <div class="app nexus-app">
  <header class="nexus-header">
   <button type="button" id="menuToggle" class="chrome-icon menu-toggle" aria-label="Открыть меню" aria-expanded="false"><span class="hamburger"><i></i><i></i><i></i></span></button>
-  <div class="brand-stack"><b>NEXUS</b><span>DJ CREATOR</span></div>
+  <div class="brand-stack"><b>ARTSS<span class="brand-slash">/</span>LIVE</b><span>PERFORMANCE STUDIO · 32</span></div>
   <div class="head-tools">
    <button id="languageToggle" class="language-toggle" type="button" aria-label="Switch language" aria-pressed="false">RU <span>/</span> EN</button>
    <button id="quickUpload" class="chrome-icon" type="button" aria-label="Импортировать сэмпл"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7 9m5-5 5 5M5 15c-3 0-3 5 1 5h12c4 0 4-6 0-6h-1"/></svg></button>
@@ -35,6 +35,7 @@
   <button id="drawerPresets" type="button">♫ СТИЛИ</button>
   
  </aside>
+ <div class="edition-line"><span>01 / PERFORMANCE</span><span>LOCAL AUDIO · LIVE</span></div>
  <section class="hero-deck" aria-label="Панель воспроизведения и записи">
   <button id="play" class="deck-transport deck-play" aria-label="Запустить или приостановить"><span class="deck-disc"><span class="deck-play-icon">▶</span></span><span class="deck-label">ПУСК</span></button>
   <div class="hero-wave">
@@ -66,8 +67,8 @@
   <button type="button" class="auto" id="autoGroove"><span class="galaxy" aria-hidden="true">✦</span><span class="auto-lines"><strong>СОЗДАТЬ РИТМ</strong><small>АВТОРИТМ</small></span><span class="auto-arrow">›</span></button>
   <button type="button" class="side-action" id="editGroove"><span class="action-glyph">≋</span><span>ИЗМЕНИТЬ<br>РИТМ</span></button>
  </section>
- <details id="trackAutoMix" class="auto-track-panel">
-  <summary><span class="auto-track-glyph">♫</span><span><strong>АВТОСВОДКА ТРЕКОВ</strong><small>ТЕМП · УРОВЕНЬ · ПЕРЕХОД</small></span><span class="auto-track-chevron">⌄</span></summary>
+ <details id="trackAutoMix" class="auto-track-panel" open>
+  <summary><span class="auto-track-glyph">♫</span><span><strong>СВЕДИ СВОИ ТРЕКИ</strong><small>2–3 АУДИОФАЙЛА · ТЕМП · ПЕРЕХОД</small></span><span class="auto-track-chevron">⌄</span></summary>
   <div class="auto-track-controls">
    <label for="autoMixFiles">ВЫБЕРИ 2–3 СВОИХ АУДИОТРЕКА</label>
    <input id="autoMixFiles" type="file" accept="audio/*,.wav,.mp3,.m4a,.aac,.flac,.ogg" multiple aria-label="Аудиотреки для автоматической сводки">
@@ -76,7 +77,7 @@
    <p id="trackMixStatus" role="status">Анализ BPM, выравнивание уровней и переход по музыкальной фразе.</p>
   </div>
  </details>
- <div class="utility-actions"><button id="abyssOpen" type="button">◈ ABYSS · 32 ЗВУКА</button><button id="melodyToggle" type="button" aria-pressed="false">♫ МЕЛОДИЯ · ВЫКЛ</button><button id="autoMixToggle" class="auto-mix-toggle" type="button" aria-pressed="false">АВТОМИКС · ВЫКЛ</button><label for="density">ПЛОТНОСТЬ <input id="density" type="range" min="25" max="100" value="70" aria-label="Плотность ритма"></label><button id="undoGroove" class="undo" hidden>↶ ОТМЕНИТЬ</button></div>
+ <div class="utility-actions"><button id="abyssOpen" type="button">ОТКРЫТЬ LIVE SET →</button><button id="melodyToggle" type="button" aria-pressed="false">♫ МЕЛОДИЯ · ВЫКЛ</button><button id="autoMixToggle" class="auto-mix-toggle" type="button" aria-pressed="false">АВТОМИКС · ВЫКЛ</button><label for="density">ПЛОТНОСТЬ <input id="density" type="range" min="25" max="100" value="70" aria-label="Плотность ритма"></label><button id="undoGroove" class="undo" hidden>↶ ОТМЕНИТЬ</button></div>
  <main id="mainPanel">
   <div class="section-heading pad-head"><div class="headline"><span class="heading-icon">▦</span><h2>ДРАМ-ПЭДЫ</h2></div><div id="kitBanks" class="kit-banks" role="group" aria-label="Банки паттернов"><button type="button" data-kit="0" class="active">A</button><button type="button" data-kit="1">B</button><button type="button" data-kit="2">C</button><button type="button" data-kit="3">D</button></div></div>
   <div id="pads" class="pads" aria-label="Все восемь звуковых пэдов"></div>
@@ -115,10 +116,11 @@
  </section></details>
  <details class="workspace-fan" id="libraryFan"><summary><span class="fan-icon">◈</span><span class="fan-text"><strong>ПРЕСЕТЫ</strong><small>ABYSS · 32 ЗВУКА + 16 СТИЛЕЙ</small></span><span class="fan-arrow">⌄</span></summary><section id="libraryPanel">
   <section id="abyssPanel" class="abyss-panel" aria-label="Dark Melodic Techno Abyss">
+   <div class="set-index"><span>LIVE SET / 001</span><span>32 CHANNELS</span></div>
    <header class="abyss-head"><div><small>PRE_MT_2026_10 · Am · 4/4 · 124 BPM</small><h2>DARK MELODIC TECHNO <em>ABYSS</em></h2></div><button id="abyssStop" type="button" aria-label="Остановить все пэды Abyss">■ СТОП</button></header>
-   <p>Петли начинают играть на границе такта. Нажми ещё раз, чтобы остановить. Звуки одной группы Bass, Melody, Synth или Live Vox заглушают друг друга.</p>
+   <p>Нажми петлю для запуска на границе такта. Повторное касание остановит её. Бас, мелодия и синтезаторы переключаются внутри группы. Для настоящего вокала и готовых EDM-треков загрузи свои аудиофайлы выше.</p>
    <div id="abyssPages" class="abyss-pages" role="group" aria-label="Страницы пресета"><button type="button" data-abyss-page="0" class="active">A · LOOPS & FOUNDATION</button><button type="button" data-abyss-page="1">B · LIVE & FX</button></div>
-   <div id="abyssPads" class="abyss-grid" role="group" aria-label="16 пэдов страницы A"></div><p id="abyssStatus" role="status">ГОТОВО · 32 WAV</p>
+   <div id="abyssPads" class="abyss-grid" role="group" aria-label="16 пэдов страницы A"></div><p id="abyssStatus" role="status">ГОТОВО · 32 КАНАЛА</p>
   </section><div class="section-heading"><h2>БИБЛИОТЕКА ЗВУКОВ</h2><span class="hint">16 СТИЛЕЙ · ЛОКАЛЬНЫЕ СЭМПЛЫ</span></div><div class="library-grid" id="libraryStyles"></div><button id="libraryImport" class="secondary" type="button">+ ИМПОРТ СЭМПЛА</button></section></details>
  <details class="workspace-fan" id="profileFan"><summary><span class="fan-icon">◈</span><span class="fan-text"><strong>ПРОЕКТ</strong><small>ЛИЧНЫЕ НАСТРОЙКИ</small></span><span class="fan-arrow">⌄</span></summary><section id="profilePanel"><div class="section-heading"><h2>ЛОКАЛЬНЫЙ ПРОЕКТ</h2><span class="hint">ЛИЧНАЯ СТУДИЯ НА УСТРОЙСТВЕ</span></div><div class="profile-card"><strong>ARTSS NEXUS</strong><p>Все ритмы, сэмплы и записи остаются на устройстве. Регистрация не нужна.</p><div id="deviceStatus"></div><button id="goToRecording" class="secondary">ОТКРЫТЬ ЗАПИСЬ</button></div></section></details>
  </section>

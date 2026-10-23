@@ -409,7 +409,7 @@ function paintAbyss() {
         button.dataset.abyssId = String(pad.id);
         button.style.setProperty('--abyss-tone', pad.color);
         button.setAttribute('aria-label', `${pad.id} ${pad.name}, ${pad.type === 'loop' ? 'петля' : 'один удар'}, ${pad.group}`);
-        button.append(h('small', `${String(pad.id).padStart(2, '0')} · ${pad.group.toUpperCase()}`), h('strong', pad.name), h('span', pad.type === 'loop' ? `LOOP · ${pad.quantize}` : pad.quantize === 'none' ? 'LIVE' : `FX · ${pad.quantize}`));
+        button.append(h('small', `${String(pad.id).padStart(2, '0')} / ${pad.group.toUpperCase()}`), h('strong', pad.name), h('span', pad.type === 'loop' ? `↻ ${pad.quantize} BAR` : '↗ ONE SHOT'));
         const play = () => {
             button.classList.add('pressed');
             $('#abyssStatus').textContent = `${pad.name} · ${pad.quantize === 'none' ? 'ИГРАЕТ' : 'ОЖИДАНИЕ ТАКТА'}`;
