@@ -27,7 +27,7 @@ with sync_playwright() as playwright:
   context.route('https://artss.test/**',serve_static)
   URL='https://artss.test/'
  page.on('crash',lambda _:errors.append('Browser renderer crashed'))
- page.goto(URL,wait_until='networkidle');assert 'NEXUS 30' in page.title(),page.title()
+ page.goto(URL,wait_until='networkidle');assert 'CHROMA' in page.title(),page.title()
  try:
   page.wait_for_function("document.querySelectorAll('#pads .pad').length===8",timeout=15000)
  except Exception as exc:
@@ -56,8 +56,9 @@ with sync_playwright() as playwright:
  page.wait_for_function("document.documentElement.lang==='ru' && document.querySelector('#play').textContent.includes('ПУСК')",timeout=4000)
  assert page.locator('#languageToggle').get_attribute('aria-pressed')=='false'
  assert page.locator('[data-kit="0"]').is_visible()
- assert page.locator('link[rel="stylesheet"]').count()==1
- assert page.locator('link[rel="stylesheet"]').get_attribute('href')=='/studio27.css'
+ assert page.locator('link[rel="stylesheet"]').count()==2
+ assert page.locator('link[rel="stylesheet"]').nth(0).get_attribute('href')=='/studio27.css'
+ assert page.locator('link[rel="stylesheet"]').nth(1).get_attribute('href')=='/chroma-rift.css'
  grid=page.locator('#pads').evaluate("el=>getComputedStyle(el).gridTemplateColumns.split(' ').length")
  assert grid==4,('Reference requires 4 pads per row',grid)
  positions=page.locator('.pad').evaluate_all("els=>els.map(e=>Math.round(e.getBoundingClientRect().top))")
