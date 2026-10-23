@@ -1,12 +1,12 @@
 {
   "id": "/",
   "name": "ARTSS / LIVE 32 PERFORMANCE STUDIO",
-  "short_name": "NEXUS",
+  "short_name": "ARTSS LIVE",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#020208",
-  "theme_color": "#020208",
+  "background_color": "#090909",
+  "theme_color": "#090909",
   "description": "DJ creator with local track BPM and smooth automix transitions, eight pads and RU/EN language selection.",
   "icons": [
     {
