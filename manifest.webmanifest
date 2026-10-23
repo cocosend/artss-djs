@@ -1,13 +1,13 @@
 {
   "id": "/",
-  "name": "ARTSS NEXUS 28 DJ",
-  "short_name": "NEXUS",
+  "name": "ARTSS CHROMA / NEXUS DJ",
+  "short_name": "CHROMA",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#000000",
+  "background_color": "#150b20",
   "theme_color": "#000000",
-  "description": "DJ creator with local track BPM and smooth automix transitions, eight pads and RU/EN language selection.",
+  "description": "ARTSS CHROMA DJ Creator: live drumpads, AutoMix, sample recording and sound packs.",
   "icons": [
     {
       "src": "/icon.svg",
