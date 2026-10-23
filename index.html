@@ -36,6 +36,10 @@
   
  </aside>
  <div class="edition-line"><span>01 / PERFORMANCE</span><span>LOCAL AUDIO · LIVE</span></div>
+ <section class="live-pad-stage" aria-label="Живые пэды"><div class="pad-stage-label"><span>01 / PLAY THE GRID</span><span>8 VOICES · 4 BANKS</span></div>
+  <div class="section-heading pad-head"><div class="headline"><span class="heading-icon">▦</span><h2>ДРАМ-ПЭДЫ</h2></div><div id="kitBanks" class="kit-banks" role="group" aria-label="Банки паттернов"><button type="button" data-kit="0" class="active">A</button><button type="button" data-kit="1">B</button><button type="button" data-kit="2">C</button><button type="button" data-kit="3">D</button></div></div>
+  <div id="pads" class="pads" aria-label="Все восемь звуковых пэдов"></div>
+ </section>
  <section class="hero-deck" aria-label="Панель воспроизведения и записи">
   <button id="play" class="deck-transport deck-play" aria-label="Запустить или приостановить"><span class="deck-disc"><span class="deck-play-icon">▶</span></span><span class="deck-label">ПУСК</span></button>
   <div class="hero-wave">
@@ -79,8 +83,6 @@
  </details>
  <div class="utility-actions"><button id="abyssOpen" type="button">ОТКРЫТЬ LIVE SET →</button><button id="melodyToggle" type="button" aria-pressed="false">♫ МЕЛОДИЯ · ВЫКЛ</button><button id="autoMixToggle" class="auto-mix-toggle" type="button" aria-pressed="false">АВТОМИКС · ВЫКЛ</button><label for="density">ПЛОТНОСТЬ <input id="density" type="range" min="25" max="100" value="70" aria-label="Плотность ритма"></label><button id="undoGroove" class="undo" hidden>↶ ОТМЕНИТЬ</button></div>
  <main id="mainPanel">
-  <div class="section-heading pad-head"><div class="headline"><span class="heading-icon">▦</span><h2>ДРАМ-ПЭДЫ</h2></div><div id="kitBanks" class="kit-banks" role="group" aria-label="Банки паттернов"><button type="button" data-kit="0" class="active">A</button><button type="button" data-kit="1">B</button><button type="button" data-kit="2">C</button><button type="button" data-kit="3">D</button></div></div>
-  <div id="pads" class="pads" aria-label="Все восемь звуковых пэдов"></div>
   <div class="section-heading seqheading"><div class="headline"><span class="heading-icon">▦</span><h2>ШАГОВЫЙ СЕКВЕНСОР</h2></div><button type="button" id="seqEdit" class="sequencer-edit" aria-label="Редактирование всех пэдов">DRUMS <span>⌄</span></button></div>
   <div id="patternOverview" class="pattern-overview" aria-label="Редактируемый 16-шаговый ритм"></div>
   <details id="advancedEditor" class="advanced-editor"><summary>РЕДАКТОР ПЭДА <em id="selectedPad">KICK</em><small id="stepLabel">01–08 / 16</small></summary>
