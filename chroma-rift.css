@@ -1,0 +1,70 @@
+/* ARTSS CHROMA RIFT — visual layer; audio graph & handlers unchanged */
+:root{color-scheme:dark;--bg:#070512;--panel:#1c102b;--panel2:#271631;--line:#73558b;--text:#fff7fc;--sub:#c7b2d9;--a:#ff3e8a;--b:#bfff39;--ice:#6dffe2;--hi:#fff;--pink:#ff408d;--lime:#bfff39;--cyan:#6dffe2}
+html,body{background:#070512;color:#fff9fd}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at 12% 0%,#a1256c90,transparent 37%),radial-gradient(ellipse at 100% 30%,#4434a777,transparent 45%),#070512;z-index:-1}
+.nexus-app{width:100%!important;max-width:630px!important;gap:clamp(9px,1.2svh,15px)!important;padding:calc(8px + env(safe-area-inset-top)) max(11px,env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(11px,env(safe-area-inset-left))!important;background:linear-gradient(155deg,#150b20,#090714 50%,#180b23)!important;isolation:isolate;overflow-x:clip;box-shadow:0 0 70px #e8388430}
+.nexus-app button:focus-visible,.nexus-app input:focus-visible,.nexus-app select:focus-visible,.nexus-app summary:focus-visible{outline:2px solid var(--cyan)!important;outline-offset:3px!important}
+.nexus-header{height:75px!important;min-height:75px!important;grid-template-columns:44px minmax(0,1fr) auto!important;gap:9px!important;padding:0 4px 13px!important;border:0!important;position:relative}
+.nexus-header:after{content:"";position:absolute;bottom:0;left:0;right:0;height:2px;opacity:1;background:linear-gradient(90deg,#ff408d,#ff9955 25%,#bfff39 55%,#6dffe2 76%,transparent);box-shadow:0 0 12px #ff408d}
+.brand-stack{padding:0!important;transform:none!important}
+.nexus-app .brand-stack b{color:white!important;font-size:clamp(24px,7vw,35px)!important;font-weight:1000;line-height:1;letter-spacing:-.065em!important;text-indent:0!important;text-shadow:2px 3px 0 #a8226a,0 0 24px #ff408d66}
+.nexus-app .brand-stack span{color:var(--lime)!important;font-size:9px;letter-spacing:.22em!important;font-weight:900}
+.nexus-app .chrome-icon,.nexus-app .language-toggle{border:1px solid #835184!important;background:linear-gradient(155deg,#49264b,#120e21)!important;color:#fff!important;box-shadow:inset 0 1px #fff6,0 6px 15px #0009!important;border-radius:12px!important}
+.nexus-app .drawer{background:linear-gradient(145deg,#351541,#0c091b)!important;border:1px solid #b266aa!important;box-shadow:0 25px 45px #000e!important;z-index:30}
+.nexus-app .drawer button{background:#2a193a!important;color:#fff!important;border:1px solid #6a4a89!important}
+.hero-deck{height:clamp(152px,20svh,190px)!important;min-height:152px!important;grid-template-columns:clamp(67px,19%,101px) minmax(0,1fr) clamp(67px,19%,101px)!important;gap:7px!important;padding:9px!important;border:1px solid #ad77c0!important;border-radius:24px!important;background:radial-gradient(ellipse at 0% 0%,#fd3d9240,transparent 60%),linear-gradient(145deg,#36213e,#100c21 55%,#291537)!important;box-shadow:inset 0 2px #fff7,0 13px 28px #000c,0 0 28px #eb31912a!important}
+.hero-deck .deck-transport{padding:9px 3px 6px!important;justify-content:center!important;gap:8px!important;border:1px solid #875e88!important;border-radius:16px!important;background:linear-gradient(140deg,#351c42,#0e0a1b)!important;box-shadow:inset 0 1px #ffffff5c,0 6px 13px #000a!important}
+.hero-deck .deck-disc{width:clamp(56px,16vw,84px)!important;height:clamp(56px,16vw,84px)!important;border-width:3px!important;background:radial-gradient(circle at 35% 25%,#49304d,#100b1b 68%)!important}
+.hero-deck .deck-play .deck-disc{border-color:var(--lime)!important;box-shadow:0 0 0 4px #2a1d32,0 0 26px #bfff3970,inset 0 0 15px #bfff3930!important}
+.hero-deck .deck-record .deck-disc{border-color:var(--pink)!important;box-shadow:0 0 0 4px #2a1d32,0 0 26px #ff408d8a,inset 0 0 15px #ff408d43!important}
+.hero-deck .deck-play-icon,.hero-deck #runState{color:var(--lime)!important;text-shadow:0 0 14px #bfff39!important}
+.hero-deck .deck-rec-icon{background:var(--pink)!important;box-shadow:0 0 15px var(--pink)!important}
+.hero-deck .deck-label{color:#fff!important;font-weight:1000!important;letter-spacing:.06em}
+.hero-deck .deck-play.on .deck-disc{animation:chroma-on 1.4s ease-in-out infinite alternate}
+.hero-deck .deck-record.on .deck-disc{animation:chroma-rec .65s ease-in-out infinite alternate}
+.nexus-app .hero-wave{background:linear-gradient(135deg,#140e26,#070914)!important;border-color:#71528f!important;border-radius:14px!important;box-shadow:inset 0 2px 13px #000e!important}
+.nexus-app #waveform{background:radial-gradient(ellipse,#241033,#050511)!important;filter:drop-shadow(0 0 3px #9b5cfa)}
+.nexus-app .status-strip{border:1px solid #624374!important;border-radius:9px!important;background:#1b102c!important;color:#d8c0e2!important}
+.nexus-app .status-strip .status{color:var(--lime)!important;font-weight:950}
+.nexus-app .dj-workflow,.nexus-app .sound-pages{border:1px solid #815193!important;background:linear-gradient(145deg,#2b173a,#0d0b1d 80%)!important;border-radius:20px!important;box-shadow:inset 0 1px #fff3,0 9px 22px #0009!important}
+.nexus-app .dj-title span{color:#ff9b60!important}.nexus-app .dj-title strong{color:white!important}.nexus-app .dj-workflow p{color:#ddc9e8!important}
+.nexus-app .dj-actions button,.nexus-app .cue-markers button{border:1px solid #755394!important;background:#281a39!important;color:white!important;border-radius:10px!important}
+.nexus-app #chooseTracks{background:linear-gradient(135deg,#a82066,#f1558b)!important;border-color:#ff9bcd!important;box-shadow:0 4px 16px #ff408d51!important}
+.nexus-app #startAutoMix:not(:disabled){background:linear-gradient(125deg,#d4ff59,#75eec8)!important;color:#101416!important;border-color:#e5ff9f!important}
+.nexus-app .track-queue,.nexus-app .cue-workflow,.nexus-app .mix-status{background:#110c1f!important;border-color:#674d83!important;color:#e5d8f2!important}
+.nexus-app input[type=range]{accent-color:var(--lime)!important}
+.control-deck{grid-template-columns:minmax(0,1fr) clamp(102px,27vw,135px) minmax(0,1fr)!important;min-height:128px!important;gap:7px!important}
+.control-deck>.select-unit,.control-deck>.bpm-unit{border:1px solid #86669f!important;border-radius:18px!important;background:linear-gradient(150deg,#3b2248,#130e24 65%)!important;box-shadow:inset 0 1px #fff6,0 7px 14px #000a!important;padding:10px 6px!important}
+.control-deck strong{color:#f0d7fa!important}.control-deck .arrow-select button,.control-deck .bpm-counter button{color:var(--lime)!important}
+.control-deck #bpm{color:var(--lime)!important;font-size:clamp(25px,7vw,36px)!important;font-weight:1000!important;text-shadow:0 0 15px #bdff3970}
+.control-deck .quantize-toggle{background:#251531!important;border-color:#8157a2!important}
+.creator-actions{grid-template-columns:clamp(60px,18%,86px) minmax(0,1fr) clamp(60px,18%,86px)!important;gap:7px!important;min-height:83px!important}
+.creator-actions>button{border:1px solid #755a93!important;border-radius:16px!important;background:linear-gradient(140deg,#342141,#130f23)!important;color:white!important;box-shadow:inset 0 1px #ffffff5b,0 5px 15px #000a!important}
+.creator-actions .auto{border:1px solid #e9ff98!important;background:linear-gradient(120deg,#d0ff55,#a0efa4,#6dffe2)!important;box-shadow:0 0 19px #bfff395c,inset 0 1px #fff!important;color:#111720!important}
+.creator-actions .auto *{color:#13161b!important;text-shadow:none!important}
+.nexus-app .section-heading{margin:7px 0 9px!important;min-height:34px!important}
+.nexus-app .section-heading h2{color:#fff!important;font-weight:1000!important;font-size:clamp(12px,3.3vw,16px)!important;letter-spacing:.1em!important;text-shadow:0 0 12px #ff40964e}
+.nexus-app .heading-icon{color:var(--pink)!important}
+.nexus-app .kit-banks button,.nexus-app .sound-tabs button{border:1px solid #754f95!important;background:#28183a!important;color:#ead2f6!important}
+.nexus-app .kit-banks button.active,.nexus-app .sound-tabs button.active{background:var(--lime)!important;border-color:#edffb1!important;color:#16151e!important;box-shadow:0 0 13px #bfff395c!important}
+.nexus-app .pads{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:8px!important}
+.nexus-app .pad{height:clamp(82px,11svh,120px)!important;min-height:82px!important;padding:7px 3px!important;border:1px solid color-mix(in srgb,var(--tone) 65%,#241632)!important;border-bottom:3px solid var(--tone)!important;border-radius:16px!important;background:radial-gradient(ellipse at 50% 100%,color-mix(in srgb,var(--tone) 21%,transparent),transparent 73%),linear-gradient(150deg,#392445,#130e20)!important;box-shadow:inset 0 1px #fff8,0 7px 15px #000a!important;transition:transform .065s,filter .065s,box-shadow .065s!important;touch-action:manipulation}
+.nexus-app .pad:before{inset:4px!important;border-radius:11px!important;border-color:#ffffff29!important}
+.nexus-app .pad-glyph svg{width:clamp(24px,7vw,34px)!important;height:clamp(24px,7vw,34px)!important;stroke:var(--tone)!important;filter:drop-shadow(0 0 7px var(--tone))}
+.nexus-app .pad-name{font-size:clamp(8px,2.4vw,12px)!important;color:#fff!important;font-weight:1000!important;letter-spacing:.05em!important}
+.nexus-app .pad.selected,.nexus-app .pad.pressed{border-color:var(--tone)!important;background:radial-gradient(ellipse at 50% 35%,color-mix(in srgb,var(--tone) 38%,#26102d),#140c20 80%)!important;box-shadow:0 0 0 1px var(--tone),0 0 22px color-mix(in srgb,var(--tone) 50%,transparent),inset 0 1px #fff9!important}
+.nexus-app .pad:active,.nexus-app .pad.pressed{transform:scale(.94)!important;filter:brightness(1.3)!important}
+.nexus-app .pattern-overview,.nexus-app .main-mixer{border:1px solid #875ba1!important;border-radius:19px!important;background:linear-gradient(145deg,#2c1a39,#0d0b1b 73%)!important;box-shadow:inset 0 1px #fff4,0 9px 20px #000a!important}
+.nexus-app .pattern-cell{background:#2e203a!important;border-color:#624c79!important}
+.nexus-app .pattern-cell.on{background:var(--accent,var(--lime))!important;border-color:var(--accent,var(--lime))!important;box-shadow:0 0 9px var(--accent,var(--lime))!important}
+.nexus-app .pattern-lane-name.active{color:var(--lime)!important}
+.nexus-app .step.on{background:linear-gradient(135deg,var(--lime),var(--cyan))!important;color:#08121b!important}
+.nexus-app .workspace-fan{border:1px solid #74538e!important;background:linear-gradient(145deg,#271936,#0e0d1d)!important;border-radius:17px!important}
+.nexus-app .bottomnav{position:sticky!important;bottom:0!important;z-index:20!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;min-height:72px!important;border:1px solid #ae6ca7!important;border-bottom:0!important;border-radius:21px 21px 0 0!important;background:linear-gradient(145deg,#351f49f0,#0a0919f4)!important;box-shadow:0 -7px 29px #ff408d39,inset 0 1px #fff7!important;backdrop-filter:blur(18px)!important;-webkit-backdrop-filter:blur(18px)!important}
+.nexus-app .bottomnav button{color:#e0cce8!important;background:transparent!important;font-size:clamp(7px,2vw,10px)!important}
+.nexus-app .bottomnav button.active{color:var(--lime)!important;border:1px solid #ab7fba!important;background:#57307366!important}
+.nexus-app .bottomnav button.active span{color:var(--lime)!important;text-shadow:0 0 13px var(--lime)!important}
+@keyframes chroma-on{from{filter:brightness(1)}to{filter:brightness(1.35);box-shadow:0 0 31px #bdff39a8}}
+@keyframes chroma-rec{from{filter:brightness(.85)}to{filter:brightness(1.65)}}
+@media(max-width:375px){.nexus-app{padding-inline:8px!important}.nexus-header{grid-template-columns:38px minmax(0,1fr) 85px!important}.hero-deck{grid-template-columns:62px minmax(0,1fr) 62px!important;padding:5px!important;gap:4px!important}.hero-deck .deck-disc{width:53px!important;height:53px!important}.control-deck{grid-template-columns:minmax(0,1fr) 92px minmax(0,1fr)!important;gap:5px!important}.nexus-app .pads{gap:5px!important}.nexus-app .pad{height:82px!important}}
+@media(prefers-reduced-motion:reduce){.nexus-app *,.nexus-app *:before,.nexus-app *:after{animation:none!important;transition:none!important}}
