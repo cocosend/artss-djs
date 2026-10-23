@@ -27,7 +27,7 @@ with sync_playwright() as playwright:
   context.route('https://artss.test/**',serve_static)
   URL='https://artss.test/'
  page.on('crash',lambda _:errors.append('Browser renderer crashed'))
- page.goto(URL,wait_until='networkidle');assert 'NEXUS 31' in page.title(),page.title()
+ page.goto(URL,wait_until='networkidle');assert 'ARTSS / LIVE 32' in page.title(),page.title()
  try:
   page.wait_for_function("document.querySelectorAll('#pads .pad').length===8",timeout=15000)
  except Exception as exc:
@@ -272,7 +272,7 @@ with sync_playwright() as playwright:
     frames.extend(struct.pack('<h',sample))
    wf.writeframes(frames)
   return pcm.getvalue()
- page.locator('#trackAutoMix summary').tap()
+ if page.locator('#trackAutoMix').get_attribute('open') is None: page.locator('#trackAutoMix summary').tap()
  page.locator('#autoMixFiles').set_input_files([
   {'name':'first-120.wav','mimeType':'audio/wav','buffer':music_track(120)},
   {'name':'second-125.wav','mimeType':'audio/wav','buffer':music_track(125)}

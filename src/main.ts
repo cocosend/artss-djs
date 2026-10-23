@@ -204,7 +204,7 @@ function paintAbyss(){const host=$('#abyssPads'),fragment=document.createDocumen
  for(const pad of ABYSS_PADS.slice(abyssPage*16,abyssPage*16+16)){
   const button=h('button','','abyss-pad') as HTMLButtonElement;button.type='button';button.dataset.abyssId=String(pad.id);
   button.style.setProperty('--abyss-tone',pad.color);button.setAttribute('aria-label',`${pad.id} ${pad.name}, ${pad.type==='loop'?'петля':'один удар'}, ${pad.group}`);
-  button.append(h('small',`${String(pad.id).padStart(2,'0')} · ${pad.group.toUpperCase()}`),h('strong',pad.name),h('span',pad.type==='loop'?`LOOP · ${pad.quantize}`:pad.quantize==='none'?'LIVE':`FX · ${pad.quantize}`));
+  button.append(h('small',`${String(pad.id).padStart(2,'0')} / ${pad.group.toUpperCase()}`),h('strong',pad.name),h('span',pad.type==='loop'?`↻ ${pad.quantize} BAR`:'↗ ONE SHOT'));
   const play=()=>{button.classList.add('pressed');$('#abyssStatus').textContent=`${pad.name} · ${pad.quantize==='none'?'ИГРАЕТ':'ОЖИДАНИЕ ТАКТА'}`;
    void abyss.trigger(pad.id).then(()=>updateAbyss()).catch(error=>{$('#abyssStatus').textContent=error instanceof Error?error.message:'ОШИБКА ЗВУКА';button.classList.remove('pressed')});
    window.setTimeout(()=>button.classList.remove('pressed'),85);
