@@ -15,6 +15,12 @@ export function lowpassHz(open, sampleRate) {
     return Math.min(nyquist, 40 * Math.pow(nyquist / 40, value));
 }
 export const AUDIO_HEADROOM = { master: .74, wet: .18, feedback: .16, echoSend: .17 };
+/** Eight-bar equal-power automation with cosine ease and a full bar for each transition. */
+export function autoMixPosition(beat) { if (!Number.isFinite(beat))
+    return .5; const bar = ((beat / 4) % 8 + 8) % 8; const smooth = (v) => .5 - .5 * Math.cos(Math.PI * Math.max(0, Math.min(1, v))); if (bar < 3)
+    return 0; if (bar < 4)
+    return smooth(bar - 3); if (bar < 7)
+    return 1; return 1 - smooth(bar - 7); }
 /** Preserve the container announced by Safari/Chrome media capture, including PCM fallbacks. */
 export function recordingExtension(mime) {
     const format = mime.toLowerCase().split(';', 1)[0]?.trim();

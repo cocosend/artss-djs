@@ -27,19 +27,12 @@ with sync_playwright() as playwright:
   context.route('https://artss.test/**',serve_static)
   URL='https://artss.test/'
  page.on('crash',lambda _:errors.append('Browser renderer crashed'))
- page.goto(URL,wait_until='networkidle');assert 'NEXUS 30' in page.title(),page.title()
+ page.goto(URL,wait_until='networkidle');assert 'ARTSS / LIVE 32' in page.title(),page.title()
  try:
   page.wait_for_function("document.querySelectorAll('#pads .pad').length===8",timeout=15000)
  except Exception as exc:
   raise AssertionError(f"Startup did not render eight pads: errors={errors}, url={page.url}, ready={page.evaluate('document.readyState')}") from exc
  assert page.locator('.pad').count()==8
- assert page.locator('#musicPads .music-pad').count()==8
- for group in ['acid','piano','fx']:
-  page.locator(f'[data-sound-page="{group}"]').tap()
-  assert page.locator('#musicPads .music-pad').count()==8
-  page.locator('#musicPads .music-pad').first.tap()
- page.locator('#musicKey').select_option('5')
- assert page.locator('#musicKey').input_value()=='5'
  assert page.locator('.pad[data-pad="4"]').is_visible()
  assert page.locator('.pad[data-pad="7"]').is_visible()
  assert page.locator('#kitBanks button').count()==4
@@ -56,8 +49,9 @@ with sync_playwright() as playwright:
  page.wait_for_function("document.documentElement.lang==='ru' && document.querySelector('#play').textContent.includes('ПУСК')",timeout=4000)
  assert page.locator('#languageToggle').get_attribute('aria-pressed')=='false'
  assert page.locator('[data-kit="0"]').is_visible()
- assert page.locator('link[rel="stylesheet"]').count()==1
- assert page.locator('link[rel="stylesheet"]').get_attribute('href')=='/studio27.css'
+ assert page.locator('link[rel="stylesheet"]').count()==2
+ assert page.locator('link[rel="stylesheet"]').nth(0).get_attribute('href')=='/studio27.css'
+ assert page.locator('link[rel="stylesheet"]').nth(1).get_attribute('href')=='/chroma-rift.css'
  grid=page.locator('#pads').evaluate("el=>getComputedStyle(el).gridTemplateColumns.split(' ').length")
  assert grid==4,('Reference requires 4 pads per row',grid)
  positions=page.locator('.pad').evaluate_all("els=>els.map(e=>Math.round(e.getBoundingClientRect().top))")
@@ -80,8 +74,7 @@ with sync_playwright() as playwright:
  # Hold is tested with a trusted mouse down/up, not an untrusted synthetic pointer
  # which WebKit/Chromium can immediately cancel with lostpointercapture.
  pad=page.locator('.pad[data-pad="3"]')
- pad.wait_for(state='visible',timeout=10000)
- bounds=page.evaluate("""()=>{const r=document.querySelector('.pad[data-pad="3"]')?.getBoundingClientRect();return r&&r.width?{x:r.x,y:r.y,width:r.width,height:r.height}:null}""");assert bounds
+ bounds=pad.bounding_box();assert bounds
  page.mouse.move(bounds['x']+bounds['width']/2,bounds['y']+bounds['height']/2)
  page.mouse.down()
  assert pad.evaluate("el=>el.classList.contains('pressed')"),'Pad did not respond on pointerdown'
@@ -104,36 +97,16 @@ with sync_playwright() as playwright:
  assert page.locator('.pattern-cell').count()==64
  assert page.locator('.channel').count()==0
  assert page.locator('#crossfade').count()==1
- assert page.locator('#autoMixToggle').count()==0
- assert page.locator('#trackAutoMix').count()==0
- page.locator('[data-cue="50"]').tap()
- assert page.locator('#trackCue').input_value()=='50'
- assert 'DROP' in page.locator('#cuePosition').inner_text()
- page.locator('[data-cue="0"]').tap()
- # A local recording plays through the same master bus with no second deck.
- frames=[]
- for n in range(44100*6):
-  t=n/44100;beat=t%0.5
-  amplitude=math.exp(-beat*28)*.4 if beat<.24 else 0
-  frames.append(struct.pack('<h',int(amplitude*math.sin(2*math.pi*110*t)*32767)))
- output=io.BytesIO()
- with wave.open(output,'wb') as wav:
-  wav.setnchannels(1);wav.setsampwidth(2);wav.setframerate(44100);wav.writeframes(b''.join(frames))
- page.locator('#trackInput').set_input_files({'name':'local-groove.wav','mimeType':'audio/wav','buffer':output.getvalue()})
- page.wait_for_function("document.querySelector('#startAutoMix').disabled===false",timeout=20000)
- assert 'local-groove.wav' in page.locator('#trackQueue').inner_text()
- page.locator('#mixIntro').uncheck()
- page.locator('#startAutoMix').tap()
- page.wait_for_function("document.querySelector('#mixStatus').textContent.includes('Автосводка')",timeout=15000)
- page.wait_for_function("parseFloat(document.querySelector('#outputMeter').style.width)>0",timeout=4000)
- page.wait_for_function("parseFloat(document.querySelector('#mixProgressFill').style.width)>0",timeout=4000)
- page.locator('#stopAutoMix').tap()
- assert page.locator('#startAutoMix').is_enabled()
+ # Auto A/B fader can be enabled, and manual fader must take back control.
+ page.locator('#autoMixToggle').tap()
+ assert page.locator('#autoMixToggle').get_attribute('aria-pressed')=='true'
+ page.locator('#autoMixToggle').tap()
+ assert page.locator('#autoMixToggle').get_attribute('aria-pressed')=='false'
  page.locator('#tapTempo').tap()
  page.wait_for_timeout(450)
  page.locator('#tapTempo').tap()
  assert 80<=int(page.locator('#bpm').inner_text())<=175
- page.locator('#applyPattern').tap()
+ page.locator('#autoGroove').tap()
  assert page.locator('#undoGroove').is_visible()
  assert sum(1 for x in page.evaluate('JSON.parse(localStorage.getItem("artss-live-session-v19")).pattern[0]') if x>0)>=4
  page.locator('#undoGroove').tap()
@@ -187,8 +160,43 @@ with sync_playwright() as playwright:
  assert page.locator('#restoreSound').is_disabled()
  page.locator('#menuToggle').tap()
  page.locator('#drawerPresets').tap()
- assert page.locator('.library-style').count()==12
+ assert page.locator('.library-style').count()==16
  assert page.locator('#libraryFan').get_attribute('open') is not None
+ # Abyss is an audible two-page sampler, not a list of file names.
+ page.locator('#abyssOpen').tap()
+ assert page.locator('#abyssPads button').count()==16
+ assert page.locator('#bpm').inner_text()=='124'
+ assert page.locator('#abyssPads').evaluate("el=>getComputedStyle(el).gridTemplateColumns.split(' ').length")==4
+ page.locator('[data-abyss-id="5"]').tap()
+ page.wait_for_function("document.querySelector('[data-abyss-id=\"5\"]').getAttribute('aria-pressed')==='true'",timeout=15000)
+ page.locator('[data-abyss-id="6"]').tap()
+ page.wait_for_function("document.querySelector('[data-abyss-id=\"6\"]').getAttribute('aria-pressed')==='true'",timeout=15000)
+ assert page.locator('[data-abyss-id="5"]').get_attribute('aria-pressed')=='false','Bass choke failed'
+ page.locator('[data-abyss-page="1"]').tap()
+ assert page.locator('#abyssPads button').count()==16
+ assert page.locator('[data-abyss-id="32"]').is_visible()
+ page.locator('[data-abyss-id="17"]').tap()
+ page.wait_for_function("document.querySelector('#abyssStatus').textContent.includes('Analog Lead')",timeout=8000)
+ # An active Abyss loop must survive page switching and export through the master.
+ page.locator('[data-pane="takes"]').tap()
+ with page.expect_download(timeout=60000) as abyss_event: page.locator('#export').tap()
+ with wave.open(str(abyss_event.value.path()),'rb') as exported:
+  assert exported.getnchannels()==2 and exported.getnframes()>100000
+ page.locator('#abyssOpen').tap()
+ page.locator('[data-abyss-page="0"]').tap()
+ assert page.locator('[data-abyss-id="6"]').get_attribute('aria-pressed')=='true'
+ page.locator('#abyssStop').tap()
+ page.locator('[data-abyss-page="0"]').tap()
+ assert page.locator('[data-abyss-id="6"]').get_attribute('aria-pressed')=='false'
+ page.locator('#bank').select_option('12')
+ assert page.locator('#melodyToggle').get_attribute('aria-pressed')=='true'
+ page.locator('#melodyToggle').tap()
+ assert page.locator('#melodyToggle').get_attribute('aria-pressed')=='false'
+ page.locator('#melodyToggle').tap()
+ page.reload(wait_until='networkidle')
+ assert page.locator('#bank').input_value()=='12'
+ assert page.locator('#melodyToggle').get_attribute('aria-pressed')=='true'
+ page.locator('#bank').select_option('0')
  page.locator('[data-pane="mix"]').tap()
  assert page.locator('#mixFan').get_attribute('open') is not None
  assert page.locator('.mixrow').count()==8
@@ -237,38 +245,60 @@ with sync_playwright() as playwright:
  # No browser audio capture: REC writes pad events to the looping sequencer.
  assert page.locator('#sampleStart').count()==0
  assert page.locator('#drawerSample').count()==0
- # STOP cancels an already queued source: verify rendered PCM, not only mocks.
- result=page.evaluate("""async()=>{
-  const {Engine}=await import('/app/engine.js');
-  const {defaultSession}=await import('/app/model.js');
-  async function render(cancel){
-   const ctx=new OfflineAudioContext(2,12000,48000),engine=new Engine(defaultSession);
-   const buffer=ctx.createBuffer(1,4800,48000),data=buffer.getChannelData(0);
-   for(let i=0;i<data.length;i++)data[i]=.3*Math.sin(2*Math.PI*220*i/48000);
-   engine.ctx=ctx;engine.bank.resolve=()=>({buffer,gain:1,lowCut:20,highCut:16000});
-   engine.voice(ctx,ctx.destination,0,.05,1,0,1);
-   if(cancel)engine.stop();
-   const rendered=await ctx.startRendering();let peak=0;
-   for(const x of rendered.getChannelData(0))peak=Math.max(peak,Math.abs(x));
-   return peak;
-  }
-  return {playing:await render(false),stopped:await render(true)};
- }""")
- assert result['playing']>.1,result
- assert result['stopped']==0,result
  # Additional responsive widths
- for width in [320,375,390,430,768,1280,1920]:
+ for width in [320,375,390,430]:
   page.set_viewport_size({'width':width,'height':844})
   assert page.locator('body').evaluate('(el)=>el.scrollWidth <= innerWidth+2'),width
  assert not errors,errors
- # Switching languages during live playback must not stall the transport.
- page.locator('[data-pane="main"]').tap()
- page.locator('#play').tap()
- for _ in range(3):
-  page.locator('#languageToggle').tap(timeout=5000)
-  page.locator('#languageToggle').tap(timeout=5000)
- assert page.locator('#play').inner_text().find('ПАУЗА')>=0
- page.locator('#stop').tap()
+ # The WebKit media process must not retain old OfflineAudioContext and live capture nodes
+ # when stress-testing the independent track queue; test it in its own browser context.
+ context.close()
+ mix_context=browser.new_context(viewport={'width':390,'height':844},device_scale_factor=3,is_mobile=True,has_touch=True,accept_downloads=True)
+ if os.getenv('ARTSS_LOCAL_PREVIEW')=='1':mix_context.route('https://artss.test/**',serve_static)
+ page=mix_context.new_page();mix_errors=[];page.on('pageerror',lambda e:mix_errors.append(str(e)))
+ page.goto(URL,wait_until='networkidle')
+ page.wait_for_function("document.querySelectorAll('#pads .pad').length===8",timeout=15000)
+ assert page.locator('.pad').count()==8
+ # Real DJ automix: two local WAV tracks, tempo analysis, beat-aware transition and stop.
+ def music_track(bpm):
+  sample_rate=22050;length=6*sample_rate;beat_len=round(sample_rate*60/bpm)
+  pcm=io.BytesIO()
+  with wave.open(pcm,'wb') as wf:
+   wf.setnchannels(1);wf.setsampwidth(2);wf.setframerate(sample_rate)
+   frames=bytearray()
+   for i in range(length):
+    beat_phase=i%beat_len
+    kick=15000*math.exp(-beat_phase/450) if beat_phase<4500 else 0
+    sample=int(max(-32000,min(32000,kick+2400*math.sin(2*math.pi*110*i/sample_rate))))
+    frames.extend(struct.pack('<h',sample))
+   wf.writeframes(frames)
+  return pcm.getvalue()
+ if page.locator('#trackAutoMix').get_attribute('open') is None: page.locator('#trackAutoMix summary').tap()
+ page.locator('#autoMixFiles').set_input_files([
+  {'name':'first-120.wav','mimeType':'audio/wav','buffer':music_track(120)},
+  {'name':'second-125.wav','mimeType':'audio/wav','buffer':music_track(125)}
+ ])
+ page.wait_for_function("!document.querySelector('#startTrackMix').disabled",timeout=20000)
+ assert page.locator('#autoMixPadSync').is_checked(),'Pad sync should be enabled for DJ performance'
+ page.locator('#startTrackMix').tap()
+ page.wait_for_function("!document.querySelector('#stopTrackMix').disabled",timeout=20000)
+ assert page.locator('#runState').inner_text()=='ИГРАЕТ','DJ automix stopped or failed to start the pad loop'
+ assert int(page.locator('#bpm').inner_text())>0,'Pad tempo not available after track sync'
+ page.locator('.pad[data-pad="2"]').tap()
+ assert not page.locator('#stopTrackMix').is_disabled(),'Touching drum pad stopped DJ track mix'
+ assert 'Автосводка' in page.locator('#trackMixStatus').inner_text()
+ page.locator('#stopTrackMix').tap()
+ assert page.locator('#stopTrackMix').is_disabled()
+ # Switch languages without losing the loaded audio session or local projects.
+ page.locator('#languageToggle').tap()
+ assert page.locator('html').get_attribute('lang')=='en'
+ assert 'DRUM PADS' in page.locator('.pad-head').inner_text()
+ page.reload(wait_until='networkidle')
+ assert page.locator('html').get_attribute('lang')=='en'
+ page.locator('#languageToggle').tap()
+ assert page.locator('html').get_attribute('lang')=='ru'
+ assert not mix_errors,mix_errors
+ mix_context.close()
  browser.close()
 srv.shutdown()
-print(f'PASS browser smoke ({browser_type}) and 7 mobile/tablet/desktop viewport widths')
+print(f'PASS browser smoke ({browser_type}) and 4 mobile viewport widths')

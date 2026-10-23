@@ -15,15 +15,6 @@ export class AutoMixPlayer {
         this.onStatus = onStatus;
     }
     get state() { return this.status; }
-    get position() {
-        const now = this.engine.ctx?.currentTime ?? 0;
-        const index = this.timeline.reduce((current, item, i) => now >= item.time ? i : current, 0);
-        const item = this.timeline[index];
-        if (!item)
-            return { index: 0, percent: 0 };
-        const at = Math.max(0, item.offset + (now - item.time) * item.rate);
-        return { index, percent: Math.min(100, Math.max(0, Math.round(100 * at / item.track.buffer.duration))) };
-    }
     /** Music makes space for active drum pads, without muting or stopping the DJ track. */
     setPadOverlay(playing) {
         if (!this.mixOutput || !this.engine.ctx)
@@ -33,9 +24,9 @@ export class AutoMixPlayer {
     get loaded() { return this.tracks.map(t => ({ name: t.name, bpm: t.analysis.bpm, confidence: t.analysis.confidence, rms: t.analysis.rms })); }
     update(state, message) { this.status = state; this.onStatus(state, message); }
     async load(files) {
-        const selected = Array.from(files);
-        if (selected.length < 1 || selected.length > 3)
-            throw Error('Выбери от одного до трёх треков');
+        const selected = Array.from(files).slice(0, 3);
+        if (selected.length < 2)
+            throw Error('Выбери минимум два аудиотрека');
         this.stop(false);
         this.tracks = [];
         const epoch = ++this.generation;
@@ -45,14 +36,13 @@ export class AutoMixPlayer {
             const ctx = this.engine.ctx;
             if (!ctx)
                 throw Error('Аудиодвижок недоступен');
-            let total = 0, totalBytes = 0;
+            let total = 0;
             const decoded = [];
             for (const file of selected) {
                 if (epoch !== this.generation)
                     return;
-                totalBytes += file.size;
-                if (file.size > 45 * 1024 * 1024 || totalBytes > 100 * 1024 * 1024)
-                    throw Error('Лимит памяти: 45 МБ на трек, 100 МБ вместе');
+                if (file.size > 80 * 1024 * 1024)
+                    throw Error('Один файл не должен превышать 80 МБ');
                 if (!/^audio\//i.test(file.type) && !/\.(wav|mp3|m4a|aac|ogg|flac)$/i.test(file.name))
                     throw Error('Нужны аудиофайлы');
                 let buffer;
@@ -82,11 +72,11 @@ export class AutoMixPlayer {
             throw error;
         }
     }
-    async start(joinPads = false, intro = true, cue = 0) {
+    async start(joinPads = true) {
         if (this.status === 'loading')
             throw Error('Подожди завершения анализа');
-        if (this.tracks.length < 1)
-            throw Error('Загрузи аудиотрек');
+        if (this.tracks.length < 2)
+            throw Error('Загрузи минимум два аудиотрека');
         this.stop(false);
         const epoch = ++this.generation;
         await this.engine.unlock();
@@ -106,27 +96,9 @@ export class AutoMixPlayer {
         this.detach = this.engine.connectMusicSource(mix);
         const first = this.tracks[0], initialRate = sync.playing && first.analysis.confidence >= .17
             ? Math.min(1.06, Math.max(.94, sync.tempo / first.analysis.bpm)) : 1;
-        const bar = 240 / first.analysis.bpm;
-        const desired = Math.min(.85, Math.max(0, cue)) * first.buffer.duration;
-        const cueOffset = cue > 0 ? first.analysis.firstBeat + Math.floor(Math.max(0, desired - first.analysis.firstBeat) / bar) * bar : 0;
-        const firstOffset = cue > 0 ? Math.min(cueOffset, Math.max(0, first.buffer.duration - 2)) :
-            intro || sync.playing ? Math.min(first.analysis.firstBeat, Math.max(0, first.buffer.duration - 2)) : 0;
-        const introBeat = 60 / (sync.playing ? sync.tempo : first.analysis.bpm);
-        if (intro) {
-            const cue = ['/samples/performance/fx-01.wav', '/samples/performance/fx-02.wav', '/samples/performance/fx-03.wav'];
-            await Promise.all(cue.map(path => this.engine.preparePerformance(path)));
-            if (epoch !== this.generation)
-                return;
-            for (let beat = 0; beat < 8; beat++) {
-                const at = sync.time + beat * introBeat;
-                void this.engine.playPerformance(cue[0], 1, at, beat >= 6 ? .32 : .18);
-                if (beat % 2 === 0)
-                    void this.engine.playPerformance(cue[1], 1, at, .22);
-            }
-            void this.engine.playPerformance(cue[2], 1, sync.time + introBeat * 6.5, .3);
-        }
+        const firstOffset = sync.playing ? Math.min(first.analysis.firstBeat, Math.max(0, first.buffer.duration - 2)) : 0;
         const sequence = [];
-        sequence.push({ track: first, time: sync.time + (intro ? introBeat * 8 : 0), offset: firstOffset, rate: initialRate, fadeStart: 0, fadeDuration: 0 });
+        sequence.push({ track: first, time: sync.time, offset: firstOffset, rate: initialRate, fadeStart: 0, fadeDuration: 0 });
         for (let i = 1; i < this.tracks.length; i++) {
             const prev = sequence[i - 1], next = this.tracks[i];
             const plan = planTransition({ ...prev.track.analysis, bpm: prev.track.analysis.bpm * prev.rate }, next.analysis);
@@ -139,10 +111,6 @@ export class AutoMixPlayer {
         }
         this.timeline = sequence;
         const { incoming, outgoing } = crossfadeCurve();
-        if (sequence.length > 1)
-            await Promise.all(['/samples/performance/fx-03.wav', '/samples/performance/fx-01.wav'].map(path => this.engine.preparePerformance(path)));
-        if (epoch !== this.generation)
-            return;
         try {
             for (let i = 0; i < sequence.length; i++) {
                 const entry = sequence[i], source = ctx.createBufferSource(), bass = ctx.createBiquadFilter(), volume = ctx.createGain();
@@ -172,11 +140,6 @@ export class AutoMixPlayer {
                 source.onended = () => { if (epoch === this.generation && i === sequence.length - 1)
                     this.stop(); };
                 this.scheduled.push({ source, volume, bass });
-                if (i > 0) {
-                    const prev = sequence[i - 1];
-                    void this.engine.playPerformance('/samples/performance/fx-03.wav', 1, Math.max(entry.time, prev.fadeStart + prev.fadeDuration - 1.55), .16);
-                    void this.engine.playPerformance('/samples/performance/fx-01.wav', 1, prev.fadeStart + prev.fadeDuration, .24);
-                }
             }
             if (epoch !== this.generation)
                 return;
@@ -217,7 +180,6 @@ export class AutoMixPlayer {
         }
         this.scheduled = [];
         this.timeline = [];
-        this.engine.stopPerformance();
         this.detach?.();
         this.detach = null;
         try {
@@ -226,7 +188,7 @@ export class AutoMixPlayer {
         catch { }
         this.mixOutput = null;
         if (report)
-            this.update(this.tracks.length >= 1 ? 'ready' : 'idle', 'Автосводка остановлена');
+            this.update(this.tracks.length >= 2 ? 'ready' : 'idle', 'Автосводка остановлена');
     }
     dispose() { this.stop(false); this.tracks = []; this.update('idle', ''); }
 }

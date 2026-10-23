@@ -45,7 +45,7 @@ export class SampleRecorder {
 
   get active(): boolean {return this.capturingPCM || this.recorder?.state === 'recording';}
 
-  async start(source: CaptureSource, liveStream: MediaStream | null, context: AudioContext, onLimit: () => void, onFailure: (error: Error) => void = () => {}, directInput: AudioNode | null = null): Promise<void> {
+  async start(source: CaptureSource, liveStream: MediaStream | null, context: AudioContext, onLimit: () => void, onFailure: (error: Error) => void = () => {}, directInput: AudioNode | null = null, maxDurationMs = 12000): Promise<void> {
     if (this.active || this.stopPromise) throw Error('Запись сэмпла уже идёт');
     if(source!=='live')throw Error('Доступна только запись внутреннего микса');
      const stream=liveStream;
@@ -86,7 +86,7 @@ export class SampleRecorder {
         }
       } else {
         const types = ['audio/mp4','audio/webm;codecs=opus','audio/webm'];
-        const mime = types.find(type => MediaRecorder.isTypeSupported(type));
+        const mime = types.find(type => typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported(type));
         if(!stream)throw Error('Аудиопоток недоступен');
         const recorder = new MediaRecorder(stream, mime ? {mimeType:mime} : undefined);
         this.recorder = recorder;this.chunks=[];
@@ -102,13 +102,30 @@ export class SampleRecorder {
         };
         recorder.start(100);
       }
-      this.timeout=window.setTimeout(onLimit,12000);
+      this.timeout=window.setTimeout(onLimit,Math.max(500,Math.min(90000,maxDurationMs)));
     } catch(error) {this.dispose();throw error;}
   }
 
   stop(): Promise<Blob> {
     if(this.stopPromise)return this.stopPromise;
     if(this.capturingPCM){
+      const worklet=this.worklet;
+      if(worklet){
+        this.stopPromise=new Promise<Blob>(resolve=>{
+          let finished=false;
+          const original=worklet.port.onmessage;
+          const done=()=>{if(finished)return;finished=true;window.clearTimeout(timeout);
+            const blob=pcmWav(this.pcm,this.frames,this.sampleRate);this.dispose();resolve(blob);
+          };
+          worklet.port.onmessage=event=>{
+            if(event.data==='flushed'){done();return;}
+            if(original)original.call(worklet.port,event);
+          };
+          const timeout=window.setTimeout(done,350);
+          try{worklet.port.postMessage('flush');}catch{done();}
+        });
+        return this.stopPromise;
+      }
       const blob=pcmWav(this.pcm,this.frames,this.sampleRate);
       this.dispose();
       return Promise.resolve(blob);

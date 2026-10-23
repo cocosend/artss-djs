@@ -14,7 +14,20 @@ test('silence and invalid source are safe',()=>{const z=analyzeAudio([new Float3
 test('audio loading clamps to supported source metadata',()=>{const s=sanitizeSession({style:999,scene:-5,tempo:700,selected:100,quantize:false});assert.equal(s.style,STYLES.length-1);assert.equal(s.scene,0);assert.equal(s.tempo,175);assert.equal(s.selected,7);assert.equal(s.quantize,false);});
 
 test('dual-bus controls persist and clamp invalid input',()=>{const s=sanitizeSession({crossfader:3,filter:-2,echo:Infinity});assert.equal(s.crossfader,1);assert.equal(s.filter,0);assert.equal(s.echo,.12);const d=defaultSession();assert.equal(d.crossfader,.5);assert.equal(d.filter,1);assert.equal(d.echo,.12)});
-test('twelve scoped genres produce distinct, bounded live grooves',()=>{const seen=new Set();for(let i=0;i<STYLES.length;i++){const g=composeGroove(i,.8,i+1);assert.equal(g.length,8);assert.ok(g.every(row=>row.length===16&&row.every(v=>v>=0&&v<=1)));seen.add(JSON.stringify(g));}assert.ok(seen.size>=10)});
+test('sixteen styles have distinct, bounded grooves and multi-note variations',()=>{const seen=new Set();for(let i=0;i<STYLES.length;i++){const g=composeGroove(i,.8,i+1);assert.equal(g.length,8);assert.ok(g.every(row=>row.length===16&&row.every(v=>v>=0&&v<=1)));seen.add(JSON.stringify(g));}assert.equal(STYLES.length,16);assert.ok(seen.size>=14);
+ for(const genre of [12,13,14,15]){const variants=new Set(Array.from({length:8},(_,v)=>JSON.stringify(composeGroove(genre,.8,v+1))));assert.ok(variants.size>=6,STYLES[genre].name)}
+});
+test('original EDM stems contain audible, bounded WAV samples and survive session restore',async()=>{
+ const {readFileSync}=await import('node:fs');
+ for(const name of ['festival','house','trance','future']){
+  const wav=readFileSync(`dist/samples/hooks/${name}.wav`);assert.equal(wav.toString('ascii',0,4),'RIFF');assert.equal(wav.toString('ascii',8,12),'WAVE');assert.ok(wav.length>200_000);
+  const frames=new Int16Array(wav.buffer,wav.byteOffset+44,(wav.length-44)/2);let sum=0,peak=0;
+  for(const value of frames){sum+=value*value;peak=Math.max(peak,Math.abs(value))}
+  assert.ok(Math.sqrt(sum/frames.length)>900,name);assert.ok(peak<16500,name);
+ }
+ assert.equal(sanitizeSession({style:12,melodyEnabled:true}).melodyEnabled,true);
+ assert.equal(sanitizeSession({style:12}).melodyEnabled,false);
+});
 
 test('EQ fields are safe and backwards compatible',()=>{const a=sanitizeSession({eqLow:100,eqMid:-90,eqHigh:NaN,crossfader:.67});assert.equal(a.eqLow,12);assert.equal(a.eqMid,-12);assert.equal(a.eqHigh,0);assert.equal(a.crossfader,.67);const b=defaultSession();assert.equal(b.eqLow,0);assert.equal(b.eqMid,0);assert.equal(b.eqHigh,0)});
 
@@ -37,7 +50,7 @@ test('sample overrides are user-controlled and never imported by an automatic cl
  const {readFileSync}=await import('node:fs');
  const source=readFileSync('src/sounds.ts','utf8'),engine=readFileSync('src/engine.ts','utf8');
  assert.match(source,/overridePad===undefined/);
- assert.match(source,/const url=options\[0\]/);
+ assert.match(source,/const url=this\.kitPath\(pad\)/);
  assert.match(source,/async restoreFactory\(/);
  assert.match(source,/store\.delete\(pad\)/);
  assert.match(engine,/async restoreFactorySound\(/);
@@ -48,7 +61,8 @@ test('every factory slot resolves to one fixed shipped sample, never fallback sy
  const {readFileSync,existsSync}=await import('node:fs');
  const source=readFileSync('src/sounds.ts','utf8');
  const engine=readFileSync('src/engine.ts','utf8');
- const sampleRows=source.match(/\['\/samples\/[^\]]+'\]/g)??[];
+ const fixedPaths=source.split('const paths=[')[1]?.split('];')[0]??'';
+ const sampleRows=fixedPaths.match(/\['\/samples\/[^\]]+'\]/g)??[];
  assert.equal(sampleRows.length,8,'All 8 pads require authored WAV files');
  for(const row of sampleRows){
   const match=row.match(/'([^']+\.wav)'/);assert.ok(match&&existsSync('.'+match[1]),row);
@@ -123,24 +137,39 @@ test('pad-only recording never requests microphone permission',async()=>{
  assert.ok(engine.includes('if(this.recordArmed&&this.running)'));
 });
 
-test('one manual crossfader and one local-track AutoMix workflow',async()=>{
- const {readFileSync,existsSync}=await import('node:fs');
- const html=readFileSync('index.html','utf8'),engine=readFileSync('src/engine.ts','utf8');
- assert.equal((html.match(/id="crossfade"/g)??[]).length,1);
- assert.equal((html.match(/id="startAutoMix"/g)??[]).length,1);
- assert.ok(!engine.includes('setAutoMix('));
- assert.equal(existsSync('src/automix-player.ts'),true);
-});
+test('auto mix positions are smooth and bounded across 8-bar phrase',async()=>{const {autoMixPosition}=await import('../app/audio-quality.js');assert.equal(autoMixPosition(0),0);assert.equal(autoMixPosition(16),1);assert.equal(autoMixPosition(32),0);for(let beat=0;beat<32;beat+=.02){const a=autoMixPosition(beat),b=autoMixPosition(beat+.02);assert.ok(a>=0&&a<=1&&Math.abs(a-b)<.03)}});
 
-test('all 24 performance pads use real bounded WAV masters',async()=>{
+test('BPM estimator recognizes 120 BPM percussion onsets without forced resampling',async()=>{
+ const {estimateTempoFromPulses,normalizeGain,crossfadeCurve,planTransition}=await import('../app/automix.js');
+ const envelopes=new Float32Array(2400);
+ for(let beat=0;beat<46;beat++){const onset=10+beat*50;envelopes[onset]=1;envelopes[onset+1]=.4;}
+ const detected=estimateTempoFromPulses(envelopes,100);
+ assert.ok(Math.abs(detected.bpm-120)<=2,detected);
+ assert.ok(detected.confidence>0);
+ const normal=normalizeGain({rms:.24,peak:.9});
+ assert.ok(normal>.15&&normal<=.92,normal);
+ const fade=crossfadeCurve();
+ assert.ok(fade.incoming[0]<.001&&fade.outgoing[0]>.8);
+ assert.ok(fade.incoming.at(-1)>.8&&fade.outgoing.at(-1)<.001);
+ for(const x of fade.incoming)assert.ok(Number.isFinite(x)&&x<=1&&x>=0);
+ const a={bpm:120,confidence:.8,firstBeat:.1,rms:.15,peak:.8,duration:145};
+ const b={bpm:125,confidence:.7,firstBeat:.25,rms:.1,peak:.9,duration:145};
+ const plan=planTransition(a,b);
+ assert.ok(plan.matchable&&Math.abs(plan.playbackRate-.96)<.01,plan);
+ assert.ok(plan.startNext>0&&plan.fadeSeconds>0&&plan.offsetNext>=0,plan);
+});
+test('local track mixing goes through existing limiter with no separate deck',async()=>{
  const {readFileSync}=await import('node:fs');
- for(const group of ['acid','piano','fx'])for(let i=1;i<=8;i++){
-  const path=`samples/performance/${group}-${String(i).padStart(2,'0')}.wav`;
-  const wav=readFileSync(path);assert.equal(wav.toString('ascii',0,4),'RIFF');
-  assert.ok(wav.length>4000);
-  let peak=0;for(let pos=44;pos+1<wav.length;pos+=2)peak=Math.max(peak,Math.abs(wav.readInt16LE(pos)));
-  assert.ok(peak>800&&peak<28000,`${path}: peak ${peak}`);
- }
+ const player=readFileSync('src/automix-player.ts','utf8');
+ const engine=readFileSync('src/engine.ts','utf8');
+ const html=readFileSync('index.html','utf8');
+ assert.match(player,/connectMusicSource\(mix\)/);
+ assert.match(player,/setValueCurveAtTime/);
+ assert.match(player,/planTransition/);
+ assert.match(engine,/const target=this.bus.input,duck=this.ctx.createGain\(\)/);
+ assert.match(engine,/duck.connect\(target\)/);
+ assert.match(html,/id="trackAutoMix"/);
+ assert.ok(!html.includes('id="deckB"'));
 });
 
 test('audio worklet pulse stops sending messages while no pad loop is playing',async()=>{
@@ -149,4 +178,30 @@ test('audio worklet pulse stops sending messages while no pad loop is playing',a
  assert.match(clock,/if\(!this.active\)return true/);
  assert.match(engine,/this.clock\?\.port.postMessage\('start'\)/);
  assert.match(engine,/this.clock\?\.port.postMessage\('pause'\)/);
+});
+
+test('DJ music clock locks first beat to live pad bar without pausing sequencer',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const engine=readFileSync('src/engine.ts','utf8'),player=readFileSync('src/automix-player.ts','utf8');
+ assert.match(engine,/getMusicSyncPoint\(\)/);
+ assert.match(engine,/this\.nextStep%STEPS/);
+ assert.match(engine,/this\.musicDucker/);
+ assert.match(player,/async start\(joinPads=true\)/);
+ assert.match(player,/getMusicSyncPoint\(\)/);
+ assert.doesNotMatch(player,/this\.engine\.pause\(\)/);
+ assert.match(player,/setPadOverlay\(playing:boolean\)/);
+});
+
+test('Abyss has 32 distinct playable PCM WAVs with the requested groups and bounded signal',async()=>{
+ const {readFileSync}=await import('node:fs');const {ABYSS_PADS,ABYSS_FX,ABYSS_BPM}=await import('../app/abyss.js');
+ assert.equal(ABYSS_BPM,124);assert.equal(ABYSS_PADS.length,32);assert.equal(new Set(ABYSS_PADS.map(p=>p.file)).size,32);
+ assert.deepEqual(ABYSS_PADS.map(p=>p.id),Array.from({length:32},(_,i)=>i+1));
+ assert.ok(ABYSS_PADS.slice(0,16).every(p=>p.type==='loop'));assert.ok(ABYSS_PADS.slice(16).every(p=>p.type==='one_shot'));
+ assert.equal(ABYSS_FX.delay.feedback,.4);assert.equal(ABYSS_FX.sidechain_compressor.source,'pad_1');
+ for(const pad of ABYSS_PADS){const bytes=readFileSync('dist/samples/abyss/'+pad.file);
+  assert.equal(bytes.toString('ascii',0,4),'RIFF',pad.file);assert.equal(bytes.toString('ascii',8,12),'WAVE',pad.file);
+  assert.equal(bytes.readUInt16LE(20),1,pad.file);assert.equal(bytes.readUInt16LE(34),16,pad.file);
+  const count=(bytes.length-44)/2;let peak=0,energy=0;for(let i=0;i<count;i++){const v=bytes.readInt16LE(44+i*2);peak=Math.max(peak,Math.abs(v));energy+=v*v;}
+  assert.ok(peak>600&&peak<29000,pad.file+' peak '+peak);assert.ok(Math.sqrt(energy/count)>35,pad.file+' is silent');
+ }
 });

@@ -1,9 +1,10 @@
 import {SampleRecorder,preferPcmRecording,type CaptureSource} from './sample-recorder.js';
+import {loopedStep,loopAnchor,type LoopSize} from './performance-loop.js';
 import {STEPS,STYLES,type Session,note} from './model.js';
 import {placeSample} from './arranger.js';
 import {SoundBank,type Sound} from './sounds.js';
-import {AUDIO_HEADROOM,crossfadeGains,voiceGain,lowpassHz,recordingExtension} from './audio-quality.js';
-export type EngineEvents={onStep?:(step:number)=>void;onState?:(state:string)=>void;onMeter?:(value:number)=>void;onClip?:(pad:number)=>void;onSamples?:()=>void};
+import {AUDIO_HEADROOM,crossfadeGains,voiceGain,lowpassHz,recordingExtension,autoMixPosition} from './audio-quality.js';
+export type EngineEvents={onStep?:(step:number)=>void;onState?:(state:string)=>void;onMeter?:(value:number)=>void;onClip?:(pad:number)=>void;onSamples?:()=>void;onTake?:()=>void};
 const clamp=(x:number,lo:number,hi:number)=>Math.min(hi,Math.max(lo,x));
 const sampleRate=44100;
 function wavExport(buffer:AudioBuffer):Blob {
@@ -16,10 +17,6 @@ function wavExport(buffer:AudioBuffer):Blob {
 }
 function createBus(ctx:BaseAudioContext,destination:AudioNode,settings:Session){
  const a=ctx.createGain(),b=ctx.createGain(),input=ctx.createGain();
- const channels=Array.from({length:8},(_,pad)=>{
-  const channel=ctx.createGain();channel.gain.value=settings.muted[pad]?0:clamp(settings.levels[pad]??1,0,1.2);
-  channel.connect((pad===1||pad>=6)?b:a);return channel;
- });
  // DC/subsonic energy eats headroom and is inaudible on mobile speakers.
  const dc=ctx.createBiquadFilter();dc.type='highpass';dc.frequency.value=20;dc.Q.value=.707;
  const filter=ctx.createBiquadFilter();filter.type='lowpass';filter.Q.value=.58;
@@ -40,7 +37,6 @@ function createBus(ctx:BaseAudioContext,destination:AudioNode,settings:Session){
  function update(st:Session){
   const t=ctx.currentTime,[gainA,gainB]=crossfadeGains(st.crossfader);
   a.gain.setTargetAtTime(gainA,t,.012);b.gain.setTargetAtTime(gainB,t,.012);
-  channels.forEach((channel,pad)=>channel.gain.setTargetAtTime(st.muted[pad]?0:clamp(st.levels[pad]??1,0,1.2),t,.008));
   filter.frequency.setTargetAtTime(lowpassHz(st.filter,ctx.sampleRate),t,.024);
   echoSend.gain.setTargetAtTime(AUDIO_HEADROOM.echoSend*clamp(st.echo,0,1),t,.028);
   eqLow.gain.setTargetAtTime(clamp(st.eqLow,-12,12),t,.017);
@@ -49,88 +45,87 @@ function createBus(ctx:BaseAudioContext,destination:AudioNode,settings:Session){
   echo.delayTime.setTargetAtTime(.75*60/clamp(st.tempo,80,175),t,.024);
  }
  update(settings);
- return {input,a,b,channels,master,meter,update};
+ return {input,a,b,master,meter,update};
 }
 
 export class Engine{
  ctx:AudioContext|null=null;bank=new SoundBank();private bus:ReturnType<typeof createBus>|null=null;
+ private melodicBuffers=new Map<number,AudioBuffer>();private melodicLoads=new Map<number,Promise<void>>();
+ renderSamplerOffline:((ctx:OfflineAudioContext,bus:AudioNode,seconds:number)=>void)|null=null;
  private clock:AudioWorkletNode|null=null;private fallback:number|null=null;
  private pending=false;private running=false;private recordArmed=false;private origin=0;private nextStep=0;private nextTime=0;private stopAt=0;
- private active=new Set<{stop:()=>void;until:number;when:number}>();
+ private active=new Set<{stop:()=>void;until:number}>();
  private generation=0;private scheduledTempo=136;private recorder:MediaRecorder|null=null;private capture:MediaStreamAudioDestinationNode|null=null;
  private recorded:Blob[]=[];private currentChunks:Blob[]=[];
- private gain=1;private sampleRecorder=new SampleRecorder();
+ private gain=1;private autoMix=false;private musicDucker:GainNode|null=null;private loopLength:LoopSize=0;private loopStart=0;
+ private takeRecorder=new SampleRecorder();private takeEnding:Promise<void>|null=null;
+ private sampleRecorder=new SampleRecorder();
  private offlineSampleActive=false;private offlineSampleAt=0;private offlineSampleTimer:number|null=null;
  private offlineSampleHits:Array<{pad:number;at:number;velocity:number;style:number;level:number}>=[];
  private sampleTarget:{pad:number;style:number}|null=null;events:EngineEvents={};
- private performanceBuffers=new Map<string,AudioBuffer>();
- private performanceVoices=new Set<{stop:()=>void;until:number;when:number}>();
  constructor(readonly getSession:()=>Session){if(typeof indexedDB!=='undefined')void this.restoreTakes();}
  get state(){return this.running?'PLAY':this.stopAt?'PAUSE':'STOP';}
  get recording(){return this.recordArmed;}
  get sampling(){return this.offlineSampleActive||this.sampleRecorder.active;}
- /** Music and instrument previews share the existing master EQ, limiter and meter. */
- connectMusicSource(node:AudioNode):()=>void{
+ get taking(){return this.takeRecorder.active;}
+ get performanceLoop(){return this.loopLength;}
+ setLoop(length:LoopSize){this.loopLength=length;this.loopStart=loopAnchor(this.absoluteStep(),length);this.events.onState?.(length?`LOOP ${length/4} BEAT`:'LOOP OFF');}
+ setSoundKit(index:number){this.bank.setKit(index);if(this.ctx)void this.bank.warm(this.ctx).then(()=>this.events.onSamples?.()).catch(()=>this.events.onState?.('SAMPLE LOAD ERROR'));}
+ async warmMelody(style:number):Promise<void>{
+  if(style<12||style>15||this.melodicBuffers.has(style))return;
+  const pending=this.melodicLoads.get(style);if(pending)return pending;
+  const path=['festival','house','trance','future'][style-12];
+  const load=(async()=>{const response=await fetch(`/samples/hooks/${path}.wav`,{cache:'force-cache'});
+   if(!response.ok)throw Error('Melodic stem unavailable');
+   if(!this.ctx)throw Error('Audio engine unavailable');
+   this.melodicBuffers.set(style,await this.ctx.decodeAudioData(await response.arrayBuffer()));
+  })();this.melodicLoads.set(style,load);
+  try{await load}finally{this.melodicLoads.delete(style)}
+ }
+ private scheduleMelody(ctx:BaseAudioContext,bus:AudioNode,style:number,when:number,tempo:number,scene:number){
+  const buffer=this.melodicBuffers.get(style);if(!buffer||scene===1||scene===4)return;
+  const source=ctx.createBufferSource(),level=ctx.createGain(),bar=240/tempo;
+  source.buffer=buffer;source.playbackRate.value=tempo/(STYLES[style]?.bpm??tempo);
+  source.connect(level).connect(bus);
+  level.gain.setValueAtTime(0,when);
+  level.gain.linearRampToValueAtTime(scene===2?.22:.42,when+.02);
+  level.gain.setValueAtTime(scene===2?.22:.42,when+Math.max(.03,bar-.035));
+  level.gain.linearRampToValueAtTime(0,when+bar);
+  source.start(when);source.stop(when+bar+.005);
+  source.onended=()=>{source.disconnect();level.disconnect()};
+  if(ctx===this.ctx){const voice={stop:()=>{try{source.stop()}catch{}},until:when+bar+.02};this.active.add(voice);source.addEventListener('ended',()=>this.active.delete(voice),{once:true});}
+ }
+ updateMix(){this.bus?.update(this.getSession());if(this.autoMix)this.updateAutoMix();}
+ /** Connect local music files before master EQ, protection and stereo meter. */
+ connectMusicSource(node:AudioNode):()=>void {
   if(!this.ctx||!this.bus||this.ctx.state!=='running')throw Error('Аудиодвижок недоступен');
-  const level=this.ctx.createGain();level.gain.value=.72;
-  node.connect(level).connect(this.bus.input);
-  return ()=>{try{node.disconnect(level);level.disconnect()}catch{}};
+  const target=this.bus.input,duck=this.ctx.createGain();
+  duck.gain.value=1;node.connect(duck);duck.connect(target);
+  this.musicDucker=duck;
+  return ()=>{try{node.disconnect(duck);duck.disconnect()}catch{}
+   if(this.musicDucker===duck)this.musicDucker=null;
+  };
  }
- getMusicSyncPoint():{time:number;tempo:number;playing:boolean}{
-  const tempo=this.getSession().tempo,now=this.ctx?.currentTime??0,d=60/tempo/4;
-  if(!this.running||!this.ctx)return {time:now+.12,tempo,playing:false};
-  this.pump();
-  const delta=(STEPS-this.nextStep%STEPS)%STEPS;
-  let at=this.nextTime+delta*d;
-  while(at<now+.12)at+=STEPS*d;
-  return {time:at,tempo,playing:true};
- }
- async preparePerformance(path:string):Promise<void>{
-  if(!/^\/samples\/performance\/(acid|piano|fx)-0[1-8]\.wav$/.test(path))throw Error('Неизвестный звук');
-  await this.unlock();if(this.performanceBuffers.has(path))return;
-  const response=await fetch(path);if(!response.ok)throw Error('Звук недоступен: '+path);
-  this.performanceBuffers.set(path,await this.ctx!.decodeAudioData(await response.arrayBuffer()));
- }
- /** A real bundled WAV, rate-shifted only when a musical key is selected. */
- async playPerformance(path:string,rate=1,at?:number,level=.53):Promise<void>{
-  await this.preparePerformance(path);
-  const ctx=this.ctx!,bus=this.bus!,buffer=this.performanceBuffers.get(path)!;
-  if(this.active.size>=28){const oldest=this.active.values().next().value;if(oldest){oldest.stop();this.active.delete(oldest)}}
-  const when=Math.max(ctx.currentTime+.002,at??ctx.currentTime+.002);
-  const source=ctx.createBufferSource(),amp=ctx.createGain();source.buffer=buffer;
-  source.playbackRate.value=clamp(rate,.5,2);
-  const peak=clamp(level,0,.75),end=when+buffer.duration/source.playbackRate.value;
-  amp.gain.setValueAtTime(0,when);amp.gain.linearRampToValueAtTime(peak,when+.005);
-  amp.gain.setValueAtTime(peak,Math.max(when+.005,end-.018));amp.gain.linearRampToValueAtTime(0,end);
-  source.connect(amp).connect(bus.input);
-  const voice={when,until:end+.02,stop:()=>{try{source.stop()}catch{}}};
-  source.onended=()=>{source.disconnect();amp.disconnect();this.active.delete(voice);this.performanceVoices.delete(voice)};
-  this.active.add(voice);this.performanceVoices.add(voice);source.start(when);source.stop(end+.004);
- }
- stopPerformance(){for(const voice of this.performanceVoices){voice.stop();this.active.delete(voice)}this.performanceVoices.clear()}
- updateMix(){
-  const tempo=this.getSession().tempo;
-  if(this.running&&this.ctx&&tempo!==this.scheduledTempo)this.rephase(tempo);
-  this.bus?.update(this.getSession());
- }
- private rephase(tempo:number){
-  if(!this.ctx||!this.running)return;
-  const now=this.ctx.currentTime,oldStep=60/this.scheduledTempo/4,newStep=60/tempo/4;
-  const beforeFirstStep=now<this.origin;
-  const phase=Math.max(0,(now-this.origin)/oldStep);
-  for(const voice of [...this.active])if(voice.when>now){voice.stop();this.active.delete(voice)}
-  if(!beforeFirstStep)this.origin=now-phase*newStep;
-  this.nextStep=beforeFirstStep?0:Math.max(0,Math.ceil(phase+1e-7));
-  this.nextTime=this.origin+this.nextStep*newStep;
-  this.scheduledTempo=tempo;
-  this.pump();
- }
+ get autoMixEnabled(){return this.autoMix;}
+ setAutoMix(enabled:boolean){this.autoMix=enabled;if(enabled)this.updateAutoMix();else this.bus?.update(this.getSession());}
+ private updateAutoMix(){if(!this.bus||!this.ctx)return;const beat=this.running?(this.ctx.currentTime-this.origin)*this.getSession().tempo/60:0;const [a,b]=crossfadeGains(autoMixPosition(beat));const t=this.ctx.currentTime;this.bus.a.gain.setTargetAtTime(a,t,.035);this.bus.b.gain.setTargetAtTime(b,t,.035);}
  get takes(){return this.recorded.slice();}
  get time(){return this.ctx?.currentTime??0;}
  private meterData=new Uint8Array(256);
  get meterLevel(){if(!this.bus)return 0;this.bus.meter.getByteTimeDomainData(this.meterData);let energy=0;for(let i=0;i<this.meterData.length;i++){const v=(this.meterData[i]!-128)/128;energy+=v*v;}return Math.min(1,Math.sqrt(energy/this.meterData.length)*2.8);}
  readWaveform(output:Uint8Array):boolean{if(!this.bus||!this.ctx||this.ctx.state!=='running')return false;this.bus.meter.getByteTimeDomainData(output);return true;}
- get currentStep(){if(!this.ctx||!this.running)return 0;const d=60/this.getSession().tempo/4;return ((Math.floor((this.time-this.origin)/d+1e-4)%STEPS)+STEPS)%STEPS;}
+ private absoluteStep(){if(!this.ctx||!this.running)return 0;const d=60/this.getSession().tempo/4;return Math.max(0,Math.floor((this.time-this.origin)/d+1e-4));}
+ get currentStep(){return loopedStep(this.absoluteStep(),this.loopLength,this.loopStart);}
+ /** Phase-lock music playback to the NEXT actual 16-step pad downbeat (AudioContext clock). */
+ getMusicSyncPoint():{time:number;tempo:number;playing:boolean}{
+  const tempo=this.getSession().tempo,now=this.ctx?.currentTime??0,d=60/tempo/4;
+  if(!this.running||!this.ctx)return {time:now+.09,tempo,playing:false};
+  this.pump(); // Rephase the sequencer first if BPM changed this gesture.
+  const delta=(STEPS-this.nextStep%STEPS)%STEPS;
+  let at=this.nextTime+delta*d;
+  while(at<now+.09)at+=STEPS*d;
+  return {time:at,tempo,playing:true};
+ }
  async unlock():Promise<void>{
   if(!this.ctx){const C=window.AudioContext||(window as Window & {webkitAudioContext?:typeof AudioContext}).webkitAudioContext;if(!C)throw Error('Web Audio недоступен');this.ctx=new C({latencyHint:'interactive'});void this.bank.restore(this.ctx).then(()=>this.events.onSamples?.()).catch(()=>{});this.bus=createBus(this.ctx,this.ctx.destination,this.getSession());}
   if(this.ctx.state!=='running')await this.ctx.resume();
@@ -147,6 +142,10 @@ export class Engine{
   }
   this.events.onState?.('AUDIO READY');
  }
+ getSamplerOutput():{context:AudioContext;output:AudioNode}{
+  if(!this.ctx||!this.bus||this.ctx.state!=='running')throw Error('Звук не готов');
+  return {context:this.ctx,output:this.bus.input};
+ }
  private async enableWorklet(ctx:AudioContext):Promise<void>{
   try{if(!ctx.audioWorklet)return;await ctx.audioWorklet.addModule('/app/clock.js');if(this.ctx!==ctx)return;
    const worklet=new AudioWorkletNode(ctx,'artss-pulse',{numberOfOutputs:1,outputChannelCount:[1]});
@@ -154,35 +153,38 @@ export class Engine{
    if(this.fallback!==null){window.clearInterval(this.fallback);this.fallback=null;}
   }catch{}
  }
- async start(){const generation=this.generation;await this.unlock();if(this.running||this.generation!==generation)return;await this.bank.warm(this.ctx!);if(this.running||this.generation!==generation)return;const d=60/this.getSession().tempo/4;
+ async start(){const generation=this.generation;await this.unlock();if(this.running||this.generation!==generation)return;await this.bank.warm(this.ctx!);if(this.getSession().melodyEnabled)await this.warmMelody(this.getSession().style);if(this.running||this.generation!==generation)return;const d=60/this.getSession().tempo/4;
   if(this.stopAt>0){const progress=this.stopAt-this.origin;this.origin=this.time-progress;this.nextStep=Math.max(0,Math.ceil((this.time-this.origin)/d));this.nextTime=this.origin+this.nextStep*d;}
   else{this.origin=this.time+.05;this.nextStep=0;this.nextTime=this.origin;}
   this.scheduledTempo=this.getSession().tempo;this.running=true;this.stopAt=0;this.generation++;this.clock?.port.postMessage('start');this.pump();this.events.onState?.('PLAY');
  }
  pause(){if(!this.running)return;this.running=false;this.stopAt=this.time;this.generation++;this.clock?.port.postMessage('pause');this.silence();this.events.onState?.('PAUSE');}
- stop(){this.running=false;this.stopAt=0;this.recordArmed=false;this.nextStep=0;this.nextTime=0;this.generation++;this.clock?.port.postMessage('pause');this.silence();this.events.onState?.('STOP');}
- async toggleRecord(){const generation=this.generation;await this.unlock();if(generation!==this.generation)return this.recordArmed;if(!this.running)await this.start();if(!this.running)return this.recordArmed;this.recordArmed=!this.recordArmed;this.events.onState?.(this.recordArmed?'REC ON':'REC OFF');return this.recordArmed;}
+ stop(){this.running=false;this.stopAt=0;this.recordArmed=false;this.nextStep=0;this.nextTime=0;this.generation++;this.clock?.port.postMessage('pause');this.loopLength=0;this.loopStart=0;this.silence();this.events.onState?.('STOP');}
+ async toggleRecord(){await this.unlock();if(!this.running)await this.start();if(!this.running)return this.recordArmed;this.recordArmed=!this.recordArmed;this.events.onState?.(this.recordArmed?'REC ON':'REC OFF');return this.recordArmed;}
  async hit(pad:number,velocity=1){if(!Number.isInteger(pad)||pad<0||pad>7||this.getSession().muted[pad])return;
-  const generation=this.generation;
   // Do not await resume or worklet setup once AudioContext is already running. Trigger voice on pointerdown.
   if(!this.ctx||this.ctx.state!=='running'||!this.bus)await this.unlock();
   if(!this.bank.resolve(pad,this.getSession().style))await this.bank.ensurePad(this.ctx!,pad);
-  if(generation!==this.generation||this.getSession().muted[pad])return;
   const now=this.ctx!.currentTime+.002;
-  this.voice(this.ctx!,this.bus!.channels[pad]!,pad,now,velocity,this.getSession().style,1);
+  this.voice(this.ctx!,((pad===1||pad>=6)?this.bus!.b:this.bus!.a),pad,now,velocity,this.getSession().style,this.getSession().levels[pad]??1);
   if(this.recordArmed&&this.running){const d=60/this.getSession().tempo/4;
    const quant=this.getSession().quantize?Math.round((now-this.origin)/d):Math.floor((now-this.origin)/d);
-   const at=((quant%STEPS)+STEPS)%STEPS;note(this.getSession().pattern,pad,at,Math.min(1,velocity));this.events.onClip?.(pad);}
+   const at=loopedStep(Math.max(0,quant),this.loopLength,this.loopStart);note(this.getSession().pattern,pad,at,Math.min(1,velocity));this.events.onClip?.(pad);}
  }
  private silence(){for(const v of this.active){try{v.stop();}catch{}}this.active.clear();}
  private pump(){if(!this.ctx||!this.running||!this.bus)return;
   const now=this.ctx.currentTime;const tempo=this.getSession().tempo;const d=60/tempo/4;
-  if(this.scheduledTempo!==tempo){this.rephase(tempo);return;}
+  if(this.autoMix)this.updateAutoMix();
+  if(this.scheduledTempo!==tempo){this.origin=this.nextTime-this.nextStep*d;this.scheduledTempo=tempo;}
   // Safari background suspension: fast-forward stale transport steps instead of bursting delayed notes.
   if(this.nextTime<now-.035){const skip=Math.max(1,Math.ceil((now-this.nextTime-.008)/d));this.nextStep+=skip;this.nextTime+=skip*d;}
-  while(this.nextTime<now+.115){const step=this.nextStep%STEPS,session=this.getSession();
-   for(let p=0;p<8;p++){const velocity=session.pattern[p]?.[step]??0;if(session.muted[p]||velocity===0)continue;
-    this.voice(this.ctx,this.bus.channels[p]!,p,this.nextTime,velocity,session.style,1);
+  while(this.nextTime<now+.115){const step=loopedStep(this.nextStep,this.loopLength,this.loopStart),session=this.getSession();
+   if(session.melodyEnabled&&step===0)this.scheduleMelody(this.ctx,this.bus.input,session.style,this.nextTime,tempo,session.scene);
+   for(let p=0;p<8;p++){let velocity=session.pattern[p]?.[step]??0;if(session.muted[p]||velocity===0)continue;
+    if(session.scene===1&&p>3)continue; // intro reduced
+    if(session.scene===4&&p===0&&step%8!==0)continue; // break
+    if(session.scene===2&&p===3&&step%2===1)velocity=.48; // build
+    this.voice(this.ctx,((p===1||p>=6)?this.bus.b:this.bus.a),p,this.nextTime,velocity,session.style,session.levels[p]??1);
    }
    this.events.onStep?.(step);this.nextStep++;this.nextTime+=d;
   }
@@ -190,6 +192,12 @@ export class Engine{
  }
  private voice(ctx:BaseAudioContext,bus:AudioNode,pad:number,when:number,velocity:number,style:number,level:number){
   const live=ctx===this.ctx;
+  if(live&&this.musicDucker&&(pad===0||pad===1||pad===2)){
+   // Mild, sample-accurate musical ducking; leave the original drum transient untouched.
+   const g=this.musicDucker.gain,t=Math.max(ctx.currentTime,when);
+   g.cancelScheduledValues(t);g.setTargetAtTime(pad===2?.90:.81,t,.012);
+   g.setTargetAtTime(1,t+.10,.12);
+  }
   if(live&&this.active.size>=28){const oldest=this.active.values().next().value;if(oldest){oldest.stop();this.active.delete(oldest);}}
   const sample=this.bank.resolve(pad,style);if(!sample)return;
   if(live&&this.offlineSampleActive){const at=when-this.offlineSampleAt;
@@ -204,8 +212,8 @@ export class Engine{
   const baseline=voiceGain(velocity,level,sample?.gain??(pad===1?.64:pad===6?.33:.78));
   const attack=.003,release=.012;
   low.connect(high).connect(amp).connect(bus);
-  const playing:{stop:()=>void;until:number;when:number}={stop:()=>{},until:when+1,when};
-  const cleanup=()=>{try{source.disconnect();low.disconnect();high.disconnect();amp.disconnect()}catch{}this.active.delete(playing)};
+  const playing:{stop:()=>void;until:number}={stop:()=>{},until:when+1};
+  const cleanup=()=>{try{low.disconnect();high.disconnect();amp.disconnect()}catch{}this.active.delete(playing)};
   amp.gain.setValueAtTime(0,when);amp.gain.linearRampToValueAtTime(Math.max(.00001,baseline),when+attack);
 
    const source=ctx.createBufferSource();source.buffer=sample.buffer;source.connect(low);
@@ -214,19 +222,7 @@ export class Engine{
    amp.gain.linearRampToValueAtTime(0,end);
    source.onended=cleanup;source.start(when);source.stop(end+.004);
    playing.until=end+.025;
-   playing.stop=()=>{try{
-    const now=ctx.currentTime;
-    // A scheduled note must never start after STOP or voice stealing.
-    if(now<=when){source.stop(now);cleanup();return;}
-    if(typeof amp.gain.cancelAndHoldAtTime==='function')amp.gain.cancelAndHoldAtTime(now);
-    else {
-     // Preserve the envelope level when cancelling an attack/release ramp.
-     const peak=Math.max(.00001,baseline),releaseAt=Math.max(when+attack,end-fade);
-     const held=now<when+attack?peak*(now-when)/attack:now<releaseAt?peak:peak*Math.max(0,(end-now)/(end-releaseAt));
-     amp.gain.cancelScheduledValues(now);amp.gain.setValueAtTime(held,now);
-    }
-    amp.gain.linearRampToValueAtTime(0,now+.012);source.stop(now+.018);
-   }catch{cleanup()}};
+   playing.stop=()=>{try{const now=Math.max(ctx.currentTime,when);amp.gain.cancelScheduledValues(now);amp.gain.setTargetAtTime(0,now,.003);source.stop(now+.018)}catch{cleanup()}};
   if(live)this.active.add(playing);
  }
 
@@ -281,7 +277,7 @@ export class Engine{
    for(const hit of hits){
     if(hit.at>=duration)continue;
     const when=Math.max(.004,hit.at);
-    this.voice(offline,mix.channels[hit.pad]!,hit.pad,when,hit.velocity,hit.style,1);
+    this.voice(offline,(hit.pad===1||hit.pad>=6)?mix.b:mix.a,hit.pad,when,hit.velocity,hit.style,hit.level);
    }
    blob=wavExport(await offline.startRendering());
   }else blob=await this.sampleRecorder.stop();
@@ -294,24 +290,40 @@ export class Engine{
   this.events.onState?.(`SAMPLE SAVED · PAD ${target.pad+1}`);
   return {pad:result.pad,style:target.style,name:file.name};
  }
- async beginTake():Promise<void>{await this.unlock();if(typeof MediaRecorder==='undefined')throw Error('Audio take недоступен — используй EXPORT WAV');if(this.recorder?.state==='recording')return;
-  const capture=this.ensureCapture();
-  const types=['audio/mp4','audio/webm;codecs=opus','audio/webm'];const type=types.find(t=>MediaRecorder.isTypeSupported(t));
-  const r=new MediaRecorder(capture.stream,type?{mimeType:type}:{});this.currentChunks=[];
-  r.ondataavailable=e=>{if(e.data.size)this.currentChunks.push(e.data)};
-  r.onstop=()=>{const blob=new Blob(this.currentChunks,{type:r.mimeType||'audio/webm'});if(blob.size){this.recorded.unshift(blob);void this.storeTake(blob);this.events.onState?.('TAKE SAVED');}};
-  r.start(250);this.recorder=r;this.events.onState?.('TAKE RECORDING');
+ async beginTake():Promise<void>{
+  if(this.takeRecorder.active)return;
+  await this.unlock();if(!this.ctx||!this.bus)throw Error('AudioContext unavailable');
+  const direct=preferPcmRecording(navigator.userAgent,typeof MediaRecorder!=='undefined')&&!!this.ctx.audioWorklet;
+  const capture=direct?null:this.ensureCapture();
+  await this.takeRecorder.start('live',capture?.stream??null,this.ctx,
+   ()=>{void this.endTake().catch(()=>this.events.onState?.('TAKE SAVE ERROR'));},
+   error=>this.events.onState?.('TAKE ERROR · '+error.message),direct?this.bus.master:null,90000);
+  this.events.onState?.('TAKE RECORDING');
  }
- endTake(){if(this.recorder?.state==='recording')this.recorder.stop();}
- private openTakes():Promise<IDBDatabase|null>{return new Promise(resolve=>{const r=indexedDB.open('artss-live-takes-v18',1);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains('takes'))r.result.createObjectStore('takes',{autoIncrement:true})};r.onsuccess=()=>resolve(r.result);r.onerror=()=>resolve(null);r.onblocked=()=>resolve(null)})}
+ async endTake():Promise<void>{
+  if(this.takeEnding)return this.takeEnding;
+  if(!this.takeRecorder.active)return;
+  const finalize=async()=>{
+   const blob=await this.takeRecorder.stop();
+   if(blob.size>44){this.recorded.unshift(blob);this.recorded.length=Math.min(this.recorded.length,20);
+    void this.storeTake(blob).catch(()=>this.events.onState?.('STORAGE FULL'));
+    this.events.onState?.('TAKE SAVED');this.events.onTake?.();}
+  };
+  const pending=finalize().finally(()=>{if(this.takeEnding===pending)this.takeEnding=null;});this.takeEnding=pending;
+  await pending;
+ }
+ private openTakes():Promise<IDBDatabase|null>{return new Promise(resolve=>{let r:IDBOpenDBRequest;try{r=indexedDB.open('artss-live-takes-v18',1)}catch{resolve(null);return;}r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains('takes'))r.result.createObjectStore('takes',{autoIncrement:true})};r.onsuccess=()=>resolve(r.result);r.onerror=()=>resolve(null);r.onblocked=()=>resolve(null)})}
  private async storeTake(blob:Blob){const db=await this.openTakes();if(!db)return;try{const tx=db.transaction('takes','readwrite');tx.objectStore('takes').add(blob)}catch{}finally{db.close()}}
  private async restoreTakes(){const db=await this.openTakes();if(!db)return;try{const r=db.transaction('takes','readonly').objectStore('takes').getAll();r.onsuccess=()=>{for(const b of (r.result as Blob[]).reverse())if(b.size)this.recorded.push(b)};}catch{}finally{db.close()}}
 
- async exportWav(bars=4):Promise<Blob>{await this.unlock();await this.bank.warm(this.ctx!);const state=this.getSession();const rate=sampleRate;const d=60/state.tempo/4;const length=Math.ceil((bars*16*d+2)*rate);
+ async exportWav(bars=4):Promise<Blob>{await this.unlock();await this.bank.warm(this.ctx!);const state=this.getSession();if(state.melodyEnabled)await this.warmMelody(state.style);const rate=sampleRate;const d=60/state.tempo/4;const length=Math.ceil((bars*16*d+2)*rate);
   const offline=new OfflineAudioContext(2,length,rate),bus=createBus(offline,offline.destination,state);
+  this.renderSamplerOffline?.(offline,bus.input,bars*16*d);
+  if(state.melodyEnabled)for(let bar=0;bar<bars;bar++)this.scheduleMelody(offline,bus.input,state.style,bar*16*d+.02,state.tempo,state.scene);
   for(let step=0;step<bars*16;step++)for(let pad=0;pad<8;pad++){
-   const velocity=state.pattern[pad]?.[step%16]??0;if(!velocity||state.muted[pad])continue;
-   this.voice(offline,bus.channels[pad]!,pad,step*d+.02,velocity,state.style,1);
+   const current=this.loopLength?(this.loopStart+step%this.loopLength)%STEPS:step%STEPS;const velocity=state.pattern[pad]?.[current]??0;if(!velocity||state.muted[pad])continue;
+   if(state.scene===1&&pad>3)continue;if(state.scene===4&&pad===0&&current%8!==0)continue;
+   this.voice(offline,((pad===1||pad>=6)?bus.b:bus.a),pad,step*d+.02,state.scene===2&&pad===3&&current%2===1?.48:velocity,state.style,state.levels[pad]??1);
   }
   return wavExport(await offline.startRendering());
  }

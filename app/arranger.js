@@ -9,26 +9,55 @@ export function composeGroove(style, density = .65, variation = 0) {
             p[pad][step] = velocity; };
     place(0, g.kick, 1);
     place(2, g.snare, .77 + (s === 5 ? .08 : 0));
-    place(3, g.hat, .43 + d * .27);
-    if (d > .40) {
+    place(3, g.hat, .38 + d * .31);
+    const seed = Math.abs(Math.trunc(Number.isFinite(variation) ? variation : 0));
+    const turn = seed % 4, fill = (seed >>> 2) % 4;
+    // New EDM genres use distinct bass, backbeat and syncopation, while each
+    // repeated Generate press changes a meaningful phrase rather than one note.
+    if (s === 15) {
+        p[2][4] = 0;
+        p[2][12] = 0;
+        place(2, [6, 14], .93);
+    }
+    if (s === 13) {
+        place(3, [1, 5, 9, 13], .32 + d * .2);
+        place(4, [7, 15], .38 + d * .14);
+    }
+    else if (s === 14) {
+        place(3, [0, 4, 8, 12], .28);
+        place(4, [6, 14], .36);
+    }
+    else if (d > .40) {
         place(4, [6, 14], .26 + d * .14);
-        place(5, [3, 11], .26 + d * .18);
     }
-    if (d > .50) {
-        place(1, g.bass, .62 + d * .1);
-        place(6, g.acid, Math.min(.8, .26 + d * .44));
+    if (d > .40)
+        place(5, s === 12 ? [3, 7, 11, 15] : s === 15 ? [3, 10, 15] : [3, 11], .28 + d * .16);
+    if (d > .48) {
+        place(1, g.bass, .60 + d * .13);
+        place(6, g.acid, Math.min(.78, .25 + d * .42));
     }
-    if (d > .73) {
-        for (const x of [1, 5, 9, 13])
-            p[3][x] = Math.max(p[3][x] ?? 0, .24);
-        p[5][15] = .45;
-        p[7][15] = .55;
+    if (d > .70) {
+        for (const x of (s === 15 ? [1, 7, 9, 15] : [1, 5, 9, 13]))
+            p[3][x] = Math.max(p[3][x] ?? 0, .23);
+        p[7][15] = .52;
     }
-    if (variation > 0) {
-        const offsets = [5, 13, 7, 15], k = offsets[(variation - 1) % offsets.length] ?? 7;
-        p[5][k] = .42;
-        if (d > .6)
-            p[6][(k + 2) % STEPS] = .42;
+    if (seed > 0) {
+        const accents = [3, 7, 11, 15];
+        p[5][accents[fill]] = .35 + .07 * turn;
+        if (d > .57)
+            p[6][(accents[turn] + 2) % STEPS] = .43 + .06 * fill;
+        if (turn === 1 || turn === 3) {
+            p[0][15] = .56;
+            p[3][15] = .46;
+        }
+        if (turn === 2) {
+            p[0][7] = .65;
+            p[1][14] = .46;
+        }
+        if (fill === 2 && d > .65) {
+            p[2][15] = .58;
+            p[4][15] = .48;
+        }
     }
     return p;
 }

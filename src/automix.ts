@@ -65,9 +65,7 @@ export function planTransition(a:TrackAnalysis,b:TrackAnalysis):MixPlan{
  const natural=matched?a.bpm/b.bpm:1;
  const matchable=matched&&natural>=.94&&natural<=1.06;
  const playbackRate=matchable?clamp(natural,.94,1.06):1;
- const targetFade=16*beat,rawFade=clamp(Math.min(targetFade,a.duration*.30,b.duration*.30),.35,12);
- // Land the final handoff on a musical downbeat when the track has room.
- const fadeSeconds=rawFade>=bar?Math.max(bar,Math.floor(rawFade/bar)*bar):Math.max(.35,Math.floor(rawFade/beat)*beat);
+ const targetFade=16*beat,fadeSeconds=clamp(Math.min(targetFade,a.duration*.30,b.duration*.30),.35,12);
  const head=Math.max(0,a.firstBeat);
  // A transition begins on a downbeat, leaving a safe tail for both tracks.
  const maxStart=Math.max(0,a.duration-fadeSeconds-.08);
