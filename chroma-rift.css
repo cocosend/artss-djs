@@ -87,3 +87,94 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;background:rad
    after switching to expanded performance panes in mobile WebKit/Chromium. */
 .nexus-app{padding-bottom:calc(105px + env(safe-area-inset-bottom))!important}
 .nexus-app .bottomnav{position:fixed!important;bottom:0!important;left:50%!important;transform:translateX(-50%)!important;width:min(630px,calc(100vw - 16px))!important;margin:0!important;z-index:100!important;border-radius:20px 20px 0 0!important}
+
+
+/* ARTSS ONE / CHROMA 32.2 — luminous performance surfaces, zero changes to the audio graph */
+.nexus-app{
+  --chrome-edge:rgba(255,255,255,.48);
+  --chrome-depth:#120a23;
+  background:
+    radial-gradient(ellipse 85% 35% at 15% 0%,rgba(255,56,144,.17),transparent 72%),
+    radial-gradient(ellipse 80% 40% at 100% 55%,rgba(136,67,255,.14),transparent 78%),
+    linear-gradient(168deg,#170a24,#090713 52%,#110b23)!important;
+}
+.nexus-app .brand-stack .brand-slash{
+  display:inline!important;font-size:1em!important;font-weight:1000!important;
+  letter-spacing:-.07em!important;color:var(--lime)!important;
+  text-shadow:0 0 20px rgba(191,255,57,.75)!important;
+}
+.nexus-app .nexus-header .brand-stack>b{filter:drop-shadow(0 4px 12px rgba(255,60,165,.4))}
+.nexus-app :is(.hero-deck,.live-pad-stage,.main-mixer,.auto-track-panel){
+  position:relative;isolation:isolate;
+}
+.nexus-app :is(.hero-deck,.live-pad-stage,.main-mixer,.auto-track-panel)::after{
+  content:"";position:absolute;inset:1px;border-radius:inherit;
+  background:linear-gradient(118deg,rgba(255,255,255,.14),transparent 34%,transparent 73%,rgba(191,255,57,.04));
+  pointer-events:none;z-index:0;
+}
+.nexus-app :is(.hero-deck,.live-pad-stage,.main-mixer,.auto-track-panel)>*{
+  position:relative;z-index:1;
+}
+.nexus-app .live-pad-stage{
+  background:
+    radial-gradient(circle at 12% 0%,rgba(255,56,144,.27),transparent 45%),
+    radial-gradient(circle at 98% 100%,rgba(191,255,57,.11),transparent 47%),
+    linear-gradient(145deg,#2c173b,#0e0a1c 72%)!important;
+  box-shadow:inset 0 1px 0 var(--chrome-edge),0 12px 38px rgba(0,0,0,.7),0 0 36px rgba(249,48,155,.18)!important;
+}
+.nexus-app .live-pad-stage #pads .pad{
+  position:relative;overflow:hidden;transform:translateZ(0);
+  transition:transform 90ms cubic-bezier(.2,.9,.25,1),box-shadow 90ms ease,filter 90ms ease!important;
+}
+.nexus-app .live-pad-stage #pads .pad:is(:focus-visible,:active,.pressed){
+  border-color:var(--tone)!important;
+  filter:brightness(1.28) saturate(1.13)!important;
+  box-shadow:0 0 0 2px color-mix(in srgb,var(--tone) 66%,white),0 0 30px color-mix(in srgb,var(--tone) 62%,transparent),inset 0 2px rgba(255,255,255,.35)!important;
+}
+.nexus-app .hero-deck{
+  background:
+    radial-gradient(ellipse at 25% 0%,rgba(255,80,158,.36),transparent 65%),
+    linear-gradient(138deg,#352045,#100b20 55%,#260f36)!important;
+}
+.nexus-app .hero-deck .deck-disc{
+  background:conic-gradient(from 220deg,#140e26,#503458 22%,#0a091b 49%,#42314b 80%,#140e26)!important;
+  box-shadow:inset 0 3px 8px rgba(255,255,255,.13),inset 0 -8px 13px #000!important;
+}
+.nexus-app .hero-deck .deck-play .deck-disc{
+  box-shadow:0 0 0 4px #2a1d32,0 0 29px rgba(191,255,57,.45),inset 0 0 15px rgba(191,255,57,.18)!important;
+}
+.nexus-app .hero-deck .deck-record .deck-disc{
+  box-shadow:0 0 0 4px #2a1d32,0 0 29px rgba(255,64,141,.45),inset 0 0 15px rgba(255,64,141,.21)!important;
+}
+.nexus-app :is(.deck-transport,.chrome-icon,.creator-actions button,.bottomnav button){
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+}
+.nexus-app .bottomnav{
+  padding-bottom:max(3px,env(safe-area-inset-bottom))!important;
+  min-height:calc(71px + env(safe-area-inset-bottom))!important;
+  background:linear-gradient(145deg,rgba(59,29,75,.96),rgba(9,7,19,.97))!important;
+  box-shadow:0 -9px 40px rgba(255,64,141,.34),inset 0 1px rgba(255,255,255,.6)!important;
+}
+.nexus-app .bottomnav button{min-width:0;min-height:48px}
+.nexus-app .bottomnav button.active{
+  color:#10161a!important;background:linear-gradient(135deg,#d6ff75,#79f8e0)!important;
+  border-color:#edffaf!important;box-shadow:0 0 17px rgba(191,255,57,.37)!important;
+}
+.nexus-app .bottomnav button.active span{color:#132019!important;text-shadow:none!important}
+.nexus-app :is(button,summary,input,select):focus-visible{
+  outline:3px solid #eaff94!important;outline-offset:2px!important;
+}
+@media(min-width:700px){
+  .nexus-app{box-shadow:0 0 0 1px #85477d,0 30px 90px rgba(0,0,0,.85),0 0 90px rgba(255,54,150,.2)!important}
+}
+@media(max-width:359px){
+  .nexus-app .nexus-header{gap:4px!important}
+  .nexus-app .brand-stack>b{font-size:clamp(19px,6.5vw,24px)!important}
+  .nexus-app .live-pad-stage #pads{gap:4px!important}
+  .nexus-app .live-pad-stage #pads .pad{min-height:72px!important;padding-inline:2px!important}
+  .nexus-app .bottomnav{width:100vw!important;border-radius:15px 15px 0 0!important}
+  .nexus-app .bottomnav button{font-size:8px!important}
+}
+@media(prefers-reduced-motion:reduce){
+  .nexus-app .live-pad-stage #pads .pad{transition:none!important}
+}
