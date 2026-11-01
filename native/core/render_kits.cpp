@@ -1,4 +1,4 @@
-#include "DrumSynth.hpp"
+#include "../modules/artss-audio/cpp/core/DrumSynth.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
