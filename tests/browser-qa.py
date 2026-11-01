@@ -27,7 +27,7 @@ with sync_playwright() as playwright:
   context.route('https://artss.test/**',serve_static)
   URL='https://artss.test/'
  page.on('crash',lambda _:errors.append('Browser renderer crashed'))
- page.goto(URL,wait_until='networkidle');assert 'ARTSS / LIVE 32' in page.title(),page.title()
+ page.goto(URL,wait_until='networkidle');assert 'ARTSS NEXUS' in page.title(),page.title()
  try:
   page.wait_for_function("document.querySelectorAll('#pads .pad').length===8",timeout=15000)
  except Exception as exc:
@@ -49,9 +49,8 @@ with sync_playwright() as playwright:
  page.wait_for_function("document.documentElement.lang==='ru' && document.querySelector('#play').textContent.includes('ПУСК')",timeout=4000)
  assert page.locator('#languageToggle').get_attribute('aria-pressed')=='false'
  assert page.locator('[data-kit="0"]').is_visible()
- assert page.locator('link[rel="stylesheet"]').count()==2
+ assert page.locator('link[rel="stylesheet"]').count()==1
  assert page.locator('link[rel="stylesheet"]').nth(0).get_attribute('href')=='/studio27.css'
- assert page.locator('link[rel="stylesheet"]').nth(1).get_attribute('href')=='/chroma-rift.css'
  grid=page.locator('#pads').evaluate("el=>getComputedStyle(el).gridTemplateColumns.split(' ').length")
  assert grid==4,('Reference requires 4 pads per row',grid)
  positions=page.locator('.pad').evaluate_all("els=>els.map(e=>Math.round(e.getBoundingClientRect().top))")
@@ -176,7 +175,7 @@ with sync_playwright() as playwright:
  assert page.locator('#abyssPads button').count()==16
  assert page.locator('[data-abyss-id="32"]').is_visible()
  page.locator('[data-abyss-id="17"]').tap()
- page.wait_for_function("document.querySelector('#abyssStatus').textContent.includes('Analog Lead')",timeout=8000)
+ page.wait_for_function("document.querySelector('#abyssStatus').textContent.includes('909 Kick')",timeout=8000)
  # An active Abyss loop must survive page switching and export through the master.
  page.locator('[data-pane="takes"]').tap()
  with page.expect_download(timeout=60000) as abyss_event: page.locator('#export').tap()

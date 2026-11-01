@@ -31,7 +31,7 @@ export class AbyssPlayer{
   const sidechain=context.createGain(),input=context.createGain(),dry=context.createGain(),send=context.createGain(),delay=context.createDelay(2),feedback=context.createGain();
   const room=context.createConvolver(),wet=context.createGain(),master=context.createGain();
   // Deterministic, damped stereo room impulse. No external capture or missing sample fallback.
-  room.buffer=roomImpulse(context);delay.delayTime.value=60/ABYSS_BPM*.75;feedback.gain.value=ABYSS_FX.delay.feedback;send.gain.value=ABYSS_FX.delay.dry_wet;wet.gain.value=ABYSS_FX.reverb.dry_wet;dry.gain.value=.85;master.gain.value=.33;
+  room.buffer=roomImpulse(context);delay.delayTime.value=60/ABYSS_BPM*.75;feedback.gain.value=ABYSS_FX.delay.feedback;send.gain.value=ABYSS_FX.delay.dry_wet;wet.gain.value=ABYSS_FX.reverb.dry_wet;dry.gain.value=.85;master.gain.value=.28;
   input.connect(filter).connect(sidechain);sidechain.connect(dry).connect(master);
   sidechain.connect(send).connect(delay);delay.connect(feedback).connect(delay);delay.connect(master);
   sidechain.connect(room).connect(wet).connect(master);master.connect(output);
@@ -60,7 +60,7 @@ export class AbyssPlayer{
  }
  async trigger(id:number):Promise<void>{const pad=ABYSS_PADS[id-1];if(!pad)throw Error('Неизвестный пэд');
   await this.engine.unlock();this.connect();const epoch=(this.generations.get(id)??0)+1;this.generations.set(id,epoch);
-  if(this.voices.has(id)){this.stopVoice(id,this.boundary(pad.quantize));return;}
+  if(this.voices.has(id)){this.stopVoice(id,pad.type==='loop'?this.boundary(pad.quantize):this.context!.currentTime);if(pad.type==='loop')return;}
   const buffer=await this.load(pad);if(this.generations.get(id)!==epoch)return;
   const ctx=this.context!,when=this.boundary(pad.quantize);
   if(pad.choke_group)for(const [other,voice] of this.voices)if(other!==id&&voice.pad.choke_group===pad.choke_group)this.stopVoice(other,when);
@@ -74,7 +74,7 @@ export class AbyssPlayer{
  private renderOffline(ctx:OfflineAudioContext,bus:AudioNode,seconds:number){if(!this.voices.size)return;
   const filter=ctx.createBiquadFilter(),level=ctx.createGain(),delay=ctx.createDelay(2),send=ctx.createGain(),feedback=ctx.createGain(),room=ctx.createConvolver(),wet=ctx.createGain(),side=ctx.createGain();
   filter.type='lowpass';filter.frequency.value=ABYSS_FX.lowpass_filter.cutoff;filter.Q.value=ABYSS_FX.lowpass_filter.resonance;
-  level.gain.value=.33;delay.delayTime.value=60/ABYSS_BPM*.75;send.gain.value=ABYSS_FX.delay.dry_wet;feedback.gain.value=ABYSS_FX.delay.feedback;
+  level.gain.value=.28;delay.delayTime.value=60/ABYSS_BPM*.75;send.gain.value=ABYSS_FX.delay.dry_wet;feedback.gain.value=ABYSS_FX.delay.feedback;
   room.buffer=roomImpulse(ctx);wet.gain.value=ABYSS_FX.reverb.dry_wet;
   filter.connect(side).connect(level).connect(bus);side.connect(send).connect(delay);delay.connect(feedback).connect(delay);delay.connect(level);
   side.connect(room).connect(wet).connect(level);

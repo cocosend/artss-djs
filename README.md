@@ -4,7 +4,7 @@ Mobile Web Audio PWA for iOS and Android. Eight real WAV pads, four A–D patter
 
 ## Live 32
 
-The performance page now starts with eight playable pads in a 4×2 grid, followed by a compact transport and the 16-step sequencer. The color system uses black, warm yellow, off-white, and a restrained red recording accent. Local track automix is expanded by default for two or three user-owned audio files. The Abyss percussion loops are assembled from bundled recorded CC0 one-shots; tonal and texture loops are still generated. No commercial tracks or licensed vocals are bundled.
+The performance page starts with eight playable pads in a 4×2 grid, followed by a compact transport and the 16-step sequencer. The color system uses black, warm yellow, off-white, and a restrained red recording accent. Local track automix supports two or three user-owned audio files. No commercial tracks or licensed vocals are bundled.
 
 ## Previous v31 music styles
 
@@ -16,6 +16,8 @@ Groove generation now produces different fills, accents, bass and rhythmic densi
 
 `npm run check` checks TypeScript, compiles, packages and runs Node tests. `python3 tests/browser-qa.py chromium` and `python3 tests/browser-qa.py webkit` cover the interactive mobile flows when Playwright browser binaries are available. Native iOS release builds and on-device audio latency/FPS measurements require a Mac and physical iPhone; this PWA does not claim native CoreAudio performance.
 
-## Dark Melodic Techno — Abyss (PRE_MT_2026_10)
+## 303 / 606 / 909 drum machine (v33)
 
-32 original local WAV sounds at 124 BPM in Am. Open **ОТКРЫТЬ LIVE SET →** and switch between A (16 loops) and B (16 one shots). The sampler uses bar or half-bar quantization, per-group choke, a damped room, 3/8 delay and kick-triggered ducking, mixed into the existing protected master. The four-by-two drum performance pads and existing local projects remain intact. Vocal-named pads contain synthesized tonal/noise textures, not actual recorded vocals or intelligible words.
+Open **ДРАМ-МАШИНА · 303 / 606 / 909 →** for A (16 one-bar grooves) and B (16 individual hits). All 32 files are generated at build time by `native/core/DrumSynth.cpp` and `native/core/render_kits.cpp` using original synthesis. No vendor factory samples or third-party drum ROMs are included. Four groups of loops quantize to the next bar and replace others in the same group; one shots retrigger on repeated taps. The sampler is routed through the existing protected master. Factory performance pads, 16-step sequence, session storage, and imported user samples remain intact.
+
+The portable C++ core also pre-renders eight fixed stock voices when it starts, then mixes preallocated voices in its real-time callback. Its iOS bridge in `native/` is still source-only: this repository has no complete Xcode app project or signed IPA. The deployed PWA plays the C++-authored files through Web Audio. Run `npm run check` and the C++ command in `native/README.md` before shipping.
