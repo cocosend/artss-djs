@@ -10,6 +10,11 @@ RCT_EXPORT_MODULE(NativeDJAudio)
 - (void)setMaster:(double)level {[[ARTSSAudioDevice shared] setMaster:(float)level];}
 - (void)setFilter:(double)position {[[ARTSSAudioDevice shared] setFilter:(float)position];}
 - (void)setTempo:(double)bpm {[[ARTSSAudioDevice shared] setTempo:(float)bpm];}
+- (void)setCrossfader:(double)position {[[ARTSSAudioDevice shared] setCrossfader:(float)position];}
+- (void)setEQ:(double)low mid:(double)mid high:(double)high {[[ARTSSAudioDevice shared] setEQLow:(float)low mid:(float)mid high:(float)high];}
+- (NSNumber *)setStep:(double)pad step:(double)step velocity:(double)velocity {return @([[ARTSSAudioDevice shared] setStepPad:(NSInteger)pad step:(NSInteger)step velocity:(float)velocity]);}
+- (void)clearPattern {[[ARTSSAudioDevice shared] clearPattern];}
+- (NSNumber *)getCurrentStep {return @([[ARTSSAudioDevice shared] currentStep]);}
 - (NSNumber *)getMeter {return @([[ARTSSAudioDevice shared] meter]);}
 - (std::shared_ptr<facebook::react::TurboModule>)getTurboModule:(const facebook::react::ObjCTurboModule::InitParams &)params {
  return std::make_shared<facebook::react::NativeDJAudioSpecJSI>(params);
