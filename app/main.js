@@ -494,51 +494,48 @@ const init = () => {
         pen.lineTo(width, height / 2);
         pen.stroke();
         const hasAudio = engine.readWaveform(signalData);
-        // Batch strokes; avoid per-bar shadowBlur, which stalls WebKit during audio capture.
+        // Peak envelope comes from the actual post-limiter master, not an animation.
+        // One stroke per color keeps Canvas work bounded even at 60 Hz on iOS.
+        const colors = ['#48e4d0', '#ffe45b', '#ff7250', '#f8faff'];
         pen.lineWidth = 3;
-        pen.strokeStyle = '#ffe400';
-        pen.beginPath();
-        for (let i = 0; i < 104; i += 4) {
-            const x = i * width / 256;
-            const y = hasAudio ? ((signalData[i] ?? 128) - 128) / 128 : 0;
-            const amp = hasAudio ? Math.max(2, Math.abs(y) * (height * .37)) : 2;
-            pen.moveTo(x, height / 2 - amp);
-            pen.lineTo(x, height / 2 + amp);
+        for (let band = 0; band < colors.length; band++) {
+            pen.strokeStyle = colors[band];
+            pen.beginPath();
+            for (let i = band; i < 64; i += colors.length) {
+                let peak = 0;
+                if (hasAudio)
+                    for (let j = i * 4; j < i * 4 + 4; j++)
+                        peak = Math.max(peak, Math.abs((signalData[j] ?? 128) - 128) / 128);
+                const x = (i + .5) * width / 64, amp = Math.max(1.5, peak * height * .45);
+                pen.moveTo(x, height / 2 - amp);
+                pen.lineTo(x, height / 2 + amp);
+            }
+            pen.stroke();
         }
-        pen.stroke();
-        pen.strokeStyle = '#f8faff';
-        pen.beginPath();
-        for (let i = 104; i < 256; i += 4) {
-            const x = i * width / 256;
-            const y = hasAudio ? ((signalData[i] ?? 128) - 128) / 128 : 0;
-            const amp = hasAudio ? Math.max(2, Math.abs(y) * (height * .37)) : 2;
-            pen.moveTo(x, height / 2 - amp);
-            pen.lineTo(x, height / 2 + amp);
-        }
-        pen.stroke();
         pen.strokeStyle = '#ff2736';
         pen.lineWidth = 2.5;
         pen.beginPath();
-        pen.moveTo(width * .52, 2);
-        pen.lineTo(width * .52, height - 2);
+        pen.moveTo(width * .5, 2);
+        pen.lineTo(width * .5, height - 2);
         pen.stroke();
     };
-    let visualAt = 0, meterAt = 0, meterPercent = -1;
+    let visualAt = 0, meterAt = 0, meterPercent = -1, meterSmooth = 0;
     const outputMeter = $('#outputMeter'), pulseDot = $('#pulseDot');
     const vu = (now) => {
         requestAnimationFrame(vu);
         if (document.visibilityState !== 'visible' || pane !== 'main')
             return;
-        if (now - meterAt >= 55) {
+        if (now - meterAt >= 32) {
             meterAt = now;
-            const value = Math.round(Math.min(100, engine.meterLevel * 100));
+            meterSmooth += ((engine.meterLevel * 100) - meterSmooth) * .22;
+            const value = Math.round(Math.min(100, meterSmooth));
             if (value !== meterPercent) {
                 meterPercent = value;
                 outputMeter.style.width = value + '%';
             }
             pulseDot.classList.toggle('on', engine.state === 'PLAY');
         }
-        if (now - visualAt >= 50) {
+        if (now - visualAt >= (engine.state === 'PLAY' ? 16 : 100)) {
             visualAt = now;
             drawSignal();
         }

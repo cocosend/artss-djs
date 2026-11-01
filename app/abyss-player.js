@@ -62,7 +62,7 @@ export class AbyssPlayer {
         send.gain.value = ABYSS_FX.delay.dry_wet;
         wet.gain.value = ABYSS_FX.reverb.dry_wet;
         dry.gain.value = .85;
-        master.gain.value = .33;
+        master.gain.value = .28;
         input.connect(filter).connect(sidechain);
         sidechain.connect(dry).connect(master);
         sidechain.connect(send).connect(delay);
@@ -146,8 +146,9 @@ export class AbyssPlayer {
         const epoch = (this.generations.get(id) ?? 0) + 1;
         this.generations.set(id, epoch);
         if (this.voices.has(id)) {
-            this.stopVoice(id, this.boundary(pad.quantize));
-            return;
+            this.stopVoice(id, pad.type === 'loop' ? this.boundary(pad.quantize) : this.context.currentTime);
+            if (pad.type === 'loop')
+                return;
         }
         const buffer = await this.load(pad);
         if (this.generations.get(id) !== epoch)
@@ -182,7 +183,7 @@ export class AbyssPlayer {
         filter.type = 'lowpass';
         filter.frequency.value = ABYSS_FX.lowpass_filter.cutoff;
         filter.Q.value = ABYSS_FX.lowpass_filter.resonance;
-        level.gain.value = .33;
+        level.gain.value = .28;
         delay.delayTime.value = 60 / ABYSS_BPM * .75;
         send.gain.value = ABYSS_FX.delay.dry_wet;
         feedback.gain.value = ABYSS_FX.delay.feedback;

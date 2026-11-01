@@ -12,7 +12,7 @@ constexpr size_t kQueueCapacity = 256;
 constexpr size_t kMaxSampleFrames = 192000; // 4 seconds @48k
 
 struct Trigger { uint8_t pad; float velocity; uint64_t whenFrame; };
-struct Voice { bool active=false; uint8_t pad=0; float pos=0; float env=0; float velocity=0; uint32_t phase=0; uint32_t age=0; float lp=0; };
+struct Voice { bool active=false; uint8_t pad=0; float pos=0; float velocity=0; uint32_t age=0; };
 
 /** Single-producer control queue, single-consumer render thread; no allocations in callback. */
 class TriggerQueue final {
@@ -59,7 +59,6 @@ class AudioCore final {
   std::atomic<float> master_{.82f},filter_{1.f},tempo_{136.f},meter_{0.f};
   std::atomic<bool> running_{false};
   std::atomic<uint64_t> frames_{0};
-  uint32_t noise_{0xD3AAB851u};
   float limiter_=1.f,lowpass_=0.f;
   void startVoice(uint8_t pad,float velocity) noexcept;
   float voiceSample(Voice& voice) noexcept;

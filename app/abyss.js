@@ -1,40 +1,44 @@
-export const ABYSS_ID = 'PRE_MT_2026_10';
+/** 32 original C++ rendered voices; IDs stay stable for the two-page sampler. */
+export const ABYSS_ID = 'ARTSS_DRUM_MACHINE_01';
 export const ABYSS_BPM = 124;
-export const ABYSS_FX = { reverb: { dry_wet: .35, room_size: .85, damping: 5000 }, delay: { dry_wet: .25, time: '3/8', feedback: .4 }, lowpass_filter: { cutoff: 8000, resonance: 1.2, envelope_follower: true }, sidechain_compressor: { threshold: -20, ratio: 4, attack_ms: 10, release_ms: 250, source: 'pad_1' } };
-const rows = [
-    ['Punchy Techno Kick', 'Drums', '1/1', '#FF3B30', 0, 'kick_mt_124.wav'],
-    ['Dark Room Clap', 'Drums', '1/1', '#FF3B30', 0, 'clap_dark_124.wav'],
-    ['Driving 16th Hats', 'Drums', '1/2', '#FF9500', 0, 'hats_drive_124.wav'],
-    ['Industrial Percussion', 'Drums', '1/2', '#FF9500', 0, 'perc_ind_124.wav'],
-    ['Deep Sub Foundation', 'Bass', '1/1', '#007AFF', 1, 'bass_sub_am.wav'],
-    ['Rolling Bassline', 'Bass', '1/1', '#007AFF', 1, 'bass_rolling_am.wav'],
-    ['Reese Bass Swell', 'Bass', '2/1', '#5AC8FA', 1, 'bass_reese_am.wav'],
-    ['Moog Arp Bass', 'Bass', '1/1', '#5AC8FA', 1, 'bass_arp_am.wav'],
-    ['Main Dark Detune Synth', 'Melody', '1/1', '#34C759', 2, 'synth_dark_main_am.wav'],
-    ['Hypnotic Pluck', 'Melody', '1/1', '#34C759', 2, 'synth_pluck_hyp_am.wav'],
-    ['Brass Stab Riff', 'Melody', '1/1', '#4CD964', 2, 'brass_stab_riff_am.wav'],
-    ['Acid Arpeggio', 'Melody', '1/2', '#4CD964', 2, 'acid_arp_124_am.wav'],
-    ['Ethereal Drone Pad', 'Synth', '2/1', '#5856D6', 3, 'pad_drone_am.wav'],
-    ['Choir of the Abyss', 'Synth', '2/1', '#5856D6', 3, 'pad_choir_am.wav'],
-    ['Dark Whisper Vox', 'Vocals', '1/1', '#AF52DE', 0, 'vox_whisper_loop.wav'],
-    ['Vinyl Noise Texture', 'Synth', '1/1', '#AF52DE', 0, 'texture_noise.wav'],
-    ['Analog Lead A3', 'Live Lead', 'none', '#FF2D55', 4, 'lead_hit_a3.wav'],
-    ['Analog Lead C4', 'Live Lead', 'none', '#FF2D55', 4, 'lead_hit_c4.wav'],
-    ['Analog Lead E4', 'Live Lead', 'none', '#FF2D55', 4, 'lead_hit_e4.wav'],
-    ['Analog Lead G4', 'Live Lead', 'none', '#FF2D55', 4, 'lead_hit_g4.wav'],
-    ['Huge Sub Drop', 'FX Bass', 'none', '#5AC8FA', 5, 'sub_drop_am.wav'],
-    ['Deep Cinematic Tom', 'FX Drums', 'none', '#FF9500', 0, 'tom_cinematic.wav'],
-    ['Dark Synth Sweep', 'FX Synth', 'none', '#34C759', 5, 'synth_sweep.wav'],
-    ['Reverb Kick Impact', 'FX Drums', 'none', '#FF3B30', 0, 'kick_reverb_impact.wav'],
-    ['Vox Breath', 'Live Vox', 'none', '#E55696', 6, 'vox_breath.wav'],
-    ["Vox 'Lost'", 'Live Vox', 'none', '#E55696', 6, 'vox_lost.wav'],
-    ['Vox Echo Glitch', 'Live Vox', 'none', '#E55696', 6, 'vox_glitch.wav'],
-    ["Vox 'Time'", 'Live Vox', 'none', '#E55696', 6, 'vox_time.wav'],
-    ['Abyss Impact', 'Transitions', 'none', '#8E8E93', 0, 'fx_impact_abyss.wav'],
-    ['Tension Riser 4 Bars', 'Transitions', '1/1', '#8E8E93', 0, 'fx_riser_4b.wav'],
-    ['White Noise Wash', 'Transitions', 'none', '#8E8E93', 0, 'fx_noise_wash.wav'],
-    ['Techno Fill 1 Bar', 'Transitions', '1/1', '#666666', 0, 'fx_fill_techno.wav']
+export const ABYSS_FX = { reverb: { dry_wet: .14, room_size: .65, damping: 5000 }, delay: { dry_wet: .12, time: '3/8', feedback: .25 }, lowpass_filter: { cutoff: 14000, resonance: .7, envelope_follower: true }, sidechain_compressor: { threshold: -20, ratio: 4, attack_ms: 10, release_ms: 250, source: 'pad_1' } };
+const loops = [
+    ['909 Foundation', '909', '909_foundation', '#ff4c56'],
+    ['909 Warehouse', '909', '909_warehouse', '#ff4c56'],
+    ['909 Shuffle', '909', '909_shuffle', '#ff4c56'],
+    ['909 Ride', '909', '909_ride', '#ff4c56'],
+    ['606 Classic', '606', '606_classic', '#f8d855'],
+    ['606 Break', '606', '606_break', '#f8d855'],
+    ['606 Hats', '606', '606_hats', '#f8d855'],
+    ['606 Toms', '606', '606_toms', '#f8d855'],
+    ['303 Acid', '303', '303_acid', '#45e3d3'],
+    ['303 Resonance', '303', '303_resonance', '#45e3d3'],
+    ['303 Subline', '303', '303_subline', '#45e3d3'],
+    ['303 Drive', '303', '303_drive', '#45e3d3'],
+    ['Hybrid Peak', 'HYBRID', 'hybrid_peak', '#a994f5'],
+    ['Hybrid Rolling', 'HYBRID', 'hybrid_rolling', '#a994f5'],
+    ['Hybrid Minimal', 'HYBRID', 'hybrid_minimal', '#a994f5'],
+    ['Hybrid Fill', 'HYBRID', 'hybrid_fill', '#a994f5']
 ];
-export const ABYSS_PADS = rows.map(([name, group, quantize, color, choke_group, file], index) => ({
-    id: index + 1, name, type: index < 16 ? 'loop' : 'one_shot', group, quantize: quantize, color, choke_group, file
-}));
+const hits = [
+    ['909 Kick', '909', '909_kick', '#ff4c56'],
+    ['606 Kick', '606', '606_kick', '#f8d855'],
+    ['909 Snare', '909', '909_snare', '#ff4c56'],
+    ['606 Snare', '606', '606_snare', '#f8d855'],
+    ['909 Clap', '909', '909_clap', '#ff4c56'],
+    ['606 Hat', '606', '606_hat', '#f8d855'],
+    ['909 Open Hat', '909', '909_open_hat', '#ff4c56'],
+    ['606 Rim', '606', '606_rim', '#f8d855'],
+    ['909 Tom', '909', '909_tom', '#ff4c56'],
+    ['606 Cowbell', '606', '606_cowbell', '#f8d855'],
+    ['909 Ride', '909', '909_ride_hit', '#ff4c56'],
+    ['303 Acid', '303', '303_acid_hit', '#45e3d3'],
+    ['303 Sub', '303', '303_sub_hit', '#45e3d3'],
+    ['606 Perc', '606', '606_perc', '#f8d855'],
+    ['909 Shaker', '909', '909_shaker', '#ff4c56'],
+    ['909 Crash', '909', '909_crash', '#ff4c56']
+];
+export const ABYSS_PADS = [
+    ...loops.map(([name, group, file, color], index) => ({ id: index + 1, name, group, file: file + '.wav', color, type: 'loop', quantize: '1/1', choke_group: Math.floor(index / 4) + 1 })),
+    ...hits.map(([name, group, file, color], index) => ({ id: index + 17, name, group, file: file + '.wav', color, type: 'one_shot', quantize: 'none', choke_group: 0 }))
+];

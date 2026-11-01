@@ -2,7 +2,8 @@
 
 This directory is **native iOS source**, not the Vercel/PWA build. It contains:
 
-- `core/AudioCore.*` — fixed-voice DSP, lock-free SPSC trigger queue, per-voice sample playback or synthesizer fallback, realtime-safe render callback (no allocations or locks in `render`).
+- `core/AudioCore.*` — fixed-voice DSP, lock-free SPSC trigger queue, per-voice sample playback of pre-rendered stock sounds, realtime-safe render callback (no allocations or locks in `render`).
+- `core/DrumSynth.*` — sixteen deterministic, original 303/606/909-inspired percussion and acid/sub voices rendered on a control thread. `render_kits.cpp` uses the same source to author the 32 WAVs on the PWA's second page at build time. The browser playback itself remains Web Audio.
 - `ios/ARTSSAudioDevice.mm` — iOS `RemoteIO` AudioUnit render callback and AVAudioSession setup.
 - `ios/RCTDJAudio.*` / `specs/NativeDJAudio.ts` — New Architecture TurboModule Codegen/JSI typed interface.
 - `app/CreatorScreen.tsx` — React Native Fabric screen using Gesture Handler, Reanimated 4 worklets and GPU Skia visual area.
@@ -14,7 +15,7 @@ Use React Native New Architecture (0.82+), React 19, compatible Reanimated 4 + `
 DSP kernel validation (Linux/macOS):
 
 ```bash
-g++ -std=c++20 -O2 -Wall -Wextra -pedantic native/core/AudioCore.cpp native/core/test.cpp -o /tmp/artss-native-dsp-test && /tmp/artss-native-dsp-test
+g++ -std=c++20 -O2 -Wall -Wextra -pedantic native/core/AudioCore.cpp native/core/DrumSynth.cpp native/core/test.cpp -o /tmp/artss-native-dsp-test && /tmp/artss-native-dsp-test
 ```
 
 RT contract: audio render thread only touches preallocated storage/atomics; no JS bridge, filesystem, logging, locks, allocations, network or decode inside render. Sample replacement is accepted only while stopped. Device output latency is not guaranteed by a preferred buffer duration setting.
