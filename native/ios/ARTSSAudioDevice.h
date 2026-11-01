@@ -9,6 +9,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setMaster:(float)value;
 - (void)setFilter:(float)value;
 - (void)setTempo:(float)bpm;
+- (void)setCrossfader:(float)position;
+- (void)setEQLow:(float)low mid:(float)mid high:(float)high;
+- (BOOL)setStepPad:(NSInteger)pad step:(NSInteger)step velocity:(float)velocity;
+- (void)clearPattern;
+- (NSInteger)currentStep;
 - (float)meter;
 @end
 NS_ASSUME_NONNULL_END

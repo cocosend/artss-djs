@@ -45,11 +45,18 @@ class AudioCore final {
   void setFilter(float amount) noexcept;
   void setTempo(float bpm) noexcept;
   void setRunning(bool running) noexcept;
+  // Control thread only, after AudioUnit has stopped; preserves pattern/samples.
+  void resetStopped() noexcept;
+  void setCrossfader(float position) noexcept;
+  void setEQ(float lowDb,float midDb,float highDb) noexcept;
+  bool setStep(uint8_t pad,uint8_t step,float velocity) noexcept;
+  void clearPattern() noexcept;
   // Main-thread only, call while the AudioUnit is stopped.
   bool replaceSample(uint8_t pad,const float* mono,size_t frames) noexcept;
   void render(float* left,float* right,size_t frames) noexcept;
   uint64_t renderedFrames() const noexcept{return frames_.load(std::memory_order_relaxed);}
   float meter() const noexcept{return meter_.load(std::memory_order_relaxed);}
+  uint8_t currentStep() const noexcept{return currentStep_.load(std::memory_order_relaxed);}
  private:
   struct Sample { std::unique_ptr<float[]> pcm;size_t frames=0; };
   float sampleRate_;
@@ -57,9 +64,18 @@ class AudioCore final {
   std::array<Sample,kPads> samples_{};
   std::array<Voice,kMaxVoices> voices_{};
   std::atomic<float> master_{.82f},filter_{1.f},tempo_{136.f},meter_{0.f};
+  std::atomic<float> crossfader_{.5f},eqLow_{0.f},eqMid_{0.f},eqHigh_{0.f};
+  std::array<std::array<std::atomic<float>,16>,kPads> pattern_{};
+  std::atomic<uint8_t> currentStep_{0};
   std::atomic<bool> running_{false};
   std::atomic<uint64_t> frames_{0};
-  float limiter_=1.f,lowpass_=0.f;
+  double nextStepFrame_=0.;
+  uint8_t step_=0;
+  bool wasRunning_=false;
+  float masterSmooth_=0.f,crossSmooth_=.5f,filterSmooth_=1.f;
+  float lowGainSmooth_=1.f,midGainSmooth_=1.f,highGainSmooth_=1.f;
+  float lowpassL_=0.f,lowpassR_=0.f;
+  float bassL_=0.f,bassR_=0.f,trebleL_=0.f,trebleR_=0.f;
   void startVoice(uint8_t pad,float velocity) noexcept;
   float voiceSample(Voice& voice) noexcept;
 };

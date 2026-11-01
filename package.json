@@ -6,6 +6,7 @@
     "compile": "tsc",
     "build": "npm run compile && node scripts/build.mjs",
     "test": "node --test tests/*.test.mjs",
-    "check": "npm run typecheck && npm run compile && npm run build && npm test"
+    "native:syntax": "node scripts/check-native.mjs",
+    "check": "npm run typecheck && npm run compile && npm run build && npm test && npm run native:syntax"
   }
 }
