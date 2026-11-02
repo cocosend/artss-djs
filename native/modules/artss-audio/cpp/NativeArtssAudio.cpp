@@ -20,6 +20,21 @@ class RealtimeControls final : public jsi::HostObject {
     if (name == "invalidBuffers") return static_cast<double>(backend_->invalidBuffers());
     if (name == "deckPosition0") return engine_->deckPosition(0);
     if (name == "deckPosition1") return engine_->deckPosition(1);
+    if (name == "deckBpm0") return engine_->deckBpm(0);
+    if (name == "deckBpm1") return engine_->deckBpm(1);
+    if (name == "deckRate0") return engine_->deckPlaybackRate(0);
+    if (name == "deckRate1") return engine_->deckPlaybackRate(1);
+    if (name == "deckFirstBeat0") return engine_->deckFirstBeat(0);
+    if (name == "deckFirstBeat1") return engine_->deckFirstBeat(1);
+    if (name == "deckSync") {
+      return jsi::Function::createFromHostFunction(runtime, property, 1,
+          [engine = engine_](jsi::Runtime&, const jsi::Value&, const jsi::Value* args, std::size_t count) -> jsi::Value {
+            if (count < 1 || !args[0].isNumber()) return false;
+            const double deck = args[0].asNumber();
+            return std::isfinite(deck) && deck == std::floor(deck) && deck >= 0 && deck < 2 &&
+                   engine->deckSync(static_cast<std::uint32_t>(deck));
+          });
+    }
     if (name == "deckPlaying0") return engine_->deckPlaying(0);
     if (name == "deckPlaying1") return engine_->deckPlaying(1);
     if (name == "currentStep") return static_cast<double>(engine_->currentStep());
