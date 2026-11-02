@@ -2,7 +2,7 @@ import {useEffect, useMemo, useRef, useState} from 'react';
 import {ActivityIndicator, Pressable, ScrollView, StatusBar, StyleSheet, Text, useWindowDimensions, View} from 'react-native';
 import {Gesture, GestureDetector, GestureHandlerRootView} from 'react-native-gesture-handler';
 import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
-import {Canvas, Path, Rect, Skia} from '@shopify/react-native-skia';
+import {Canvas, Circle, Path, Rect, Skia} from '@shopify/react-native-skia';
 import {useDerivedValue, useFrameCallback, useSharedValue} from 'react-native-reanimated';
 import {loadPreset, pickTrack, type PadIndex, type RealtimeControls, type TrackInfo} from 'react-native-artss-audio';
 import {useAudioSession} from './audio/useAudioSession';
@@ -30,10 +30,11 @@ function time(seconds: number): string {
   return `${Math.floor(value / 60).toString().padStart(2, '0')}:${(value % 60).toString().padStart(2, '0')}`;
 }
 
-function WaveStrip({deck, controls, track, color}: {deck: DeckIndex; controls: RealtimeControls; track: TrackInfo | null; color: string}) {
+function WaveStrip({deck, controls, track, color, enabled}: {deck: DeckIndex; controls: RealtimeControls; track: TrackInfo | null; color: string; enabled: boolean}) {
   const [width, setWidth] = useState(1);
   const progress = useSharedValue(0);
-  useFrameCallback(() => { progress.value = deck === 0 ? controls.deckPosition0 : controls.deckPosition1; });
+  const dragging = useSharedValue(false);
+  useFrameCallback(() => { if (!dragging.value) progress.value = deck === 0 ? controls.deckPosition0 : controls.deckPosition1; });
   const playhead = useDerivedValue(() => progress.value * width);
   const path = useMemo(() => {
     const result = Skia.Path.Make();
@@ -45,19 +46,57 @@ function WaveStrip({deck, controls, track, color}: {deck: DeckIndex; controls: R
     });
     return result;
   }, [track, width]);
-  const seek = Gesture.Pan().minDistance(0).onUpdate(event => {
+  const seek = Gesture.Pan().minDistance(0).onBegin(() => {
     'worklet';
+    dragging.value = enabled;
+  }).onUpdate(event => {
+    'worklet';
+    if (!enabled) return;
     progress.value = Math.max(0, Math.min(1, event.x / width));
+    controls.deckSeek(deck, Math.min(0.9999, progress.value));
   }).onEnd(event => {
     'worklet';
-    controls.deckSeek(deck, Math.max(0, Math.min(0.9999, event.x / width)));
-  });
+    if (enabled) controls.deckSeek(deck, Math.max(0, Math.min(0.9999, event.x / width)));
+  }).onFinalize(() => { 'worklet'; dragging.value = false; });
   return <GestureDetector gesture={seek}><View onLayout={event => setWidth(Math.max(1, event.nativeEvent.layout.width))} style={styles.wave}>
     <Canvas style={styles.canvas} accessible={false}>
       <Path path={path} style="stroke" strokeWidth={Math.max(1.3, width / 110)} color={color} />
       <Rect x={playhead} y={2} width={2} height={72} color="#FFFFFF" />
     </Canvas>
   </View></GestureDetector>;
+}
+
+function Platter({deck, controls, enabled, duration, color}: {deck: DeckIndex; controls: RealtimeControls; enabled: boolean; duration: number; color: string}) {
+  const progress = useSharedValue(0);
+  useFrameCallback(() => { progress.value = deck === 0 ? controls.deckPosition0 : controls.deckPosition1; });
+  const angle = useDerivedValue(() => progress.value * duration * (2 * Math.PI * 33.333 / 60));
+  const markerX = useDerivedValue(() => 52 + 38 * Math.sin(angle.value));
+  const markerY = useDerivedValue(() => 52 - 38 * Math.cos(angle.value));
+  const jog = Gesture.Pan().minDistance(0).onBegin(() => {
+    'worklet';
+    if (enabled) controls.deckJog(deck, 0, true);
+  }).onUpdate(event => {
+    'worklet';
+    if (!enabled) return;
+    const x = event.x - 52, y = event.y - 52;
+    const radiusSquared = x * x + y * y;
+    const angularVelocity = (x * event.velocityY - y * event.velocityX) / Math.max(256, radiusSquared);
+    const speed = Math.max(-4, Math.min(4, angularVelocity * 60 / (2 * Math.PI * 33.333)));
+    controls.deckJog(deck, speed, true);
+  }).onFinalize(() => {
+    'worklet';
+    if (enabled) controls.deckJog(deck, 0, false);
+  });
+  return <View style={styles.platterGroup}><Text style={styles.platterLabel}>JOG · SCRATCH</Text>
+    <GestureDetector gesture={jog}><View style={[styles.platter, !enabled && styles.disabled]}>
+      <Canvas style={styles.platterCanvas} accessible={false}>
+        <Circle cx={52} cy={52} r={50} color="#05070A" />
+        {[46, 43, 40, 36, 32, 28].map(radius => <Circle key={radius} cx={52} cy={52} r={radius} color={radius % 2 ? '#1C2430' : '#111821'} style="stroke" strokeWidth={1} />)}
+        <Circle cx={52} cy={52} r={18} color={color} />
+        <Circle cx={52} cy={52} r={3} color="#081016" />
+        <Circle cx={markerX} cy={markerY} r={3} color="#F6F9FF" />
+      </Canvas>
+    </View></GestureDetector></View>;
 }
 
 function Key({label, onPress, active, disabled, accent}: {label: string; onPress: () => void; active?: boolean; disabled?: boolean; accent?: string}) {
@@ -109,7 +148,8 @@ function Deck({index, controls, enabled, track, loading, load, position, playing
       {loading ? <ActivityIndicator color={color} /> : <Text numberOfLines={2} style={styles.track}>{track?.title ?? '＋  ЗАГРУЗИТЬ ТРЕК'}</Text>}
       <Text style={styles.loadHint}>{track ? `${time(track.duration)}  ·  ЗАМЕНИТЬ ↗` : 'СВОЙ ФАЙЛ В ДЕКУ'}</Text>
     </Pressable>
-    <WaveStrip deck={index} controls={controls} track={track} color={color} />
+    <WaveStrip deck={index} controls={controls} track={track} color={color} enabled={ready} />
+    <Platter deck={index} controls={controls} enabled={ready} duration={track?.duration ?? 0} color={color} />
     <View style={styles.timeline}><Text style={styles.time}>{time(position * (track?.duration ?? 0))}</Text><Text style={styles.time}>−{time((1 - position) * (track?.duration ?? 0))}</Text></View>
     <View style={styles.transport}><Key label="CUE" onPress={cueAction} disabled={!ready} accent={color} />
       <Pressable accessibilityRole="button" accessibilityLabel={playing ? 'Пауза' : 'Воспроизвести'} disabled={!ready} onPress={toggle}
@@ -311,6 +351,8 @@ const styles = StyleSheet.create({
   load: {height: 62, justifyContent: 'center', marginTop: 8, padding: 9, backgroundColor: '#263549', borderRadius: 8},
   track: {fontSize: 11, fontWeight: '800', color: '#F7F8FA'}, loadHint: {fontSize: 8, color: '#9DAABA', marginTop: 4, letterSpacing: 0.4},
   wave: {marginTop: 9, height: 86, borderRadius: 5, overflow: 'hidden', backgroundColor: '#080F1A'}, canvas: {flex: 1},
+  platterGroup: {alignItems: 'center', marginTop: 8}, platterLabel: {color: '#95A6B8', fontSize: 8, fontWeight: '800', marginBottom: 4},
+  platter: {width: 104, height: 104}, platterCanvas: {width: 104, height: 104},
   timeline: {flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5}, time: {color: '#B1BDCC', fontSize: 9, fontVariant: ['tabular-nums']},
   transport: {flexDirection: 'row', gap: 7, marginTop: 6}, key: {flex: 1, minWidth: 0, height: 34, justifyContent: 'center', alignItems: 'center', backgroundColor: '#27303E', borderWidth: 1, borderColor: '#394454', borderRadius: 7},
   keyText: {fontSize: 11, fontWeight: '800', color: '#E4ECF6'}, play: {flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 7},

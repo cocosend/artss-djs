@@ -27,6 +27,7 @@ export interface RealtimeControls {
   deckPlay(deck: 0 | 1, play: boolean): boolean;
   deckSeek(deck: 0 | 1, position: number): boolean;
   deckRate(deck: 0 | 1, rate: number): boolean;
+  deckJog(deck: 0 | 1, speed: number, touching: boolean): boolean;
   deckLoop(deck: 0 | 1, start: number, end: number): boolean;
   crossfade(position: number): boolean;
   setEQ(lowDb: number, midDb: number, highDb: number): boolean;
