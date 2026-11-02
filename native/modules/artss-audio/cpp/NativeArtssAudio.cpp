@@ -45,6 +45,16 @@ class RealtimeControls final : public jsi::HostObject {
                 engine->deckLoop(static_cast<std::uint32_t>(deck), static_cast<float>(args[1].asNumber()), static_cast<float>(args[2].asNumber()));
           });
     }
+    if (name == "deckJog") {
+      return jsi::Function::createFromHostFunction(runtime, property, 3,
+          [engine = engine_](jsi::Runtime&, const jsi::Value&, const jsi::Value* args, std::size_t count) -> jsi::Value {
+            if (count < 3 || !args[0].isNumber() || !args[1].isNumber() || !args[2].isBool()) return false;
+            const double deck = args[0].asNumber(), speed = args[1].asNumber();
+            if (!std::isfinite(deck) || deck < 0 || deck >= 2 || deck != std::floor(deck) ||
+                !std::isfinite(speed) || speed < -4 || speed > 4) return false;
+            return engine->deckJog(static_cast<std::uint32_t>(deck), static_cast<float>(speed), args[2].getBool());
+          });
+    }
     if (name == "crossfade") {
       return jsi::Function::createFromHostFunction(runtime, property, 1,
           [engine = engine_](jsi::Runtime&, const jsi::Value&, const jsi::Value* args, std::size_t count) -> jsi::Value {
