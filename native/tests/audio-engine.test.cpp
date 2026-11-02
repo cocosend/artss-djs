@@ -69,7 +69,7 @@ void validationAndVoiceLifecycle() {
   assert(engine.renderedFrames() == 512);
   assert(engine.allNotesOff());
   render(engine, left.data(), right.data(), left.size());
-  assert(left.back() == 0);
+  assert(std::abs(left.back()) < 1.0e-6F);
   assert(engine.progress(0) == -1);
   engine.rejectCommands();
   engine.deactivateAfterStop();
@@ -130,8 +130,8 @@ void panicBypassesFullQueue() {
   render(engine, left.data(), right.data(), left.size());
   assert(engine.triggeredVoices() == 1);
   assert(engine.allNotesOff());
-  render(engine, left.data(), right.data(), left.size());
-  assert(left.back() == 0);
+  for (int i = 0; i < 16; ++i) render(engine, left.data(), right.data(), left.size());
+  assert(std::abs(left.back()) < 1.0e-6F);
 }
 
 void restartRecoversQueueAndLimiter() {
@@ -274,7 +274,7 @@ void twoDeckMixingAndSeeking() {
   assert(engine.deckPosition(0) >= 0.4F && engine.deckPosition(0) < 0.51F);
   assert(engine.deckPlay(0, false));
   for (int i = 0; i < 3; ++i) render(engine, left.data(), right.data(), left.size());
-  assert(left.back() == 0);
+  assert(std::abs(left.back()) < 1.0e-6F);
   engine.rejectCommands();
   engine.deactivateAfterStop();
   engine.activate();
@@ -288,6 +288,62 @@ void twoDeckMixingAndSeeking() {
   assert(engine.deckPlay(1, true));
   render(engine, left.data(), right.data(), left.size());
   assert(engine.deckPosition(1) < 0.1F);
+}
+
+float eqToneRms(double sampleRate, double frequency, float low, float mid, float high) {
+  AudioEngine engine;
+  engine.prepare(sampleRate, makeBank(8, 0));
+  Sample tone;
+  const auto frames = static_cast<std::size_t>(sampleRate / 2);
+  tone.stereo.resize(frames * 2);
+  for (std::size_t i = 0; i < frames; ++i) {
+    const float sample = 0.18F * std::sin(2 * 3.141592653589793 * frequency * i / sampleRate);
+    tone.stereo[2 * i] = tone.stereo[2 * i + 1] = sample;
+  }
+  engine.loadDeck(0, std::move(tone));
+  assert(!engine.setEQ(NAN, 0, 0));
+  assert(!engine.setEQ(0, 13, 0));
+  assert(engine.setEQ(low, mid, high));
+  engine.activate();
+  assert(engine.crossfade(0));
+  assert(engine.deckPlay(0, true));
+  std::array<float, 1024> left{}, right{};
+  for (int i = 0; i < 8; ++i) render(engine, left.data(), right.data(), left.size());
+  double energy = 0;
+  for (const float sample : left) {
+    assert(std::isfinite(sample) && std::abs(sample) <= 0.960001F);
+    energy += sample * sample;
+  }
+  return std::sqrt(energy / left.size());
+}
+
+void equalizerAndTrackBudget() {
+  const float bass = eqToneRms(48000, 60, 0, 0, 0);
+  const float attenuatedBass = eqToneRms(48000, 60, -12, 0, 0);
+  const float treble = eqToneRms(48000, 7000, 0, 0, 0);
+  const float attenuatedTreble = eqToneRms(48000, 7000, 0, 0, -12);
+  assert(attenuatedBass < bass * 0.6F);
+  assert(attenuatedTreble < treble * 0.8F);
+  assert(std::abs(bass - eqToneRms(44100, 60, 0, 0, 0)) < bass * 0.08F);
+  assert(std::abs(attenuatedBass / bass -
+      eqToneRms(44100, 60, -12, 0, 0) / eqToneRms(44100, 60, 0, 0, 0)) < 0.08F);
+
+  AudioEngine engine;
+  engine.prepare(8000, makeBank(8, 0));
+  auto duration = [](int minutes) {
+    Sample track;
+    track.stereo.resize(static_cast<std::size_t>(minutes) * 60 * 8000 * 2);
+    return track;
+  };
+  engine.loadDeck(0, duration(7));
+  assert(engine.remainingTrackSeconds(1) == 7 * 60);
+  bool rejected = false;
+  try { engine.loadDeck(1, duration(6)); } catch (const std::invalid_argument&) { rejected = true; }
+  assert(rejected && engine.deckDuration(1, 8000) == 0);
+  engine.loadDeck(1, duration(5));
+  assert(engine.deckDuration(1, 8000) == 5 * 60);
+  engine.loadDeck(0, duration(6));
+  assert(engine.remainingTrackSeconds(0) == 5 * 60);
 }
 }
 
@@ -329,6 +385,7 @@ int main() {
   multiProducerQueue();
   concurrentRenderStress();
   twoDeckMixingAndSeeking();
+  equalizerAndTrackBudget();
   assert(renderAllocations.load() == 0);
   std::cout << "PASS: lifecycle, PCM validation, polyphony, limiter, ramps, restart recovery, stale commands, queue overflow,\n"
                "      20,000 ordered MPSC messages, concurrent rendering; zero render allocations\n";

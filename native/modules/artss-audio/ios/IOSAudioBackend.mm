@@ -146,7 +146,12 @@ struct IOSAudioBackend::Impl {
     engine->rejectCommands();
     check(AudioOutputUnitStop(unit), "Stop output before track swap");
     engine->deactivateAfterStop();
-    engine->loadDeck(deck, std::move(track));
+    try { engine->loadDeck(deck, std::move(track)); }
+    catch (...) {
+      engine->activate();
+      check(AudioOutputUnitStart(unit), "Restart output after failed track swap");
+      throw;
+    }
     NSMutableArray* peaks = [NSMutableArray arrayWithCapacity:kWaveformBins];
     for (float value : engine->deckWaveform(deck)) [peaks addObject:@(value)];
     NSDictionary* data = @{ @"title": title,
@@ -385,7 +390,9 @@ void IOSAudioBackend::pickTrack(std::uint32_t deck, Completion completion) {
               if (!owner->impl_->engine->running()) throw std::runtime_error("Включите звук перед импортом");
               const BOOL access = [url startAccessingSecurityScopedResource];
               Sample track;
-              try { track = decode(url, owner->impl_->sampleRate, 8 * 60); }
+              const double available = std::min(8 * 60.0,
+                  12 * 60.0 - owner->impl_->engine->remainingTrackSeconds(deck));
+              try { track = decode(url, owner->impl_->sampleRate, available); }
               catch (...) { if (access) [url stopAccessingSecurityScopedResource]; throw; }
               if (access) [url stopAccessingSecurityScopedResource];
               completion(owner->impl_->installDeck(deck, std::move(track), url.lastPathComponent ?: @"Track"), {});

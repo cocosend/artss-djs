@@ -45,6 +45,7 @@ class AudioEngine final {
   bool deckRate(std::uint32_t deck, float rate) noexcept;
   bool deckLoop(std::uint32_t deck, float start, float end) noexcept;
   bool crossfade(float position) noexcept;
+  bool setEQ(float lowDb, float midDb, float highDb) noexcept;
   bool setKit(std::uint32_t kit) noexcept;
   bool setTempo(float bpm) noexcept;
   bool setStep(std::uint32_t pad, std::uint32_t step, float velocity) noexcept;
@@ -52,6 +53,7 @@ class AudioEngine final {
   std::uint32_t currentStep() const noexcept { return currentStep_.load(std::memory_order_relaxed); }
   float deckPosition(std::uint32_t deck) const noexcept;
   double deckDuration(std::uint32_t deck, double sampleRate) const noexcept;
+  double remainingTrackSeconds(std::uint32_t replacingDeck) const noexcept;
   bool deckPlaying(std::uint32_t deck) const noexcept;
   const std::array<float, kWaveformBins>& deckWaveform(std::uint32_t deck) const noexcept;
   void render(float* left, float* right, std::uint32_t frames) noexcept;
@@ -132,6 +134,10 @@ class AudioEngine final {
   std::array<Deck, kDeckCount> decks_{};
   std::atomic<float> requestedCrossfade_{0.5F};
   float crossfade_{0.5F};
+  std::atomic<float> lowDb_{0}, midDb_{0}, highDb_{0};
+  float lowGain_{1}, midGain_{1}, highGain_{1};
+  float lowL_{0}, lowR_{0}, highLpL_{0}, highLpR_{0};
+  float lowCoefficient_{0}, highCoefficient_{0};
   double sampleRate_{48000};
 };
 

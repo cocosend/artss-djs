@@ -57,6 +57,9 @@ void AudioEngine::prepare(double sampleRate, SampleBank bank) {
     }
   }
   sampleRate_ = sampleRate;
+  lowCoefficient_ = static_cast<float>(-std::expm1(-2.0 * 3.141592653589793 * 220.0 / sampleRate));
+  highCoefficient_ = static_cast<float>(-std::expm1(-2.0 * 3.141592653589793 * 4000.0 / sampleRate));
+  lowL_ = lowR_ = highLpL_ = highLpR_ = 0;
   for (auto& deck : decks_) {
     deck.track.stereo.clear();
     deck.waveform.fill(0);
@@ -110,6 +113,7 @@ void AudioEngine::deactivateAfterStop() noexcept {
   for (int i = 0; i < 512 && commands_.tryPop(stale); ++i) {}
   voices_ = {};
   limiter_ = 1;
+  lowL_ = lowR_ = highLpL_ = highLpR_ = 0;
   peak_.store(0, std::memory_order_relaxed);
   for (auto& progress : progress_) progress.store(-1, std::memory_order_relaxed);
   sequencerWasPlaying_ = false;
@@ -130,6 +134,8 @@ void AudioEngine::loadDeck(std::uint32_t index, Sample track) {
   for (const float value : track.stereo) {
     if (!std::isfinite(value) || std::abs(value) > 1.0F) throw std::invalid_argument("Invalid track PCM");
   }
+  if (track.frames() / sampleRate_ + remainingTrackSeconds(index) > 12 * 60)
+    throw std::invalid_argument("Combined deck duration exceeds twelve minutes");
   auto& deck = decks_[index];
   deck.track = std::move(track);
   deck.cursor = 0;
@@ -178,6 +184,21 @@ bool AudioEngine::crossfade(float position) noexcept {
   if (!running() || !std::isfinite(position) || position < 0 || position > 1) return false;
   requestedCrossfade_.store(position, std::memory_order_release);
   return true;
+}
+bool AudioEngine::setEQ(float lowDb, float midDb, float highDb) noexcept {
+  const auto valid = [](float db) noexcept { return std::isfinite(db) && db >= -12 && db <= 12; };
+  if (!valid(lowDb) || !valid(midDb) || !valid(highDb)) return false;
+  lowDb_.store(lowDb, std::memory_order_release);
+  midDb_.store(midDb, std::memory_order_release);
+  highDb_.store(highDb, std::memory_order_release);
+  return true;
+}
+double AudioEngine::remainingTrackSeconds(std::uint32_t replacingDeck) const noexcept {
+  if (replacingDeck >= kDeckCount || sampleRate_ <= 0) return 0;
+  double seconds = 0;
+  for (std::size_t index = 0; index < kDeckCount; ++index)
+    if (index != replacingDeck) seconds += decks_[index].track.frames() / sampleRate_;
+  return seconds;
 }
 bool AudioEngine::setKit(std::uint32_t kit) noexcept {
   if (kit >= kKitCount) return false;
@@ -280,6 +301,9 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
   // Bounded work even under input flood; a producer can never stall RemoteIO.
   for (int i = 0; i < 128 && commands_.tryPop(command); ++i) apply(command);
   const float targetMaster = requestedMaster_.load(std::memory_order_acquire);
+  const float targetLow = std::pow(10.0F, lowDb_.load(std::memory_order_relaxed) / 20.0F);
+  const float targetMid = std::pow(10.0F, midDb_.load(std::memory_order_relaxed) / 20.0F);
+  const float targetHigh = std::pow(10.0F, highDb_.load(std::memory_order_relaxed) / 20.0F);
   float blockPeak = 0;
   for (std::uint32_t frame = 0; frame < frames; ++frame) {
     const bool sequenceOn = sequencerPlaying_.load(std::memory_order_relaxed);
@@ -354,6 +378,18 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
         }
       }
     }
+    lowGain_ += std::clamp(targetLow - lowGain_, -gainSlew_, gainSlew_);
+    midGain_ += std::clamp(targetMid - midGain_, -gainSlew_, gainSlew_);
+    highGain_ += std::clamp(targetHigh - highGain_, -gainSlew_, gainSlew_);
+    const auto equalize = [&](float input, float& low, float& highLp) noexcept {
+      low += lowCoefficient_ * (input - low);
+      highLp += highCoefficient_ * (input - highLp);
+      if (std::abs(low) < 1.0e-20F) low = 0;
+      if (std::abs(highLp) < 1.0e-20F) highLp = 0;
+      return low * lowGain_ + (highLp - low) * midGain_ + (input - highLp) * highGain_;
+    };
+    l = equalize(l, lowL_, highLpL_);
+    r = equalize(r, lowR_, highLpR_);
     master_ += std::clamp(targetMaster - master_, -gainSlew_, gainSlew_);
     l *= master_ * kHeadroom;
     r *= master_ * kHeadroom;
