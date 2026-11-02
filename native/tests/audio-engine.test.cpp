@@ -312,7 +312,7 @@ float eqToneRms(double sampleRate, double frequency, float low, float mid, float
   double energy = 0;
   for (const float sample : left) {
     assert(std::isfinite(sample) && std::abs(sample) <= 0.960001F);
-    energy += sample * sample;
+    energy += static_cast<double>(sample) * sample;
   }
   return std::sqrt(energy / left.size());
 }
