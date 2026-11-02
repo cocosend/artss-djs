@@ -1,5 +1,6 @@
 #include "AudioEngine.hpp"
 #include "DrumSynth.hpp"
+#include "BeatGrid.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -62,6 +63,8 @@ void AudioEngine::prepare(double sampleRate, SampleBank bank) {
   lowL_ = lowR_ = highLpL_ = highLpR_ = 0;
   for (auto& deck : decks_) {
     deck.loaded.store(false, std::memory_order_release);
+    deck.bpm.store(0, std::memory_order_relaxed);
+    deck.firstBeat.store(0, std::memory_order_relaxed);
     deck.track.stereo.clear();
     deck.waveform.fill(0);
     deck.cursor = 0;
@@ -142,6 +145,16 @@ void AudioEngine::deactivateAfterStop() noexcept {
 
 void AudioEngine::loadDeck(std::uint32_t index, Sample track) {
   if (running()) throw std::logic_error("Stop RemoteIO before loading a track");
+  const auto grid = analyzeBeatGrid(track, sampleRate_);
+  loadDeck(index, std::move(track), grid);
+}
+
+void AudioEngine::loadDeck(std::uint32_t index, Sample track, BeatGrid grid) {
+  if (running()) throw std::logic_error("Stop RemoteIO before loading a track");
+  if (!std::isfinite(grid.bpm) || !std::isfinite(grid.firstBeatSeconds) ||
+      !std::isfinite(grid.confidence) || grid.bpm < 0 || grid.bpm > 200 ||
+      grid.firstBeatSeconds < 0 || grid.confidence < 0 || grid.confidence > 1)
+    throw std::invalid_argument("Invalid beat grid");
   if (index >= kDeckCount || track.stereo.size() < 2 || track.stereo.size() % 2 ||
       track.stereo.size() > static_cast<std::size_t>(sampleRate_ * 60 * 30) * 2) {
     throw std::invalid_argument("Invalid deck track (maximum 30 minutes)");
@@ -154,6 +167,8 @@ void AudioEngine::loadDeck(std::uint32_t index, Sample track) {
   auto& deck = decks_[index];
   deck.loaded.store(false, std::memory_order_release);
   deck.track = std::move(track);
+  deck.bpm.store(grid.bpm, std::memory_order_release);
+  deck.firstBeat.store(grid.firstBeatSeconds, std::memory_order_release);
   deck.cursor = 0;
   deck.position.store(0, std::memory_order_release);
   deck.rate.store(1, std::memory_order_release);
@@ -196,6 +211,32 @@ bool AudioEngine::deckSeek(std::uint32_t index, float position) noexcept {
 bool AudioEngine::deckRate(std::uint32_t index, float rate) noexcept {
   if (index >= kDeckCount || !running() || !std::isfinite(rate) || rate < 0.5F || rate > 2) return false;
   decks_[index].rate.store(rate, std::memory_order_release);
+  return true;
+}
+bool AudioEngine::deckSync(std::uint32_t index) noexcept {
+  if (index >= kDeckCount || !running()) return false;
+  auto& target = decks_[index];
+  auto& source = decks_[1 - index];
+  if (!target.loaded.load(std::memory_order_acquire) ||
+      !source.loaded.load(std::memory_order_acquire) ||
+      !source.playing.load(std::memory_order_acquire)) return false;
+  const auto sourceBpm = source.bpm.load(std::memory_order_acquire);
+  const auto targetBpm = target.bpm.load(std::memory_order_acquire);
+  const auto rate = source.rate.load(std::memory_order_acquire) * sourceBpm / targetBpm;
+  if (sourceBpm <= 0 || targetBpm <= 0 || !std::isfinite(rate) || rate < 0.5F || rate > 2.0F)
+    return false;
+  const double sourceSeconds = source.position.load(std::memory_order_acquire) * source.track.frames() / sampleRate_;
+  const double targetSeconds = target.position.load(std::memory_order_acquire) * target.track.frames() / sampleRate_;
+  const double sourceBeats = (sourceSeconds - source.firstBeat.load(std::memory_order_acquire)) * sourceBpm / 60.0;
+  const double phase = sourceBeats - std::floor(sourceBeats);
+  const double targetBeatSeconds = 60.0 / targetBpm;
+  const double targetFirst = target.firstBeat.load(std::memory_order_acquire);
+  const double beat = std::round((targetSeconds - targetFirst) / targetBeatSeconds - phase);
+  const double aligned = std::clamp(targetFirst + (beat + phase) * targetBeatSeconds,
+                                    0.0, (target.track.frames() - 1) / sampleRate_);
+  target.rate.store(rate, std::memory_order_release);
+  target.seek.store(static_cast<float>(aligned * sampleRate_ / target.track.frames()),
+                    std::memory_order_release);
   return true;
 }
 bool AudioEngine::deckJog(std::uint32_t index, float speed, bool touching) noexcept {
@@ -259,6 +300,15 @@ double AudioEngine::deckDuration(std::uint32_t index, double sampleRate) const n
 }
 bool AudioEngine::deckPlaying(std::uint32_t index) const noexcept {
   return index < kDeckCount && decks_[index].playing.load(std::memory_order_acquire);
+}
+float AudioEngine::deckBpm(std::uint32_t index) const noexcept {
+  return index < kDeckCount ? decks_[index].bpm.load(std::memory_order_acquire) : 0;
+}
+float AudioEngine::deckPlaybackRate(std::uint32_t index) const noexcept {
+  return index < kDeckCount ? decks_[index].rate.load(std::memory_order_acquire) : 1;
+}
+float AudioEngine::deckFirstBeat(std::uint32_t index) const noexcept {
+  return index < kDeckCount ? decks_[index].firstBeat.load(std::memory_order_acquire) : 0;
 }
 const std::array<float, kWaveformBins>& AudioEngine::deckWaveform(std::uint32_t index) const noexcept {
   static const std::array<float, kWaveformBins> empty{};
