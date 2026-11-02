@@ -1,0 +1,58 @@
+name: iOS IPA
+on:
+  workflow_dispatch:
+    inputs:
+      signed:
+        description: Sign with Apple repository secrets
+        type: boolean
+        default: false
+  pull_request:
+    paths: ['native/**', '.github/workflows/ios.yml']
+  push:
+    branches: [main]
+    paths: ['native/**', '.github/workflows/ios.yml']
+permissions:
+  contents: read
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: native
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: native/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run verify
+      - run: bundle install && bundle exec pod install --project-directory=ios
+      - name: Archive and package
+        env:
+          SIGNED_BUILD: ${{ github.event_name == 'workflow_dispatch' && inputs.signed && 'true' || 'false' }}
+          APPLE_TEAM_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.signed && secrets.APPLE_TEAM_ID || '' }}
+          APPLE_CERT_P12: ${{ github.event_name == 'workflow_dispatch' && inputs.signed && secrets.APPLE_CERT_P12 || '' }}
+          APPLE_CERT_PASSWORD: ${{ github.event_name == 'workflow_dispatch' && inputs.signed && secrets.APPLE_CERT_PASSWORD || '' }}
+          APPLE_PROVISION_PROFILE: ${{ github.event_name == 'workflow_dispatch' && inputs.signed && secrets.APPLE_PROVISION_PROFILE || '' }}
+        run: bash scripts/ios-ci.sh
+      - name: IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ARTSS-iOS-${{ github.run_number }}
+          path: native/build/ipa/*.ipa
+          if-no-files-found: error
+          retention-days: 7
+      - name: Cleanup signing material
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/artss-signing.keychain-db" 2>/dev/null || true
+          rm -rf "$RUNNER_TEMP/artss-signing"
+          rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/artss-ci.mobileprovision"
+          rm -f "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/artss-ci.mobileprovision"
