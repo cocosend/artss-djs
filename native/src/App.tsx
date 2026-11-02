@@ -160,7 +160,7 @@ function Deck({index, controls, enabled, track, loading, load, position, playing
         style={[styles.play, {backgroundColor: color}, !ready && styles.disabled]}><Text style={styles.playText}>{playing ? 'Ⅱ' : '▶'}</Text></Pressable></View>
     <Text style={styles.caption}>TEMPO</Text>
     <View style={styles.tempo}><Key label="−" onPress={() => changeRate(-0.01)} disabled={!ready} /><Text style={styles.rate}>{Math.round((rate - 1) * 100) >= 0 ? '+' : ''}{Math.round((rate - 1) * 100)}%</Text><Key label="＋" onPress={() => changeRate(0.01)} disabled={!ready} /></View>
-    <Key label="SYNC" onPress={() => { if (controls.deckSync(index)) setRate(index === 0 ? controls.deckRate0 : controls.deckRate1); }} disabled={!ready || !(index === 0 ? controls.deckBpm0 && controls.deckBpm1 && controls.deckPlaying1 : controls.deckBpm0 && controls.deckBpm1 && controls.deckPlaying0)} />
+    <Key label="SYNC" onPress={() => { if (controls.deckSync(index)) setRate(index === 0 ? controls.deckRate0 : controls.deckRate1); }} disabled={!ready || !playing || !(index === 0 ? controls.deckBpm0 && controls.deckBpm1 && controls.deckPlaying1 : controls.deckBpm0 && controls.deckBpm1 && controls.deckPlaying0)} />
     <View style={styles.loopRow}><Text style={styles.caption}>LOOP · {Math.round(index === 0 ? controls.deckBpm0 : controls.deckBpm1) || '—'} BPM</Text><Key label={loop ? '4 / OFF' : '4 BEATS'} active={loop !== 0} accent={color} disabled={!ready || !(index === 0 ? controls.deckBpm0 : controls.deckBpm1)} onPress={() => setLoopBeats(4)} /></View>
   </View>;
 }

@@ -57,6 +57,8 @@ void syncBeatGrids() {
   engine.activate();
   assert(!engine.deckSync(1));
   assert(engine.deckPlay(0, true));
+  assert(!engine.deckSync(1)); // A stopped target cannot remain phase-aligned.
+  assert(engine.deckPlay(1, true));
   assert(engine.deckSync(1));
   assert(std::abs(engine.deckPlaybackRate(1) - 1.2F) < 0.03F);
   std::array<float, 1024> left{}, right{};
@@ -467,7 +469,7 @@ int main() {
     auto clicks = makeClickTrack(48000, bpm);
     for (std::size_t i = 1; i < clicks.stereo.size(); i += 2) clicks.stereo[i] *= -1;
     const auto grid = analyzeBeatGrid(clicks, 48000);
-    assert(std::abs(grid.bpm - bpm) < 2);
+    assert(std::abs(grid.bpm - bpm) < 0.6);
     assert(grid.firstBeatSeconds >= 0 && grid.firstBeatSeconds < 1);
   }
   {
