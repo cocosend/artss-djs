@@ -93,7 +93,7 @@ function Deck({index, controls, enabled, track, loading, load, position, playing
     if (!ready || !track) return;
     if (loop === beats) { controls.deckLoop(index, 0, 1); setLoop(0); return; }
     // Without analyzed BPM, loop length uses the current tempo chosen by the performer.
-    const span = Math.min(1, beats * 60 / (120 * track.duration) / rate);
+    const span = Math.min(1, beats * 60 * rate / (120 * track.duration));
     const start = Math.min(position, 1 - span);
     controls.deckLoop(index, start, start + span);
     setLoop(beats);
@@ -135,6 +135,28 @@ function Crossfader({controls, enabled}: {controls: RealtimeControls; enabled: b
     <GestureDetector gesture={gesture}><View style={styles.faderTouch} onLayout={event => setWidth(Math.max(1, event.nativeEvent.layout.width))}>
       <View style={styles.faderRail} /><Canvas style={styles.faderCanvas} accessible={false}><Rect x={thumb} y={5} width={24} height={42} color="#F6F9FF" /></Canvas>
     </View></GestureDetector></View>;
+}
+
+function MasterEQ({controls, enabled}: {controls: RealtimeControls; enabled: boolean}) {
+  const [bands, setBands] = useState<[number, number, number]>([0, 0, 0]);
+  useEffect(() => { if (enabled) controls.setEQ(...bands); }, [controls, enabled, bands]);
+  function adjust(index: 0 | 1 | 2, delta: number) {
+    const next: [number, number, number] = [...bands];
+    next[index] = Math.max(-12, Math.min(12, next[index] + delta));
+    if (enabled && controls.setEQ(...next)) setBands(next);
+  }
+  return <View style={styles.eqPanel}>
+    <Text style={styles.mixTitle}>MASTER EQ · ±12 dB</Text>
+    <View style={styles.eqRow}>{(['LOW', 'MID', 'HIGH'] as const).map((label, index) =>
+      <View key={label} style={styles.eqBand}>
+        <Text style={styles.eqLabel}>{label}</Text>
+        <View style={styles.eqControls}>
+          <Key label="−" disabled={!enabled} onPress={() => adjust(index as 0 | 1 | 2, -1)} />
+          <Text style={styles.eqValue}>{bands[index]! > 0 ? '+' : ''}{bands[index]} dB</Text>
+          <Key label="+" disabled={!enabled} onPress={() => adjust(index as 0 | 1 | 2, 1)} />
+        </View>
+      </View>)}</View>
+  </View>;
 }
 
 function DrumMachine({controls, enabled}: {controls: RealtimeControls; enabled: boolean}) {
@@ -246,6 +268,7 @@ function Studio() {
       <View style={styles.deckRow}>{([0, 1] as const).map(index => <Deck key={index} index={index} controls={controls} enabled={!!session && !busy} track={tracks[index]}
         loading={loading === index} load={() => { void load(index); }} position={playback.positions[index] ?? 0} playing={playback.playing[index] ?? false} />)}</View>
       <Crossfader controls={controls} enabled={!!session} />
+      <MasterEQ controls={controls} enabled={!!session && !busy} />
       <DrumMachine controls={controls} enabled={!!session && !busy} />
       {error || importError ? <Text accessibilityRole="alert" style={styles.error}>{error ?? importError}</Text> : null}
       <Text style={styles.footer}>{session ? `${session.routes.join(' · ')}  ·  ${session.ioBufferMs.toFixed(1)} ms` : 'Включите звук, загрузите два трека и начните сведение'}</Text>
@@ -298,6 +321,11 @@ const styles = StyleSheet.create({
   mixLetter: {fontSize: 15, fontWeight: '900'}, mixTitle: {fontSize: 9, color: '#B9C8D8', fontWeight: '800', letterSpacing: 1.6},
   faderTouch: {height: 54, justifyContent: 'center', marginTop: 8}, faderRail: {height: 5, marginHorizontal: 12, backgroundColor: '#3B4657', borderRadius: 3},
   faderCanvas: {...StyleSheet.absoluteFillObject}, error: {color: '#FF8397', padding: 10, fontSize: 12},
+  eqPanel: {marginTop: 10, padding: 12, borderRadius: 12, backgroundColor: '#172332'},
+  eqRow: {flexDirection: 'row', gap: 6, marginTop: 10}, eqBand: {flex: 1, minWidth: 0},
+  eqLabel: {color: '#B9C8D8', textAlign: 'center', fontSize: 9, fontWeight: '800', marginBottom: 6},
+  eqControls: {flexDirection: 'row', alignItems: 'center', gap: 2},
+  eqValue: {color: '#F6F9FF', fontSize: 9, fontWeight: '800', textAlign: 'center', minWidth: 32},
   footer: {marginTop: 18, textAlign: 'center', color: '#7F91A5', fontSize: 10},
   drumMachine: {marginTop: 18, padding: 12, borderRadius: 15, borderWidth: 1, borderColor: '#3B4149', backgroundColor: '#181B20'},
   drumHeading: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12},

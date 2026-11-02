@@ -29,6 +29,7 @@ export interface RealtimeControls {
   deckRate(deck: 0 | 1, rate: number): boolean;
   deckLoop(deck: 0 | 1, start: number, end: number): boolean;
   crossfade(position: number): boolean;
+  setEQ(lowDb: number, midDb: number, highDb: number): boolean;
   setKit(kit: 1 | 2 | 3): boolean;
   setTempo(bpm: number): boolean;
   setStep(pad: PadIndex, step: number, velocity: number): boolean;

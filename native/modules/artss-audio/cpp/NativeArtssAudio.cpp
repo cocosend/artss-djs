@@ -51,6 +51,15 @@ class RealtimeControls final : public jsi::HostObject {
             return count >= 1 && args[0].isNumber() && engine->crossfade(static_cast<float>(args[0].asNumber()));
           });
     }
+    if (name == "setEQ") {
+      return jsi::Function::createFromHostFunction(runtime, property, 3,
+          [engine = engine_](jsi::Runtime&, const jsi::Value&, const jsi::Value* args, std::size_t count) -> jsi::Value {
+            if (count < 3 || !args[0].isNumber() || !args[1].isNumber() || !args[2].isNumber()) return false;
+            const double low = args[0].asNumber(), mid = args[1].asNumber(), high = args[2].asNumber();
+            if (!std::isfinite(low) || !std::isfinite(mid) || !std::isfinite(high)) return false;
+            return engine->setEQ(static_cast<float>(low), static_cast<float>(mid), static_cast<float>(high));
+          });
+    }
     if (name == "setKit" || name == "setTempo" || name == "setSequencer") {
       return jsi::Function::createFromHostFunction(runtime, property, 1,
           [engine = engine_, name](jsi::Runtime&, const jsi::Value&, const jsi::Value* args, std::size_t count) -> jsi::Value {
