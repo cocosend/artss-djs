@@ -22,6 +22,11 @@ struct Sample final {
     return static_cast<std::uint32_t>(stereo.size() / 2);
   }
 };
+struct BeatGrid final {
+  float bpm{};
+  float firstBeatSeconds{};
+  float confidence{};
+};
 using SampleBank = std::array<Sample, kPadCount>;
 using Waveforms = std::array<std::array<float, kWaveformBins>, kPadCount>;
 
@@ -40,9 +45,11 @@ class AudioEngine final {
   bool allNotesOff() noexcept;
   // Track ownership changes only while RemoteIO is stopped.
   void loadDeck(std::uint32_t deck, Sample track);
+  void loadDeck(std::uint32_t deck, Sample track, BeatGrid grid);
   bool deckPlay(std::uint32_t deck, bool play) noexcept;
   bool deckSeek(std::uint32_t deck, float normalized) noexcept;
   bool deckRate(std::uint32_t deck, float rate) noexcept;
+  bool deckSync(std::uint32_t deck) noexcept;
   bool deckJog(std::uint32_t deck, float speed, bool touching) noexcept;
   bool deckLoop(std::uint32_t deck, float start, float end) noexcept;
   bool crossfade(float position) noexcept;
@@ -56,6 +63,9 @@ class AudioEngine final {
   double deckDuration(std::uint32_t deck, double sampleRate) const noexcept;
   double remainingTrackSeconds(std::uint32_t replacingDeck) const noexcept;
   bool deckPlaying(std::uint32_t deck) const noexcept;
+  float deckBpm(std::uint32_t deck) const noexcept;
+  float deckPlaybackRate(std::uint32_t deck) const noexcept;
+  float deckFirstBeat(std::uint32_t deck) const noexcept;
   const std::array<float, kWaveformBins>& deckWaveform(std::uint32_t deck) const noexcept;
   void render(float* left, float* right, std::uint32_t frames) noexcept;
 
@@ -131,6 +141,7 @@ class AudioEngine final {
     std::atomic<float> seek{-1}, rate{1}, jogRate{0}, loopStart{0}, loopEnd{1}, position{0};
     std::atomic<std::uint32_t> jogRevision{0};
     std::atomic<bool> playing{false}, jogging{false}, loaded{false};
+    std::atomic<float> bpm{0}, firstBeat{0};
     double cursor{0};
     float envelope{0}, actualRate{0}, lastL{0}, lastR{0}, seekTailL{0}, seekTailR{0};
     std::uint32_t seekFadeRemaining{0}, seenJogRevision{0}, jogIdleFrames{0};

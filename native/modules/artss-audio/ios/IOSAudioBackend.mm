@@ -6,6 +6,7 @@
 #import <objc/runtime.h>
 
 #include "IOSAudioBackend.hpp"
+#include "../cpp/core/BeatGrid.hpp"
 #include "ArtssAudioModuleProvider.h"
 
 #include <algorithm>
@@ -143,10 +144,11 @@ struct IOSAudioBackend::Impl {
 
   std::string installDeck(std::uint32_t deck, Sample track, NSString* title) {
     if (!engine->running() || !unit) throw std::runtime_error("Включите звук перед загрузкой");
+    const auto grid = analyzeBeatGrid(track, sampleRate);
     engine->rejectCommands();
     check(AudioOutputUnitStop(unit), "Stop output before track swap");
     engine->deactivateAfterStop();
-    try { engine->loadDeck(deck, std::move(track)); }
+    try { engine->loadDeck(deck, std::move(track), grid); }
     catch (...) {
       engine->activate();
       check(AudioOutputUnitStart(unit), "Restart output after failed track swap");

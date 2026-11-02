@@ -1,4 +1,5 @@
 #include "AudioEngine.hpp"
+#include "BeatGrid.hpp"
 
 #include <array>
 #include <atomic>
@@ -13,6 +14,7 @@
 namespace {
 thread_local bool inRender = false;
 std::atomic<std::uint64_t> renderAllocations{0};
+[[gnu::noinline]] void releaseAllocation(void* pointer) noexcept { std::free(pointer); }
 }
 
 void* operator new(std::size_t bytes) {
@@ -21,10 +23,10 @@ void* operator new(std::size_t bytes) {
   throw std::bad_alloc();
 }
 void* operator new[](std::size_t bytes) { return ::operator new(bytes); }
-void operator delete(void* p) noexcept { std::free(p); }
-void operator delete[](void* p) noexcept { std::free(p); }
-void operator delete(void* p, std::size_t) noexcept { std::free(p); }
-void operator delete[](void* p, std::size_t) noexcept { std::free(p); }
+void operator delete(void* p) noexcept { releaseAllocation(p); }
+void operator delete[](void* p) noexcept { releaseAllocation(p); }
+void operator delete(void* p, std::size_t) noexcept { releaseAllocation(p); }
+void operator delete[](void* p, std::size_t) noexcept { releaseAllocation(p); }
 
 using namespace artss::audio;
 
@@ -33,6 +35,38 @@ SampleBank makeBank(std::size_t frames = 8192, float value = 0.75F) {
   SampleBank bank;
   for (auto& sample : bank) sample.stereo.assign(frames * 2, value);
   return bank;
+}
+void render(AudioEngine& engine, float* left, float* right, std::uint32_t frames);
+Sample makeClickTrack(unsigned sampleRate, double bpm, double offset = 0.25) {
+  Sample track;
+  track.stereo.assign(sampleRate * 12 * 2, 0);
+  for (double seconds = offset; seconds < 11.8; seconds += 60.0 / bpm) {
+    const auto start = static_cast<std::size_t>(seconds * sampleRate);
+    for (std::size_t frame = start; frame < start + sampleRate / 100; ++frame)
+      track.stereo[2 * frame] = track.stereo[2 * frame + 1] = 0.8F;
+  }
+  return track;
+}
+
+void syncBeatGrids() {
+  AudioEngine engine;
+  engine.prepare(48000, makeBank());
+  engine.loadDeck(0, makeClickTrack(48000, 120));
+  engine.loadDeck(1, makeClickTrack(48000, 100));
+  assert(std::abs(engine.deckBpm(1) - 100) < 2);
+  engine.activate();
+  assert(!engine.deckSync(1));
+  assert(engine.deckPlay(0, true));
+  assert(engine.deckSync(1));
+  assert(std::abs(engine.deckPlaybackRate(1) - 1.2F) < 0.03F);
+  std::array<float, 1024> left{}, right{};
+  render(engine, left.data(), right.data(), left.size());
+  const double sourcePhase = (engine.deckPosition(0) * 12 - 0.25) * engine.deckBpm(0) / 60;
+  const double targetPhase = (engine.deckPosition(1) * 12 - 0.25) * engine.deckBpm(1) / 60;
+  const double phaseDifference = std::abs((sourcePhase - targetPhase) - std::round(sourcePhase - targetPhase));
+  assert(phaseDifference < 0.05);
+  engine.rejectCommands();
+  engine.deactivateAfterStop();
 }
 
 void render(AudioEngine& engine, float* left, float* right, std::uint32_t frames) {
@@ -408,6 +442,34 @@ void jogAndLiveSeek() {
 }
 
 int main() {
+  for (const unsigned sampleRate : {44100U, 48000U, 96000U}) {
+    Sample click;
+    click.stereo.assign(sampleRate * 12 * 2, 0);
+    for (unsigned beat = 0; beat < 23; ++beat) {
+      const auto start = static_cast<std::size_t>((0.25 + beat * 0.5) * sampleRate);
+      for (std::size_t frame = start; frame < start + sampleRate / 100; ++frame)
+        click.stereo[2 * frame] = click.stereo[2 * frame + 1] = 0.8F;
+    }
+    const auto grid = analyzeBeatGrid(click, sampleRate);
+    assert(std::abs(grid.bpm - 120) < 1);
+    assert(std::abs(grid.firstBeatSeconds - 0.25F) < 0.02F);
+    AudioEngine engine;
+    engine.prepare(sampleRate, makeBank());
+    engine.loadDeck(0, std::move(click));
+    assert(std::abs(engine.deckBpm(0) - 120) < 1);
+    assert(std::abs(engine.deckFirstBeat(0) - 0.25F) < 0.02F);
+    assert(engine.deckBpm(1) == 0);
+  }
+  Sample silence;
+  silence.stereo.assign(48000 * 4 * 2, 0);
+  assert(analyzeBeatGrid(silence, 48000).bpm == 0);
+  for (const double bpm : {90.0, 128.0, 150.0}) {
+    auto clicks = makeClickTrack(48000, bpm);
+    for (std::size_t i = 1; i < clicks.stereo.size(); i += 2) clicks.stereo[i] *= -1;
+    const auto grid = analyzeBeatGrid(clicks, 48000);
+    assert(std::abs(grid.bpm - bpm) < 2);
+    assert(grid.firstBeatSeconds >= 0 && grid.firstBeatSeconds < 1);
+  }
   {
     AudioEngine engine;
     engine.prepare(48000, makeBank());
@@ -447,6 +509,7 @@ int main() {
   twoDeckMixingAndSeeking();
   equalizerAndTrackBudget();
   jogAndLiveSeek();
+  syncBeatGrids();
   assert(renderAllocations.load() == 0);
   std::cout << "PASS: lifecycle, PCM validation, polyphony, limiter, ramps, restart recovery, stale commands, queue overflow,\n"
                "      20,000 ordered MPSC messages, concurrent rendering, EQ, jog, seek, deck budget; zero render allocations\n";
