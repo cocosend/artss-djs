@@ -345,6 +345,66 @@ void equalizerAndTrackBudget() {
   engine.loadDeck(0, duration(6));
   assert(engine.remainingTrackSeconds(0) == 5 * 60);
 }
+
+void jogAndLiveSeek() {
+  AudioEngine engine;
+  engine.prepare(48000, makeBank(8, 0));
+  engine.activate();
+  assert(!engine.deckJog(0, 1, true));
+  engine.rejectCommands();
+  Sample tone;
+  tone.stereo.resize(48000 * 2);
+  for (int i = 0; i < 48000; ++i) {
+    const float value = 0.3F * std::sin(2 * 3.141592653589793 * 440 * i / 48000);
+    tone.stereo[2 * i] = tone.stereo[2 * i + 1] = value;
+  }
+  engine.loadDeck(0, std::move(tone));
+  engine.activate();
+  assert(engine.crossfade(0));
+  assert(!engine.deckJog(2, 1, true));
+  assert(!engine.deckJog(0, NAN, true));
+  assert(!engine.deckJog(0, 5, true));
+  assert(engine.deckSeek(0, 0.5F));
+  std::array<float, 4096> left{}, right{};
+  render(engine, left.data(), right.data(), 256);
+  assert(engine.deckPosition(0) > 0.49F && engine.deckPosition(0) < 0.51F);
+  assert(engine.deckJog(0, -1, true));
+  render(engine, left.data(), right.data(), 1024);
+  assert(engine.deckPosition(0) < 0.49F);
+  assert(engine.peak() > 0.01F);
+  for (float value : left) assert(std::isfinite(value) && std::abs(value) <= 0.960001F);
+  render(engine, left.data(), right.data(), left.size());
+  const float heldPosition = engine.deckPosition(0);
+  render(engine, left.data(), right.data(), 1024);
+  assert(std::abs(engine.deckPosition(0) - heldPosition) < 1.0e-5F);
+  assert(engine.peak() < 0.001F);
+  assert(engine.deckJog(0, -1, true));
+  render(engine, left.data(), right.data(), 1024);
+  assert(engine.deckPosition(0) < heldPosition);
+  assert(engine.deckJog(0, 0, true));
+  render(engine, left.data(), right.data(), left.size());
+  render(engine, left.data(), right.data(), left.size());
+  assert(engine.peak() < 0.001F);
+  assert(engine.deckJog(0, 0, false));
+  assert(engine.deckPlay(0, true));
+  const float before = engine.deckPosition(0);
+  render(engine, left.data(), right.data(), 1024);
+  assert(engine.deckPosition(0) > before);
+  assert(engine.deckSeek(0, 0.85F));
+  render(engine, left.data(), right.data(), 1024);
+  assert(engine.deckPosition(0) > 0.85F);
+  for (float value : left) assert(std::isfinite(value) && std::abs(value) <= 0.960001F);
+  assert(engine.deckSeek(0, 0.0002F));
+  assert(engine.deckJog(0, -4, true));
+  render(engine, left.data(), right.data(), 1024);
+  assert(engine.deckJog(0, 0, false));
+  render(engine, left.data(), right.data(), left.size());
+  assert(engine.deckPosition(0) >= 0 && engine.deckPosition(0) <= 1);
+  for (float value : left) assert(std::isfinite(value) && std::abs(value) <= 0.960001F);
+  engine.rejectCommands();
+  engine.deactivateAfterStop();
+  assert(!engine.deckJog(0, 1, true));
+}
 }
 
 int main() {
@@ -386,7 +446,8 @@ int main() {
   concurrentRenderStress();
   twoDeckMixingAndSeeking();
   equalizerAndTrackBudget();
+  jogAndLiveSeek();
   assert(renderAllocations.load() == 0);
   std::cout << "PASS: lifecycle, PCM validation, polyphony, limiter, ramps, restart recovery, stale commands, queue overflow,\n"
-               "      20,000 ordered MPSC messages, concurrent rendering; zero render allocations\n";
+               "      20,000 ordered MPSC messages, concurrent rendering, EQ, jog, seek, deck budget; zero render allocations\n";
 }
