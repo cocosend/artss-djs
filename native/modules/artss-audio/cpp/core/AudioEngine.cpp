@@ -73,10 +73,13 @@ void AudioEngine::prepare(double sampleRate, SampleBank bank) {
     deck.envelope = 0;
     deck.actualRate = deck.lastL = deck.lastR = deck.seekTailL = deck.seekTailR = 0;
     deck.seekFadeRemaining = 0;
+    deck.seenJogRevision = deck.jogRevision.load(std::memory_order_relaxed);
+    deck.jogIdleFrames = 0;
   }
   voices_ = {};
   gainSlew_ = static_cast<float>(1.0 / (sampleRate * 0.005));
   jogSlew_ = static_cast<float>(4.0 / (sampleRate * 0.005));
+  jogTimeoutFrames_ = static_cast<std::uint32_t>(sampleRate * 0.05);
   limiterRelease_ = static_cast<float>(1.0 / (sampleRate * 0.05));
   for (std::size_t kit = 0; kit < kKitCount; ++kit) {
     for (std::size_t pad = 0; pad < kPadCount; ++pad) {
@@ -132,6 +135,8 @@ void AudioEngine::deactivateAfterStop() noexcept {
     deck.envelope = 0;
     deck.actualRate = deck.lastL = deck.lastR = deck.seekTailL = deck.seekTailR = 0;
     deck.seekFadeRemaining = 0;
+    deck.seenJogRevision = deck.jogRevision.load(std::memory_order_relaxed);
+    deck.jogIdleFrames = 0;
   }
 }
 
@@ -161,6 +166,8 @@ void AudioEngine::loadDeck(std::uint32_t index, Sample track) {
   deck.envelope = 0;
   deck.actualRate = deck.lastL = deck.lastR = deck.seekTailL = deck.seekTailR = 0;
   deck.seekFadeRemaining = 0;
+  deck.seenJogRevision = deck.jogRevision.load(std::memory_order_relaxed);
+  deck.jogIdleFrames = 0;
   for (std::size_t bin = 0; bin < kWaveformBins; ++bin) {
     const auto frames = deck.track.frames();
     const auto first = bin * frames / kWaveformBins;
@@ -196,6 +203,7 @@ bool AudioEngine::deckJog(std::uint32_t index, float speed, bool touching) noexc
       !decks_[index].loaded.load(std::memory_order_acquire)) return false;
   auto& deck = decks_[index];
   deck.jogRate.store(touching ? speed : 0, std::memory_order_release);
+  deck.jogRevision.fetch_add(1, std::memory_order_release);
   deck.jogging.store(touching, std::memory_order_release);
   return true;
 }
@@ -386,11 +394,17 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
         deck.seekTailL = deck.lastL;
         deck.seekTailR = deck.lastR;
         deck.seekFadeRemaining = kFadeFrames;
-        deck.cursor = std::min<double>(total - 1, seek * total);
+        deck.cursor = std::min<double>(total - 1, static_cast<double>(seek) * total);
       }
       const bool playing = deck.playing.load(std::memory_order_acquire);
       const bool jogging = deck.jogging.load(std::memory_order_acquire);
-      const float targetRate = jogging ? deck.jogRate.load(std::memory_order_relaxed) :
+      const auto revision = deck.jogRevision.load(std::memory_order_acquire);
+      if (revision != deck.seenJogRevision) {
+        deck.seenJogRevision = revision;
+        deck.jogIdleFrames = 0;
+      } else if (deck.jogIdleFrames < jogTimeoutFrames_) ++deck.jogIdleFrames;
+      const float targetRate = jogging ? (deck.jogIdleFrames < jogTimeoutFrames_ ?
+                               deck.jogRate.load(std::memory_order_relaxed) : 0) :
                                playing ? deck.rate.load(std::memory_order_relaxed) : 0;
       deck.actualRate += std::clamp(targetRate - deck.actualRate, -jogSlew_, jogSlew_);
       const bool atEdge = (deck.cursor <= 0 && deck.actualRate < 0) ||
@@ -424,7 +438,7 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
             deck.seekTailL = deck.lastL;
             deck.seekTailR = deck.lastR;
             deck.seekFadeRemaining = kFadeFrames;
-            deck.cursor = deck.loopStart.load(std::memory_order_relaxed) * total;
+            deck.cursor = static_cast<double>(deck.loopStart.load(std::memory_order_relaxed)) * total;
           }
           else { deck.cursor = total - 1; deck.playing.store(false, std::memory_order_release); }
         }

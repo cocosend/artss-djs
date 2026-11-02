@@ -121,6 +121,7 @@ class AudioEngine final {
   float master_{0.75F};
   float limiter_{1};
   float gainSlew_{1.0F / 240.0F}, limiterRelease_{1.0F / 2400.0F}, jogSlew_{4.0F / 240.0F};
+  std::uint32_t jogTimeoutFrames_{2400};
   std::uint64_t voiceSerial_{0};
   std::uint64_t appliedNoteEpoch_{0};
   bool prepared_{false};
@@ -128,10 +129,11 @@ class AudioEngine final {
     Sample track;
     std::array<float, kWaveformBins> waveform{};
     std::atomic<float> seek{-1}, rate{1}, jogRate{0}, loopStart{0}, loopEnd{1}, position{0};
+    std::atomic<std::uint32_t> jogRevision{0};
     std::atomic<bool> playing{false}, jogging{false}, loaded{false};
     double cursor{0};
     float envelope{0}, actualRate{0}, lastL{0}, lastR{0}, seekTailL{0}, seekTailR{0};
-    std::uint32_t seekFadeRemaining{0};
+    std::uint32_t seekFadeRemaining{0}, seenJogRevision{0}, jogIdleFrames{0};
   };
   std::array<Deck, kDeckCount> decks_{};
   std::atomic<float> requestedCrossfade_{0.5F};
