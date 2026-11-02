@@ -30,14 +30,15 @@ jobs:
       - run: npm run verify
       - run: bundle install && bundle exec pod install --project-directory=ios
       - name: Compile for iOS simulator
-        run: xcodebuild -workspace ios/ARTSSNative.xcworkspace -scheme ARTSSNative -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build/simulator CODE_SIGNING_ALLOWED=NO build
+        run: xcodebuild -workspace ios/ARTSSNative.xcworkspace -scheme ARTSSNative -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build/simulator CODE_SIGNING_ALLOWED=NO build
       - name: Launch in iPhone simulator
         run: |
           SIM_ID="$(xcrun simctl list devices available -j | python3 -c 'import json,sys; devices=json.load(sys.stdin)["devices"]; print(next((d["udid"] for group in devices.values() for d in group if d.get("isAvailable") and "iPhone" in d["name"]), ""))')"
           test -n "$SIM_ID"
           xcrun simctl boot "$SIM_ID"
           xcrun simctl bootstatus "$SIM_ID" -b
-          APP_PATH="$PWD/build/simulator/Build/Products/Debug-iphonesimulator/ARTSSNative.app"
+          APP_PATH="$PWD/build/simulator/Build/Products/Release-iphonesimulator/ARTSSNative.app"
+          test -s "$APP_PATH/main.jsbundle"
           xcrun simctl install "$SIM_ID" "$APP_PATH"
           BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP_PATH/Info.plist")"
           xcrun simctl launch "$SIM_ID" "$BUNDLE_ID"
