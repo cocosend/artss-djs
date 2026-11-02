@@ -219,7 +219,8 @@ bool AudioEngine::deckSync(std::uint32_t index) noexcept {
   auto& source = decks_[1 - index];
   if (!target.loaded.load(std::memory_order_acquire) ||
       !source.loaded.load(std::memory_order_acquire) ||
-      !source.playing.load(std::memory_order_acquire)) return false;
+      !source.playing.load(std::memory_order_acquire) ||
+      !target.playing.load(std::memory_order_acquire)) return false;
   const auto sourceBpm = source.bpm.load(std::memory_order_acquire);
   const auto targetBpm = target.bpm.load(std::memory_order_acquire);
   const auto rate = source.rate.load(std::memory_order_acquire) * sourceBpm / targetBpm;
@@ -231,9 +232,13 @@ bool AudioEngine::deckSync(std::uint32_t index) noexcept {
   const double phase = sourceBeats - std::floor(sourceBeats);
   const double targetBeatSeconds = 60.0 / targetBpm;
   const double targetFirst = target.firstBeat.load(std::memory_order_acquire);
-  const double beat = std::round((targetSeconds - targetFirst) / targetBeatSeconds - phase);
-  const double aligned = std::clamp(targetFirst + (beat + phase) * targetBeatSeconds,
-                                    0.0, (target.track.frames() - 1) / sampleRate_);
+  const double endSeconds = (target.track.frames() - 1) / sampleRate_;
+  const double firstValidBeat = std::ceil(-targetFirst / targetBeatSeconds - phase);
+  const double lastValidBeat = std::floor((endSeconds - targetFirst) / targetBeatSeconds - phase);
+  if (firstValidBeat > lastValidBeat) return false;
+  const double beat = std::clamp(std::round((targetSeconds - targetFirst) / targetBeatSeconds - phase),
+                                 firstValidBeat, lastValidBeat);
+  const double aligned = targetFirst + (beat + phase) * targetBeatSeconds;
   target.rate.store(rate, std::memory_order_release);
   target.seek.store(static_cast<float>(aligned * sampleRate_ / target.track.frames()),
                     std::memory_order_release);
