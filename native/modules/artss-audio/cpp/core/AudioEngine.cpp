@@ -63,6 +63,9 @@ void AudioEngine::prepare(double sampleRate, SampleBank bank) {
   lowL_ = lowR_ = highLpL_ = highLpR_ = 0;
   for (auto& deck : decks_) {
     deck.loaded.store(false, std::memory_order_release);
+    deck.filterAmount.store(0, std::memory_order_relaxed);
+    deck.filterCoefficient.store(0, std::memory_order_relaxed);
+    deck.filterAmountSmooth = deck.filterG = deck.filterLowL = deck.filterBandL = deck.filterLowR = deck.filterBandR = 0;
     deck.bpm.store(0, std::memory_order_relaxed);
     deck.firstBeat.store(0, std::memory_order_relaxed);
     deck.track.stereo.clear();
@@ -140,6 +143,7 @@ void AudioEngine::deactivateAfterStop() noexcept {
     deck.seekFadeRemaining = 0;
     deck.seenJogRevision = deck.jogRevision.load(std::memory_order_relaxed);
     deck.jogIdleFrames = 0;
+    deck.filterLowL = deck.filterBandL = deck.filterLowR = deck.filterBandR = 0;
   }
 }
 
@@ -167,6 +171,9 @@ void AudioEngine::loadDeck(std::uint32_t index, Sample track, BeatGrid grid) {
   auto& deck = decks_[index];
   deck.loaded.store(false, std::memory_order_release);
   deck.track = std::move(track);
+  deck.filterAmount.store(0, std::memory_order_release);
+  deck.filterCoefficient.store(0, std::memory_order_release);
+  deck.filterAmountSmooth = deck.filterG = deck.filterLowL = deck.filterBandL = deck.filterLowR = deck.filterBandR = 0;
   deck.bpm.store(grid.bpm, std::memory_order_release);
   deck.firstBeat.store(grid.firstBeatSeconds, std::memory_order_release);
   deck.cursor = 0;
@@ -211,6 +218,16 @@ bool AudioEngine::deckSeek(std::uint32_t index, float position) noexcept {
 bool AudioEngine::deckRate(std::uint32_t index, float rate) noexcept {
   if (index >= kDeckCount || !running() || !std::isfinite(rate) || rate < 0.5F || rate > 2) return false;
   decks_[index].rate.store(rate, std::memory_order_release);
+  return true;
+}
+bool AudioEngine::deckFilter(std::uint32_t index, float amount) noexcept {
+  if (index >= kDeckCount || !running() || !std::isfinite(amount) || amount < -1 || amount > 1)
+    return false;
+  const double frequency = amount < 0 ? 18000.0 * std::pow(250.0 / 18000.0, -amount)
+                                      : 30.0 * std::pow(4000.0 / 30.0, amount);
+  const float g = static_cast<float>(std::tan(3.141592653589793 * frequency / sampleRate_));
+  decks_[index].filterCoefficient.store(g, std::memory_order_release);
+  decks_[index].filterAmount.store(amount, std::memory_order_release);
   return true;
 }
 bool AudioEngine::deckSync(std::uint32_t index) noexcept {
@@ -480,6 +497,25 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
         }
         deck.lastL = sampleL;
         deck.lastR = sampleR;
+        deck.filterAmountSmooth += std::clamp(deck.filterAmount.load(std::memory_order_relaxed) - deck.filterAmountSmooth,
+                                               -gainSlew_, gainSlew_);
+        const float amount = deck.filterAmountSmooth;
+        deck.filterG += std::clamp(deck.filterCoefficient.load(std::memory_order_relaxed) - deck.filterG,
+                                   -gainSlew_, gainSlew_);
+        const float g = deck.filterG;
+        const float denominator = 1.0F / (1.0F + 1.41421356F * g + g * g);
+        const auto filter = [g, denominator, amount, wet = std::abs(amount)](float input, float& low, float& band) noexcept {
+          const float high = (input - 1.41421356F * band - low) * denominator;
+          const float nextBand = g * high + band;
+          const float nextLow = g * nextBand + low;
+          band = nextBand + g * high;
+          low = nextLow + g * nextBand;
+          if (std::abs(band) < 1.e-20F) band = 0;
+          if (std::abs(low) < 1.e-20F) low = 0;
+          return input * (1 - wet) + (amount < 0 ? nextLow : high) * wet;
+        };
+        sampleL = filter(sampleL, deck.filterLowL, deck.filterBandL);
+        sampleR = filter(sampleR, deck.filterLowR, deck.filterBandR);
         l += sampleL * side * deck.envelope;
         r += sampleR * side * deck.envelope;
       }
