@@ -47,7 +47,7 @@ export function useAudioSession() {
   }, [session]);
 
   async function toggleAudio() {
-    if (busy) return;
+    if (busy) return false;
     const guard = lifecycle.current;
     const request = ++guard.generation;
     setBusy(true);
@@ -56,9 +56,11 @@ export function useAudioSession() {
       if (session) {
         await stopAudio();
         if (guard.alive && request === guard.generation) setSession(null);
+        return false;
       } else {
         const info = await startAudio();
         if (guard.alive && request === guard.generation) setSession(info);
+        return guard.alive && request === guard.generation;
       }
     } catch (reason: unknown) {
       if (guard.alive && request === guard.generation) {
@@ -66,6 +68,7 @@ export function useAudioSession() {
         setError(reason instanceof Error ? reason.message : 'Не удалось включить звук');
         await stopAudio().catch(() => undefined);
       }
+      return false;
     } finally {
       if (guard.alive && request === guard.generation) setBusy(false);
     }
