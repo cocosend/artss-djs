@@ -49,6 +49,7 @@ class AudioEngine final {
   bool deckPlay(std::uint32_t deck, bool play) noexcept;
   bool deckSeek(std::uint32_t deck, float normalized) noexcept;
   bool deckRate(std::uint32_t deck, float rate) noexcept;
+  bool deckFilter(std::uint32_t deck, float amount) noexcept;
   bool deckSync(std::uint32_t deck) noexcept;
   bool deckJog(std::uint32_t deck, float speed, bool touching) noexcept;
   bool deckLoop(std::uint32_t deck, float start, float end) noexcept;
@@ -142,6 +143,8 @@ class AudioEngine final {
     std::atomic<std::uint32_t> jogRevision{0};
     std::atomic<bool> playing{false}, jogging{false}, loaded{false};
     std::atomic<float> bpm{0}, firstBeat{0};
+    std::atomic<float> filterAmount{0}, filterCoefficient{0};
+    float filterAmountSmooth{0}, filterG{0}, filterLowL{0}, filterBandL{0}, filterLowR{0}, filterBandR{0};
     double cursor{0};
     float envelope{0}, actualRate{0}, lastL{0}, lastR{0}, seekTailL{0}, seekTailR{0};
     std::uint32_t seekFadeRemaining{0}, seenJogRevision{0}, jogIdleFrames{0};
