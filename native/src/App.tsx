@@ -321,13 +321,13 @@ function Studio() {
       <Pressable accessibilityRole="button" disabled={loading !== null || busy} onPress={() => { void load(selected); }} style={[styles.import, (loading !== null || busy) && styles.disabled]}>
         <Text style={styles.importIcon}>＋</Text><View style={styles.importText}><Text style={styles.importTitle}>Загрузить свой трек</Text>
           <Text style={styles.importHint}>Файлы iPhone · дека {selected === 0 ? 'A' : 'B'}</Text></View><Text style={styles.importArrow}>↗</Text></Pressable>
+      {error || importError ? <Text accessibilityRole="alert" style={styles.error}>{error ?? importError}</Text> : null}
       <View style={styles.mixHeader}><Text style={styles.eyebrow}>02 / MIX STATION</Text><Text style={styles.mixNote}>ДВА КАНАЛА · ОДИН МИКС</Text></View>
       <View style={styles.deckRow}>{([0, 1] as const).map(index => <Deck key={index} index={index} controls={controls} enabled={!!session && !busy} track={tracks[index]}
         loading={loading === index} canLoad={!busy && loading === null} load={() => { void load(index); }} position={playback.positions[index] ?? 0} playing={playback.playing[index] ?? false} />)}</View>
       <Crossfader controls={controls} enabled={!!session} />
       <MasterEQ controls={controls} enabled={!!session && !busy} />
       <DrumMachine controls={controls} enabled={!!session && !busy} />
-      {error || importError ? <Text accessibilityRole="alert" style={styles.error}>{error ?? importError}</Text> : null}
       <Text style={styles.footer}>{session ? `${session.routes.join(' · ')}  ·  ${session.ioBufferMs.toFixed(1)} ms` : 'Включите звук, загрузите два трека и начните сведение'}</Text>
     </ScrollView></SafeAreaView>;
 }
