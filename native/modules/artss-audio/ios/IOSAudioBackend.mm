@@ -1,6 +1,8 @@
 #import <AVFAudio/AVFAudio.h>
 #import <AudioToolbox/AudioToolbox.h>
+#import <TargetConditionals.h>
 #import <mach/mach_time.h>
+#import <os/proc.h>
 #import <UIKit/UIKit.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <objc/runtime.h>
@@ -12,6 +14,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <limits>
 #include <stdexcept>
 #include <utility>
 
@@ -59,8 +62,9 @@ Sample decode(NSURL* url, double sampleRate, double maxSeconds = 30) {
   SInt64 sourceFrames = 0;
   bytes = sizeof(sourceFrames);
   check(ExtAudioFileGetProperty(file, kExtAudioFileProperty_FileLengthFrames, &bytes, &sourceFrames), "Read sample length");
-  if (input.mSampleRate <= 0 || sourceFrames <= 0 || sourceFrames / input.mSampleRate > maxSeconds) {
-    throw std::runtime_error("Audio duration exceeds the supported limit");
+  if (!std::isfinite(input.mSampleRate) || input.mSampleRate <= 0 || sourceFrames <= 0 ||
+      sourceFrames / input.mSampleRate > maxSeconds) {
+    throw std::runtime_error("Трек слишком длинный или его формат не поддерживается");
   }
   AudioStreamBasicDescription client{};
   client.mSampleRate = sampleRate;
@@ -71,12 +75,23 @@ Sample decode(NSURL* url, double sampleRate, double maxSeconds = 30) {
   client.mChannelsPerFrame = 2;
   client.mBitsPerChannel = 32;
   check(ExtAudioFileSetProperty(file, kExtAudioFileProperty_ClientDataFormat, sizeof(client), &client), "Configure sample conversion");
-  const auto capacity = static_cast<UInt32>(std::ceil(sourceFrames * sampleRate / input.mSampleRate)) + 4096;
+  const double estimatedFrames = std::ceil(sourceFrames * sampleRate / input.mSampleRate) + 4096;
+  if (!std::isfinite(estimatedFrames) || estimatedFrames > std::numeric_limits<UInt32>::max() || estimatedFrames <= 4096)
+    throw std::runtime_error("Некорректная длительность трека");
+  const auto capacity = static_cast<UInt32>(estimatedFrames);
+  // iOS may terminate the process without a C++ exception if PCM exceeds its memory budget.
+  const auto bytesNeeded = static_cast<std::size_t>(capacity) * 2 * sizeof(float);
+  const auto available = os_proc_available_memory();
+  constexpr std::size_t kReserveForApp = 64U * 1024U * 1024U;
+  if ((available == 0 && !TARGET_OS_SIMULATOR) ||
+      (available != 0 && (available <= kReserveForApp || bytesNeeded > available - kReserveForApp)))
+    throw std::runtime_error("Недостаточно памяти для трека. Закройте другие приложения или выберите более короткий файл");
   Sample result;
   // One reservation avoids repeated copies and transient memory spikes.
   result.stereo.reserve(static_cast<std::size_t>(capacity) * 2);
   std::vector<float> chunk(8192 * 2);
   UInt32 written = 0;
+  float maximumPeak = 0;
   while (written < capacity) {
     UInt32 count = std::min<UInt32>(8192, capacity - written);
     AudioBufferList buffer{};
@@ -84,10 +99,19 @@ Sample decode(NSURL* url, double sampleRate, double maxSeconds = 30) {
     buffer.mBuffers[0] = {2, count * static_cast<UInt32>(sizeof(float) * 2), chunk.data()};
     check(ExtAudioFileRead(file, &count, &buffer), "Decode sample to negotiated hardware rate");
     if (count == 0) break;
+    for (std::size_t i = 0; i < static_cast<std::size_t>(count) * 2; ++i) {
+      if (!std::isfinite(chunk[i])) throw std::runtime_error("Трек содержит повреждённые аудиоданные");
+      maximumPeak = std::max(maximumPeak, std::abs(chunk[i]));
+    }
     result.stereo.insert(result.stereo.end(), chunk.begin(), chunk.begin() + count * 2);
     written += count;
   }
   if (written == 0 || written == capacity) throw std::runtime_error("Invalid decoded sample length");
+  if (maximumPeak <= 1.e-8F) throw std::runtime_error("Трек не содержит слышимого звука");
+  if (maximumPeak > 0.98F) {
+    const float gain = 0.98F / maximumPeak;
+    for (float& sample : result.stereo) sample *= gain;
+  }
   return result;
 }
 
@@ -145,6 +169,8 @@ struct IOSAudioBackend::Impl {
   std::string installDeck(std::uint32_t deck, Sample track, NSString* title) {
     if (!engine->running() || !unit) throw std::runtime_error("Включите звук перед загрузкой");
     const auto grid = analyzeBeatGrid(track, sampleRate);
+    const auto otherDeck = static_cast<std::uint32_t>(1 - deck);
+    const bool resumeOtherDeck = engine->deckPlaying(otherDeck);
     engine->rejectCommands();
     check(AudioOutputUnitStop(unit), "Stop output before track swap");
     engine->deactivateAfterStop();
@@ -161,7 +187,9 @@ struct IOSAudioBackend::Impl {
     NSData* json = [NSJSONSerialization dataWithJSONObject:data options:0 error:nil];
     if (!json) throw std::runtime_error("Track metadata serialization failed");
     engine->activate();
-    check(AudioOutputUnitStart(unit), "Restart output after track swap");
+    try { check(AudioOutputUnitStart(unit), "Restart output after track swap"); }
+    catch (...) { stopInternal(); throw; }
+    if (resumeOtherDeck) engine->deckPlay(otherDeck, true);
     return std::string(static_cast<const char*>(json.bytes), json.length);
   }
 
