@@ -46,9 +46,11 @@ function WaveStrip({deck, controls, track, color, enabled}: {deck: DeckIndex; co
     });
     return result;
   }, [track, width]);
-  const seek = Gesture.Pan().minDistance(0).onBegin(() => {
+  const seek = Gesture.Pan().enabled(enabled).minDistance(0).onBegin(event => {
     'worklet';
-    dragging.value = enabled;
+    dragging.value = true;
+    progress.value = Math.max(0, Math.min(0.9999, event.x / width));
+    controls.deckSeek(deck, progress.value);
   }).onUpdate(event => {
     'worklet';
     if (!enabled) return;
@@ -106,9 +108,9 @@ function Key({label, onPress, active, disabled, accent}: {label: string; onPress
   </Pressable>;
 }
 
-function Deck({index, controls, enabled, track, loading, load, position, playing}: {
+function Deck({index, controls, enabled, track, loading, canLoad, load, position, playing}: {
   index: DeckIndex; controls: RealtimeControls; enabled: boolean; track: TrackInfo | null;
-  loading: boolean; load: () => void; position: number; playing: boolean;
+  loading: boolean; canLoad: boolean; load: () => void; position: number; playing: boolean;
 }) {
   const [rate, setRate] = useState(1);
   const [filter, setFilter] = useState(0);
@@ -147,13 +149,13 @@ function Deck({index, controls, enabled, track, loading, load, position, playing
     if (ready && controls.deckRate(index, next)) setRate(next);
   }
   function changeFilter(delta: number) {
-    const next = Math.max(-1, Math.min(1, Math.round((filter + delta) * 10) / 10));
+    const next = Math.max(-1, Math.min(1, Math.round((filter + delta) * 4) / 4));
     if (ready && controls.deckFilter(index, next)) setFilter(next);
   }
   return <View style={[styles.deck, {borderTopColor: color}]}>
     <View style={styles.deckHeading}><View style={[styles.letter, {backgroundColor: color}]}><Text style={styles.letterText}>{index === 0 ? 'A' : 'B'}</Text></View>
-      <Text style={styles.deckLabel}>DECK {index === 0 ? 'A' : 'B'}</Text><Text style={[styles.status, {color}]}>{playing ? '● LIVE' : '○ READY'}</Text></View>
-    <Pressable onPress={load} disabled={!enabled || loading} style={[styles.load, !enabled && styles.disabled]}>
+      <Text style={styles.deckLabel}>DECK {index === 0 ? 'A' : 'B'}</Text><Text style={[styles.status, {color}]}>{playing ? '● LIVE' : track ? '○ READY' : '○ EMPTY'}</Text></View>
+    <Pressable onPress={load} disabled={!canLoad || loading} style={[styles.load, !canLoad && styles.disabled]}>
       {loading ? <ActivityIndicator color={color} /> : <Text numberOfLines={2} style={styles.track}>{track?.title ?? '＋  ЗАГРУЗИТЬ ТРЕК'}</Text>}
       <Text style={styles.loadHint}>{track ? `${time(track.duration)}  ·  ЗАМЕНИТЬ ↗` : 'СВОЙ ФАЙЛ В ДЕКУ'}</Text>
     </Pressable>
@@ -166,7 +168,7 @@ function Deck({index, controls, enabled, track, loading, load, position, playing
     <Text style={styles.caption}>TEMPO</Text>
     <View style={styles.tempo}><Key label="−" onPress={() => changeRate(-0.01)} disabled={!ready} /><Text style={styles.rate}>{Math.round((rate - 1) * 100) >= 0 ? '+' : ''}{Math.round((rate - 1) * 100)}%</Text><Key label="＋" onPress={() => changeRate(0.01)} disabled={!ready} /></View>
     <Key label="SYNC" onPress={() => { if (controls.deckSync(index)) setRate(index === 0 ? controls.deckRate0 : controls.deckRate1); }} disabled={!ready || !playing || !(index === 0 ? controls.deckBpm0 && controls.deckBpm1 && controls.deckPlaying1 : controls.deckBpm0 && controls.deckBpm1 && controls.deckPlaying0)} />
-    <View style={styles.tempo}><Key label="LP −" onPress={() => changeFilter(-0.1)} disabled={!ready} /><Text style={styles.rate}>FILTER {filter === 0 ? 'OFF' : `${Math.round(Math.abs(filter) * 100)}%`}</Text><Key label="＋ HP" onPress={() => changeFilter(0.1)} disabled={!ready} /></View>
+    <View style={styles.tempo}><Key label="LP −" onPress={() => changeFilter(-0.25)} disabled={!ready} /><Text style={styles.filterValue}>{filter === 0 ? 'FILTER OFF' : `${filter < 0 ? 'LP' : 'HP'} ${Math.round(Math.abs(filter) * 100)}%`}</Text><Key label="＋ HP" onPress={() => changeFilter(0.25)} disabled={!ready} /></View>
     <View style={styles.loopRow}><Text style={styles.caption}>LOOP · {Math.round(index === 0 ? controls.deckBpm0 : controls.deckBpm1) || '—'} BPM</Text><Key label={loop ? '4 / OFF' : '4 BEATS'} active={loop !== 0} accent={color} disabled={!ready || !(index === 0 ? controls.deckBpm0 : controls.deckBpm1)} onPress={() => setLoopBeats(4)} /></View>
   </View>;
 }
@@ -175,10 +177,14 @@ function Crossfader({controls, enabled}: {controls: RealtimeControls; enabled: b
   const [width, setWidth] = useState(1);
   const value = useSharedValue(0.5);
   const thumb = useDerivedValue(() => value.value * Math.max(0, width - 24));
-  const gesture = Gesture.Pan().minDistance(0).onUpdate(event => {
+  const gesture = Gesture.Pan().enabled(enabled).minDistance(0).onBegin(event => {
     'worklet';
-    if (!enabled) return;
-    const next = Math.max(0, Math.min(1, event.x / width));
+    const next = Math.max(0, Math.min(1, (event.x - 12) / Math.max(1, width - 24)));
+    value.value = next;
+    controls.crossfade(next);
+  }).onUpdate(event => {
+    'worklet';
+    const next = Math.max(0, Math.min(1, (event.x - 12) / Math.max(1, width - 24)));
     value.value = next;
     controls.crossfade(next);
   });
@@ -285,10 +291,10 @@ function Studio() {
   const [importError, setImportError] = useState<string | null>(null);
   async function load(index: DeckIndex, preset?: number) {
     if (loadingLock.current) return;
-    if (!session) { setImportError('Сначала включите звук'); return; }
     loadingLock.current = true;
     setLoading(index); setImportError(null);
     try {
+      if (!session && !(await toggleAudio())) return;
       const track = preset === undefined ? await pickTrack(index) : await loadPreset(index, preset);
       setTracks(previous => { const next = [...previous] as [TrackInfo | null, TrackInfo | null]; next[index] = track; return next; });
     } catch (reason: unknown) {
@@ -299,7 +305,7 @@ function Studio() {
   return <SafeAreaView style={styles.safe} edges={['top', 'bottom', 'left', 'right']}><StatusBar barStyle="light-content" />
     <ScrollView contentContainerStyle={[styles.content, {maxWidth: width > 800 ? 760 : 540}]} bounces={false}>
       <View style={styles.header}><View><Text style={styles.sub}>ARTSS / PERFORMANCE</Text><Text style={styles.brand}>DJ <Text style={styles.brandAccent}>CREATOR</Text></Text></View>
-        <Pressable accessibilityRole="button" onPress={() => { void toggleAudio(); }} disabled={busy} style={[styles.power, session && styles.powerOn]}>
+        <Pressable accessibilityRole="button" onPress={() => { void toggleAudio(); }} disabled={busy || loading !== null} style={[styles.power, session && styles.powerOn]}>
           <Text style={styles.powerText}>{busy ? '…' : session ? '● ON' : '◯ AUDIO'}</Text></Pressable></View>
       <View style={styles.libraryHead}><View><Text style={styles.eyebrow}>01 / MUSIC LIBRARY</Text><Text style={styles.sectionTitle}>Начни с трека</Text></View>
         <View style={styles.target}><Text style={styles.targetLabel}>В ДЕКУ</Text>{([0, 1] as const).map(index => <Pressable key={index}
@@ -308,16 +314,16 @@ function Studio() {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.presetScroll} contentContainerStyle={styles.presetList}>
         {PRESETS.map((preset, index) => <Pressable key={preset.name} accessibilityRole="button"
           accessibilityLabel={`Загрузить демолуп ${preset.name} в деку ${selected === 0 ? 'A' : 'B'}`}
-          disabled={loading !== null} onPress={() => { void load(selected, index); }} style={[styles.preset, loading !== null && styles.disabled]}>
+          disabled={loading !== null || busy} onPress={() => { void load(selected, index); }} style={[styles.preset, (loading !== null || busy) && styles.disabled]}>
           <Text style={styles.presetIndex}>{String(index + 1).padStart(2, '0')} / DEMO</Text>
           <Text style={styles.presetName}>{preset.name}</Text><View style={styles.presetBottom}><Text style={styles.presetGenre}>{preset.genre}</Text><Text style={styles.presetBpm}>{preset.bpm} BPM</Text></View>
         </Pressable>)}</ScrollView>
-      <Pressable accessibilityRole="button" disabled={loading !== null} onPress={() => { void load(selected); }} style={[styles.import, loading !== null && styles.disabled]}>
+      <Pressable accessibilityRole="button" disabled={loading !== null || busy} onPress={() => { void load(selected); }} style={[styles.import, (loading !== null || busy) && styles.disabled]}>
         <Text style={styles.importIcon}>＋</Text><View style={styles.importText}><Text style={styles.importTitle}>Загрузить свой трек</Text>
           <Text style={styles.importHint}>Файлы iPhone · дека {selected === 0 ? 'A' : 'B'}</Text></View><Text style={styles.importArrow}>↗</Text></Pressable>
       <View style={styles.mixHeader}><Text style={styles.eyebrow}>02 / MIX STATION</Text><Text style={styles.mixNote}>ДВА КАНАЛА · ОДИН МИКС</Text></View>
       <View style={styles.deckRow}>{([0, 1] as const).map(index => <Deck key={index} index={index} controls={controls} enabled={!!session && !busy} track={tracks[index]}
-        loading={loading === index} load={() => { void load(index); }} position={playback.positions[index] ?? 0} playing={playback.playing[index] ?? false} />)}</View>
+        loading={loading === index} canLoad={!busy && loading === null} load={() => { void load(index); }} position={playback.positions[index] ?? 0} playing={playback.playing[index] ?? false} />)}</View>
       <Crossfader controls={controls} enabled={!!session} />
       <MasterEQ controls={controls} enabled={!!session && !busy} />
       <DrumMachine controls={controls} enabled={!!session && !busy} />
@@ -369,6 +375,7 @@ const styles = StyleSheet.create({
   keyText: {fontSize: 11, fontWeight: '800', color: '#E4ECF6'}, play: {flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 7},
   playText: {fontSize: 19, fontWeight: '900', color: '#071018'}, caption: {fontSize: 8, fontWeight: '800', letterSpacing: 1.2, color: '#95A6B8', marginTop: 16, marginBottom: 6},
   tempo: {flexDirection: 'row', alignItems: 'center', gap: 4}, rate: {fontSize: 11, width: 38, textAlign: 'center', color: '#F6F9FF', fontWeight: '800'},
+  filterValue: {fontSize: 9, width: 54, textAlign: 'center', color: '#F6F9FF', fontWeight: '800'},
   loopRow: {flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 7}, disabled: {opacity: 0.38},
   mixer: {marginTop: 12, padding: 14, borderRadius: 12, backgroundColor: '#172332'}, mixHeading: {flexDirection: 'row', justifyContent: 'space-between'},
   mixLetter: {fontSize: 15, fontWeight: '900'}, mixTitle: {fontSize: 9, color: '#B9C8D8', fontWeight: '800', letterSpacing: 1.6},
