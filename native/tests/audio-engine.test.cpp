@@ -443,6 +443,51 @@ void jogAndLiveSeek() {
 }
 }
 
+void deckFilterResponse() {
+  constexpr unsigned sampleRate = 48000;
+  const auto sine = [](float hz) {
+    Sample track;
+    track.stereo.resize(sampleRate * 3 * 2);
+    for (unsigned i = 0; i < sampleRate * 3; ++i) {
+      const auto value = 0.6F * std::sin(6.283185307179586F * hz * i / sampleRate);
+      track.stereo[2 * i] = track.stereo[2 * i + 1] = value;
+    }
+    return track;
+  };
+  const auto measure = [&](float hz, float filterAmount) {
+    AudioEngine engine;
+    engine.prepare(sampleRate, makeBank());
+    engine.loadDeck(0, sine(hz));
+    engine.activate();
+    assert(engine.crossfade(0));
+    assert(engine.deckPlay(0, true));
+    assert(!engine.deckFilter(0, 1.01F));
+    assert(engine.deckFilter(0, filterAmount));
+    std::array<float, 4096> left{}, right{};
+    render(engine, left.data(), right.data(), left.size());
+    render(engine, left.data(), right.data(), left.size());
+    double sum = 0;
+    for (auto value : left) sum += static_cast<double>(value) * value;
+    return std::sqrt(sum / left.size());
+  };
+  assert(measure(4000, -1) < measure(4000, 0) * 0.35);
+  assert(measure(100, 1) < measure(100, 0) * 0.35);
+  assert(measure(1000, 0) > 0.05);
+  AudioEngine engine;
+  engine.prepare(sampleRate, makeBank());
+  engine.loadDeck(0, sine(1000));
+  engine.activate();
+  assert(engine.crossfade(0) && engine.deckPlay(0, true));
+  assert(engine.deckFilter(0, -1));
+  std::array<float, 4096> left{}, right{};
+  render(engine, left.data(), right.data(), left.size());
+  assert(engine.deckFilter(0, 1));
+  const float previous = left.back();
+  render(engine, left.data(), right.data(), left.size());
+  assert(std::abs(left.front() - previous) < 0.08F);
+  for (float value : left) assert(std::isfinite(value) && std::abs(value) <= 0.960001F);
+}
+
 int main() {
   for (const unsigned sampleRate : {44100U, 48000U, 96000U}) {
     Sample click;
@@ -512,6 +557,7 @@ int main() {
   equalizerAndTrackBudget();
   jogAndLiveSeek();
   syncBeatGrids();
+  deckFilterResponse();
   assert(renderAllocations.load() == 0);
   std::cout << "PASS: lifecycle, PCM validation, polyphony, limiter, ramps, restart recovery, stale commands, queue overflow,\n"
                "      20,000 ordered MPSC messages, concurrent rendering, EQ, jog, seek, deck budget; zero render allocations\n";

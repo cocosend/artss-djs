@@ -111,13 +111,14 @@ function Deck({index, controls, enabled, track, loading, load, position, playing
   loading: boolean; load: () => void; position: number; playing: boolean;
 }) {
   const [rate, setRate] = useState(1);
+  const [filter, setFilter] = useState(0);
   const [cue, setCue] = useState(0);
   const [loop, setLoop] = useState(0);
   const previousTrack = useRef<TrackInfo | null>(null);
   useEffect(() => {
     if (previousTrack.current !== track) {
       previousTrack.current = track;
-      setRate(1); setCue(0); setLoop(0);
+      setRate(1); setCue(0); setLoop(0); setFilter(0);
     }
   }, [track]);
   const color = COLORS[index];
@@ -145,6 +146,10 @@ function Deck({index, controls, enabled, track, loading, load, position, playing
     const next = Math.min(1.5, Math.max(0.5, Math.round((rate + delta) * 100) / 100));
     if (ready && controls.deckRate(index, next)) setRate(next);
   }
+  function changeFilter(delta: number) {
+    const next = Math.max(-1, Math.min(1, Math.round((filter + delta) * 10) / 10));
+    if (ready && controls.deckFilter(index, next)) setFilter(next);
+  }
   return <View style={[styles.deck, {borderTopColor: color}]}>
     <View style={styles.deckHeading}><View style={[styles.letter, {backgroundColor: color}]}><Text style={styles.letterText}>{index === 0 ? 'A' : 'B'}</Text></View>
       <Text style={styles.deckLabel}>DECK {index === 0 ? 'A' : 'B'}</Text><Text style={[styles.status, {color}]}>{playing ? '● LIVE' : '○ READY'}</Text></View>
@@ -161,6 +166,7 @@ function Deck({index, controls, enabled, track, loading, load, position, playing
     <Text style={styles.caption}>TEMPO</Text>
     <View style={styles.tempo}><Key label="−" onPress={() => changeRate(-0.01)} disabled={!ready} /><Text style={styles.rate}>{Math.round((rate - 1) * 100) >= 0 ? '+' : ''}{Math.round((rate - 1) * 100)}%</Text><Key label="＋" onPress={() => changeRate(0.01)} disabled={!ready} /></View>
     <Key label="SYNC" onPress={() => { if (controls.deckSync(index)) setRate(index === 0 ? controls.deckRate0 : controls.deckRate1); }} disabled={!ready || !playing || !(index === 0 ? controls.deckBpm0 && controls.deckBpm1 && controls.deckPlaying1 : controls.deckBpm0 && controls.deckBpm1 && controls.deckPlaying0)} />
+    <View style={styles.tempo}><Key label="LP −" onPress={() => changeFilter(-0.1)} disabled={!ready} /><Text style={styles.rate}>FILTER {filter === 0 ? 'OFF' : `${Math.round(Math.abs(filter) * 100)}%`}</Text><Key label="＋ HP" onPress={() => changeFilter(0.1)} disabled={!ready} /></View>
     <View style={styles.loopRow}><Text style={styles.caption}>LOOP · {Math.round(index === 0 ? controls.deckBpm0 : controls.deckBpm1) || '—'} BPM</Text><Key label={loop ? '4 / OFF' : '4 BEATS'} active={loop !== 0} accent={color} disabled={!ready || !(index === 0 ? controls.deckBpm0 : controls.deckBpm1)} onPress={() => setLoopBeats(4)} /></View>
   </View>;
 }

@@ -35,6 +35,15 @@ class RealtimeControls final : public jsi::HostObject {
                    engine->deckSync(static_cast<std::uint32_t>(deck));
           });
     }
+    if (name == "deckFilter") {
+      return jsi::Function::createFromHostFunction(runtime, property, 2,
+          [engine = engine_](jsi::Runtime&, const jsi::Value&, const jsi::Value* args, std::size_t count) -> jsi::Value {
+            if (count < 2 || !args[0].isNumber() || !args[1].isNumber()) return false;
+            const double deck = args[0].asNumber(), amount = args[1].asNumber();
+            return std::isfinite(deck) && deck == std::floor(deck) && deck >= 0 && deck < 2 &&
+                   std::isfinite(amount) && engine->deckFilter(static_cast<std::uint32_t>(deck), static_cast<float>(amount));
+          });
+    }
     if (name == "deckPlaying0") return engine_->deckPlaying(0);
     if (name == "deckPlaying1") return engine_->deckPlaying(1);
     if (name == "currentStep") return static_cast<double>(engine_->currentStep());
