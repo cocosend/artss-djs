@@ -46,7 +46,7 @@ export function PerformancePad({index, label, controls, enabled, onSelect}: Prop
   const failed = useSharedValue(0);
   const tone = TONES[index];
   const symbol = useMemo(
-    () => Skia.Path.MakeFromSVGString(ICON_PATHS[label] ?? ICON_PATHS.CRASH),
+    () => Skia.Path.MakeFromSVGString(ICON_PATHS[label] ?? ICON_PATHS.CRASH!),
     [label],
   );
   const gesture = Gesture.Tap()
