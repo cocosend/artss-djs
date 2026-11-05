@@ -82,6 +82,8 @@ class AudioEngine final {
 
   bool running() const noexcept { return active_.load(std::memory_order_acquire); }
   float peak() const noexcept { return peak_.load(std::memory_order_relaxed); }
+  float meterRmsL() const noexcept { return meterRmsL_.load(std::memory_order_relaxed); }
+  float meterRmsR() const noexcept { return meterRmsR_.load(std::memory_order_relaxed); }
   float progress(std::uint32_t pad) const noexcept;
   std::uint64_t renderedFrames() const noexcept {
     return renderedFrames_.load(std::memory_order_relaxed);
@@ -137,6 +139,7 @@ class AudioEngine final {
   std::atomic<std::uint64_t> noteEpoch_{0};
   std::atomic<std::uint64_t> renderedFrames_{0}, dropped_{0}, triggered_{0};
   std::atomic<float> peak_{0};
+  std::atomic<float> meterRmsL_{0}, meterRmsR_{0};
   std::atomic<float> requestedMaster_{0.75F};
   std::array<std::atomic<float>, kPadCount> progress_{};
   float master_{0.75F};

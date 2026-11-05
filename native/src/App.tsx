@@ -67,6 +67,31 @@ const Stripe = memo(function StripeView({controls, deck, track, samples, pad, en
   </View></GestureDetector>;
 });
 
+
+function StereoMeter({controls}: {controls: RealtimeControls}) {
+  const [width, setWidth] = useState(1);
+  const levelL = useSharedValue(0);
+  const levelR = useSharedValue(0);
+  useFrameCallback(() => {
+    // -54 dBFS through 0 dBFS, log-domain display; render publishes RMS once per audio block.
+    const dbL = 20 * Math.log10(Math.max(0.00001, controls.meterRmsL));
+    const dbR = 20 * Math.log10(Math.max(0.00001, controls.meterRmsR));
+    levelL.value = Math.max(0, Math.min(1, (dbL + 54) / 54));
+    levelR.value = Math.max(0, Math.min(1, (dbR + 54) / 54));
+  });
+  const barL = useDerivedValue(() => levelL.value * width);
+  const barR = useDerivedValue(() => levelR.value * width);
+  return <View style={s.vuRow}>
+    <Text style={s.vuCaption}>L / R</Text>
+    <View style={s.vuCanvas} onLayout={event => setWidth(Math.max(1, event.nativeEvent.layout.width))}>
+      <Canvas style={s.fill}>
+        <Rect x={0} y={1} width={barL} height={5} color="#39D9EE" />
+        <Rect x={0} y={10} width={barR} height={5} color="#FF8655" />
+      </Canvas>
+    </View>
+  </View>;
+}
+
 function Pads({controls, enabled, onSelect}: {controls: RealtimeControls; enabled: boolean; onSelect: (pad: PadIndex) => void}) {
   const [kit, setKit] = useState<1 | 2 | 3>(1);
   const [bpm, setBpm] = useState(132);
@@ -263,6 +288,7 @@ function Studio() {
     <View style={s.trackRow}>{([0,1] as const).map(deck => <Pressable key={deck} onPress={() => setSelected(deck)} style={[s.trackTitle,selected===deck&&{borderColor:ACCENT[deck]}]}>
       <Text style={[s.deckBadge,{color:ACCENT[deck]}]}>{deck===0?'A':'B'}</Text><Text numberOfLines={1} style={s.trackName}>{tracks[deck]?.title??'Загрузить трек'}</Text></Pressable>)}</View>
     <Stripe controls={controls} deck={selected} track={tracks[selected]} samples={waveform} pad={pad} enabled={enabled}/>
+    <StereoMeter controls={controls} />
     <View style={s.stripeCaption}><Text style={s.hint}>{tracks[selected] ? `DECK ${selected===0?'A':'B'} · ${(selected===0?controls.deckBpm0:controls.deckBpm1).toFixed(0)} BPM` : 'PAD PCM · Нажми пэд для волны'}</Text>
       <Pressable accessibilityRole="button" disabled={!enabled || !tracks[0] || !tracks[1]} onPress={() => { if (autoMix) controls.stopAutoMix(); else controls.startAutoMix(4); }}>
         <Text style={[s.importLabel, (!enabled || !tracks[0] || !tracks[1]) && s.disabled]}>{autoMix ? 'СТОП МИКС' : 'AUTO MIX'}</Text></Pressable>
@@ -294,6 +320,9 @@ const s=StyleSheet.create({
   brand:{color:'#F6F7FA',fontSize:19,fontWeight:'900',letterSpacing:1},brandAccent:{color:ACCENT[0]},
   button:{minHeight:42,minWidth:38,paddingHorizontal:9,borderWidth:1,borderColor:'#34414D',borderRadius:8,alignItems:'center',justifyContent:'center',flexGrow:1},
   buttonText:{color:'#D8E0E7',fontSize:10,fontWeight:'800'},disabled:{opacity:.35},row:{flexDirection:'row',gap:7,alignItems:'center',marginVertical:7},rowBetween:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',gap:8},
+  vuRow:{flexDirection:'row',alignItems:'center',paddingHorizontal:14,gap:8,paddingTop:4},
+  vuCaption:{fontSize:9,color:'#7E8C9E',fontWeight:'700',width:30},
+  vuCanvas:{height:17,flex:1,backgroundColor:'#151E29',borderRadius:3,overflow:'hidden'},
   trackRow:{flexDirection:'row',gap:10,paddingHorizontal:14},trackTitle:{flex:1,flexDirection:'row',alignItems:'center',gap:7,borderBottomWidth:2,borderColor:'#202A36',paddingVertical:7},
   deckBadge:{fontWeight:'900',fontSize:15},trackName:{flex:1,color:'#EDF3F7',fontSize:12,fontWeight:'600'},stripe:{height:70,marginHorizontal:14,backgroundColor:'#0B1119',borderRadius:6,overflow:'hidden'},
   stripeCaption:{flexDirection:'row',justifyContent:'space-between',paddingHorizontal:16,paddingTop:5,paddingBottom:10},hint:{fontSize:9,color:'#8695A9',letterSpacing:.5},importLabel:{color:ACCENT[0],fontSize:10,fontWeight:'800'},

@@ -146,6 +146,8 @@ void AudioEngine::deactivateAfterStop() noexcept {
   limiterHold_ = 0;
   lowL_ = lowR_ = highLpL_ = highLpR_ = 0;
   peak_.store(0, std::memory_order_relaxed);
+  meterRmsL_.store(0, std::memory_order_relaxed);
+  meterRmsR_.store(0, std::memory_order_relaxed);
   for (auto& progress : progress_) progress.store(-1, std::memory_order_relaxed);
   sequencerWasPlaying_ = false;
   sequenceFrame_ = 0;
@@ -574,6 +576,7 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
     loopEnds[index] = std::bit_cast<float>(static_cast<std::uint32_t>(loop >> 32));
   }
   float blockPeak = 0;
+  double sumSqL = 0, sumSqR = 0;
   for (std::uint32_t frame = 0; frame < frames; ++frame) {
     if (sequenceOn && !sequencerWasPlaying_) {
       sequenceFrame_ = 0;
@@ -792,6 +795,8 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
     left[frame] = l * limiter_;
     right[frame] = r * limiter_;
     blockPeak = std::max({blockPeak, std::abs(left[frame]), std::abs(right[frame])});
+    sumSqL += static_cast<double>(left[frame]) * left[frame];
+    sumSqR += static_cast<double>(right[frame]) * right[frame];
   }
   std::array<std::uint64_t, kPadCount> newest{};
   std::array<float, kPadCount> progress;
@@ -807,6 +812,9 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
     deck.position.store(static_cast<float>(deck.cursor / deck.track.frames()), std::memory_order_release);
   crossfadePosition_.store(crossfade_, std::memory_order_relaxed);
   peak_.store(blockPeak, std::memory_order_relaxed);
+  const double denominator = frames > 0 ? static_cast<double>(frames) : 1.0;
+  meterRmsL_.store(static_cast<float>(std::sqrt(sumSqL / denominator)), std::memory_order_relaxed);
+  meterRmsR_.store(static_cast<float>(std::sqrt(sumSqR / denominator)), std::memory_order_relaxed);
   renderedFrames_.fetch_add(frames, std::memory_order_relaxed);
 }
 
