@@ -328,6 +328,12 @@ bool AudioEngine::deckLoop(std::uint32_t index, float start, float end) noexcept
   decks_[index].loopRange.store(packed, std::memory_order_release);
   return true;
 }
+bool AudioEngine::setCrossfadeCurve(std::uint32_t curve) noexcept {
+  if (curve > 2) return false;
+  requestedCrossfadeCurve_.store(curve, std::memory_order_release);
+  return true;
+}
+
 bool AudioEngine::crossfade(float position) noexcept {
   if (!running() || !std::isfinite(position) || position < 0 || position > 1) return false;
   requestedCrossfade_.store(position, std::memory_order_release);
@@ -500,6 +506,7 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
   const bool sequenceOn = sequencerPlaying_.load(std::memory_order_relaxed);
   const double stepFrames = sampleRate_ * 15.0 / tempo_.load(std::memory_order_relaxed);
   float targetCrossfade = requestedCrossfade_.load(std::memory_order_relaxed);
+  const auto curve = requestedCrossfadeCurve_.load(std::memory_order_relaxed);
   int autoCommand = autoMixCommand_.exchange(0, std::memory_order_acq_rel);
   // After a transition, wait until the playing track approaches its end, then
   // bring the other deck back in. A manual fader move or pause cancels it.
@@ -629,8 +636,36 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
       }
     }
     crossfade_ += std::clamp(targetCrossfade - crossfade_, -gainSlew_, gainSlew_);
-    const float gainA = std::sqrt(std::max(0.0F, 1 - crossfade_));
-    const float gainB = std::sqrt(std::max(0.0F, crossfade_));
+    float targetGainA = 0, targetGainB = 0;
+    float targetBassA = 0, targetBassB = 0;
+    if (curve == 0) {
+      // Smoothstep: continuous value and first derivative at both endpoints.
+      const float t = crossfade_ * crossfade_ * (3.0F - 2.0F * crossfade_);
+      targetGainA = targetBassA = 1.0F - t;
+      targetGainB = targetBassB = t;
+    } else if (curve == 1) {
+      // A narrow 8% cut zone for scratch-style transitions.
+      const float t = std::clamp((crossfade_ - 0.46F) / 0.08F, 0.0F, 1.0F);
+      targetGainA = targetBassA = 1.0F - t;
+      targetGainB = targetBassB = t;
+    } else {
+      // Preserve FIX38's equal-power treble and correlated-bass behavior.
+      targetGainA = std::sqrt(std::max(0.0F, 1.0F - crossfade_));
+      targetGainB = std::sqrt(std::max(0.0F, crossfade_));
+      targetBassA = 1.0F - crossfade_;
+      targetBassB = crossfade_;
+    }
+    // Slew the gains themselves: switching curves at a static fader position
+    // must not make an abrupt PCM step.
+    const auto slew = [this](float& current, float target) noexcept {
+      current += std::clamp(target - current, -gainSlew_, gainSlew_);
+    };
+    slew(curveGainA_, targetGainA);
+    slew(curveGainB_, targetGainB);
+    slew(curveBassA_, targetBassA);
+    slew(curveBassB_, targetBassB);
+    const float gainA = curveGainA_;
+    const float gainB = curveGainB_;
     for (std::size_t index = 0; index < kDeckCount; ++index) {
       auto& deck = decks_[index];
       const auto total = deck.track.frames();
@@ -709,7 +744,7 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
         sampleR = channelEQ(sampleR, deck.eqLowR, deck.eqHighR);
         deck.bassL += bassCoefficient_ * (sampleL - deck.bassL);
         deck.bassR += bassCoefficient_ * (sampleR - deck.bassR);
-        const float bassSide = index == 0 ? 1 - crossfade_ : crossfade_;
+        const float bassSide = index == 0 ? curveBassA_ : curveBassB_;
         l += ((sampleL - deck.bassL) * side + deck.bassL * bassSide) * deck.envelope;
         r += ((sampleR - deck.bassR) * side + deck.bassR * bassSide) * deck.envelope;
       }
