@@ -6,7 +6,7 @@ Checked items are implemented in the native source; no physical-device latency/F
 
 - [x] Two independent loaded decks with play/pause, BPM sync, and persistent per-deck CUE position.
 - [ ] Visual, inertial jog wheels and complete scratch/nudge/pitch-bend behavior (Skia dual jog gesture/audio bridge now exists; native audio inertia and pitch-bend refinement pending).
-- [ ] Smooth/sharp/dipless selectable crossfader curves and independent channel faders (all three curves implemented; dedicated channel faders pending).
+- [x] Smooth/sharp/dipless selectable crossfader curves and independent native channel faders (DSP and UI logic implemented; tactile measurement pending).
 - [ ] 3-band EQ with true isolation modes (per-deck EQ exists).
 - [ ] Full gain, master true-peak limiter and stereo VU meters (independent stereo RMS L/R meters now exist; true-peak limiting remains).
 - [ ] Peak/RMS/frequency-colored stereo scrolling waveform with zoom and beat-grid markers (peak overview exists).
@@ -50,3 +50,10 @@ Checked items are implemented in the native source; no physical-device latency/F
 - Native per-deck scratch gestures call existing JSI `deckJog` worklet controls.
 - One UI-thread frame callback per jog for spin and display-only momentum; zero DSP changes.
 - Existing `jogAndLiveSeek` C++ regression covers safe reverse scrubbing and transport recovery.
+
+## Cycle 5: independent channel level faders
+
+- Replace each duplicate GAIN dial with a continuous touch-first vertical channel fader.
+- Reuse existing C++ `setDeckGain` atomic and sample-rate-independent gain smoothing.
+- Reanimated UI worklet performs frame updates without traversing React or audio-thread allocations.
+- Dedicated reset-to-unity control per deck; separate state per channel.
