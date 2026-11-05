@@ -120,94 +120,50 @@ Sample decode(NSURL* url, double sampleRate, double maxSeconds = 30) {
 
 // Original procedural demo grooves. Built once on the lifecycle queue, never in RemoteIO.
 Sample synthPreset(std::uint32_t preset, double sampleRate) {
-  // Eight bars of ORIGINAL offline-rendered music. Nothing in here runs on RemoteIO.
-  // The earlier synth used inharmonic 6/9 kHz beat tones and an unfiltered saw,
-  // producing aliasing and an abrasive sound. Replace them with filtered
-  // broadband percussion, a band-limited 303 oscillator and controlled headroom.
-  constexpr double tau = 6.28318530717958647692;
+  constexpr double pi = 3.14159265358979323846;
   const double beat = 60.0 / kPresetBpm[preset];
-  const double eighth = beat * 0.5;
-  const auto frames = static_cast<std::size_t>(std::ceil(32.0 * beat * sampleRate));
+  const auto frames = static_cast<std::size_t>(std::ceil(beat * 32 * sampleRate));  // Eight bars.
   Sample result;
   result.stereo.resize(frames * 2);
   const double root = 440.0 * std::pow(2.0, (kPresetRoots[preset] - 69) / 12.0);
   constexpr int notes[9][4] = {{0, 3, -2, 5}, {0, 7, 5, 3}, {0, 7, 5, 3},
-      {0, -2, 3, 7}, {0, 3, 7, 5}, {0, 0, 3, -2}, {0, 7, 3, 5},
-      {0, -2, 5, 3}, {0, 5, 7, 3}};
-  const bool acid303 = preset <= 4 || preset == 7;
+       {0, -2, 3, 7}, {0, 3, 7, 5}, {0, 0, 3, -2}, {0, 7, 3, 5},
+       {0, -2, 5, 3}, {0, 5, 7, 3}};
+  const bool acid303 = preset <= 4;
   const bool sub808 = preset <= 1 || preset == 4 || preset == 5 || preset == 6;
   const bool punch909 = preset <= 1 || preset == 4 || preset == 5 || preset == 8;
-  auto polyBlep = [](double phase, double step) noexcept {
-    if (phase < step) {
-      const double x = phase / step;
-      return x + x - x * x - 1.0;
-    }
-    if (phase > 1.0 - step) {
-      const double x = (phase - 1.0) / step;
-      return x * x + x + x + 1.0;
-    }
-    return 0.0;
-  };
-  std::uint32_t randomState = 0x5f3759dfU ^ (preset * 0x9e3779b9U);
-  double noiseLow = 0.0;
-  double kickPhase = 0.0;
-  double bassPhase = 0.0;
-  double acidPhase = 0.0;
-  double acidLow = 0.0;
   for (std::size_t i = 0; i < frames; ++i) {
-    const double t = static_cast<double>(i) / sampleRate;
-    const int beatNumber = static_cast<int>(t / beat);
-    const double beatTime = t - beatNumber * beat;
-    const double eighthTime = std::fmod(t, eighth);
-    const double kickFreq = 49.0 + (punch909 ? 135.0 : 96.0) * std::exp(-beatTime * 34.0);
-    kickPhase = std::fmod(kickPhase + tau * kickFreq / sampleRate, tau);
-    const double kickEnv = std::exp(-beatTime * (punch909 ? 17.0 : 21.0))
-        * std::min(1.0, beatTime * 850.0);
-    const double kick = std::sin(kickPhase) * kickEnv * (punch909 ? 0.60 : 0.51);
-
-    // Broadband cymbal texture: deterministic white noise, high-passed rather
-    // than a pair of strong fixed tones that can fold into audible aliases.
-    randomState ^= randomState << 13;
-    randomState ^= randomState >> 17;
-    randomState ^= randomState << 5;
-    const double white = static_cast<double>(randomState) / 2147483648.0 - 1.0;
-    noiseLow += 0.13 * (white - noiseLow);
-    const double bright = white - noiseLow;
-    const bool offbeat = static_cast<int>(t / eighth) % 2 != 0;
-    const double hat = bright * std::exp(-eighthTime * (offbeat ? 39.0 : 77.0))
-        * (offbeat ? 0.082 : 0.054) * std::min(1.0, eighthTime * 900.0);
-    const bool backbeat = beatNumber % 4 == 1 || beatNumber % 4 == 3;
-    const double snareAttack = std::min(1.0, beatTime * 850.0);
-    const double snare = backbeat ? snareAttack * (
-        bright * std::exp(-beatTime * 27.0) * 0.16 +
-        std::sin(tau * 178.0 * beatTime) * std::exp(-beatTime * 24.0) * 0.072) : 0.0;
-
-    const int note = notes[preset][(beatNumber / 2) % 4];
-    const double freq = root * std::pow(2.0, note / 12.0);
-    bassPhase = std::fmod(bassPhase + tau * freq / sampleRate, tau);
-    const double noteAttack = std::min(1.0, eighthTime * 250.0);
-    const double bassEnv = noteAttack * std::exp(-eighthTime * (preset == 7 ? 6.0 : 9.0));
-    const double bass = (std::sin(bassPhase) + 0.16 * std::sin(2.0 * bassPhase))
-        * bassEnv * (acid303 ? 0.16 : 0.20);
-
-    const double acidFreq = freq * (preset == 3 ? 2.0 : 1.0);
-    const double acidStep = acidFreq / sampleRate;
-    acidPhase += acidStep;
-    if (acidPhase >= 1.0) acidPhase -= 1.0;
-    const double saw = 2.0 * acidPhase - 1.0 - polyBlep(acidPhase, acidStep);
-    const double cutoff = 260.0 + 1750.0 * std::exp(-eighthTime * 14.0);
-    const double alpha = 1.0 - std::exp(-tau * cutoff / sampleRate);
-    acidLow += alpha * (saw - acidLow);
-    const double acid = acid303 ? acidLow * bassEnv * (preset == 3 ? 0.155 : 0.105) : 0.0;
-    const double sub = sub808 ? std::sin(tau * root * 0.5 * t) *
-        std::exp(-beatTime * 7.0) * 0.073 : 0.0;
-    const double mix = kick + hat + snare + bass + acid + sub;
-    const double ending = std::min({1.0, static_cast<double>(i) / 256.0,
+    const double t = i / sampleRate;
+    const double beatPosition = t / beat;
+    const auto beatNumber = static_cast<int>(beatPosition);
+    const double phase = (beatPosition - beatNumber) * beat;
+    const double kickEnv = std::exp(-phase * 21.0);
+    const double kick = std::sin(2.0 * pi * (52.0 * phase + 42.0 * (1.0 - std::exp(-phase * 28.0)) / 28.0))
+        * kickEnv * (punch909 ? .49 : .38);
+    const double eighth = std::fmod(t, beat / 2.0);
+    const double hatEnv = std::exp(-eighth * (preset <= 1 ? 52.0 : 70.0));
+    // Deterministic inharmonic texture with a short envelope; no random state on the audio thread.
+    const double noise = std::sin(2 * pi * 6413 * t) * std::sin(2 * pi * 9127 * t);
+    const double hat = noise * hatEnv * .09;
+    const double snare = beatNumber % 4 == 1 || beatNumber % 4 == 3
+        ? noise * std::exp(-phase * 25.0) * .14 : 0.0;
+    const double bassPhase = std::fmod(t, beat / 2.0);
+    const double bassFreq = root * std::pow(2.0, notes[preset][(beatNumber / 4) % 4] / 12.0);
+    const double bass = std::sin(2 * pi * bassFreq * t) * (0.5 + 0.5 * std::sin(2 * pi * bassFreq * 2 * t))
+        * std::exp(-bassPhase * 5.0) * .14;
+    const double acidPhase = std::fmod(bassFreq * 2.0 * t, 1.0);
+    const double acidGate = ((beatNumber % 4) != 3 ? 1.0 : .42);
+    const double acid = acid303 ? (acidPhase * 2.0 - 1.0) *
+        std::exp(-bassPhase * (preset == 3 ? 14.0 : 9.0)) * acidGate * .075 : 0.0;
+    const double sub = sub808 ? std::sin(2.0 * pi * (root * .5) * t) *
+        std::exp(-std::fmod(t, beat) * 5.0) * .072 : 0.0;
+    const double leadPhase = std::fmod(t, beat);
+    const double lead = (preset % 2 == 0 ? std::sin(2 * pi * root * 4 * t) : std::sin(2 * pi * root * 3 * t))
+        * std::exp(-leadPhase * 8.0) * .045;
+    const double loopFade = std::min({1.0, static_cast<double>(i) / 256.0,
         static_cast<double>(frames - i - 1) / 256.0});
-    // Gentle offline saturation instead of per-track hard clipping.
-    const float left = static_cast<float>(0.90 * std::tanh(0.95 * mix) * ending);
-    const float right = static_cast<float>(0.90 * std::tanh(0.95 *
-        (kick + hat * 0.88 + snare * 1.03 + bass + acid * 0.96 + sub)) * ending);
+    const float left = static_cast<float>(std::clamp((kick + hat + snare + bass + acid + sub + lead) * loopFade, -.95, .95));
+    const float right = static_cast<float>(std::clamp((kick + hat * .8 + snare * 1.1 + bass + acid * .8 + sub + lead * .7) * loopFade, -.95, .95));
     result.stereo[i * 2] = left;
     result.stereo[i * 2 + 1] = right;
   }
