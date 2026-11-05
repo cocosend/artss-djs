@@ -20,11 +20,13 @@ const EMPTY = Object.freeze(new Array<number>(96).fill(0));
 const LANES = [0, 2, 3, 6] as const;
 const initialBank = () => buildWolfPattern(0);
 
-function Button({text, onPress, active = false, disabled = false, color = ACCENT[0]}: {
-  text: string; onPress: () => void; active?: boolean; disabled?: boolean; color?: string;
+function Button({text, onPress, onLongPress, active = false, disabled = false, color = ACCENT[0]}: {
+  text: string; onPress: () => void; onLongPress?: () => void; active?: boolean; disabled?: boolean; color?: string;
 }) {
   return <Pressable accessibilityRole="button" accessibilityState={{disabled, selected: active}}
-    disabled={disabled} onPress={onPress} style={[s.button, active && {borderColor: color, backgroundColor: '#183137'}, disabled && s.disabled]}>
+    disabled={disabled} onPress={onPress} onLongPress={onLongPress} delayLongPress={350}
+    accessibilityHint={onLongPress ? "Удерживайте, чтобы установить точку CUE" : undefined}
+    style={[s.button, active && {borderColor: color, backgroundColor: '#183137'}, disabled && s.disabled]}>
     <Text style={[s.buttonText, active && {color}]}>{text}</Text></Pressable>;
 }
 
@@ -265,7 +267,7 @@ function Studio() {
     <View style={s.tabRow}>{TABS.map((title,i)=><Pressable key={title} accessibilityRole="tab" accessibilityState={{selected:page===i}} onPress={() => { setPage(i);pager.current?.scrollTo({x:i*width,animated:true}); }} style={[s.tab,page===i&&s.tabActive]}>
       <Text style={[s.tabText,page===i&&s.tabTextActive]}>{title}</Text></Pressable>)}</View>
     <View style={s.bottom}><View style={s.transportRow}>{([0,1] as const).map(deck=><View key={deck} style={s.deckTransport}>
-      <Button text={`${deck===0?'A':'B'} CUE`} disabled={!enabled||!tracks[deck]} color={ACCENT[deck]} onPress={() => { controls.deckPlay(deck,false);controls.deckSeek(deck,0); }}/>
+      <Button text={`${deck===0?'A':'B'} CUE`} disabled={!enabled||!tracks[deck]} color={ACCENT[deck]} onPress={() => { controls.deckCue(deck); }} onLongPress={() => { controls.deckSetCue(deck); }}/>
       <Button text={playing[deck]?'Ⅱ':'▶'} disabled={!enabled||!tracks[deck]} color={ACCENT[deck]} active={playing[deck]} onPress={() => controls.deckPlay(deck,!playing[deck])}/></View>)}</View>
       <Crossfade controls={controls} enabled={enabled}/></View>
   </SafeAreaView>;

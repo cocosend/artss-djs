@@ -83,6 +83,7 @@ void AudioEngine::prepare(double sampleRate, SampleBank bank) {
     deck.waveform.fill(0);
     deck.cursor = 0;
     deck.position.store(0, std::memory_order_relaxed);
+    deck.cue.store(0, std::memory_order_relaxed);
     deck.rate.store(1, std::memory_order_relaxed);
     deck.playing.store(false, std::memory_order_relaxed);
     deck.jogging.store(false, std::memory_order_relaxed);
@@ -193,6 +194,7 @@ void AudioEngine::loadDeck(std::uint32_t index, Sample track, BeatGrid grid) {
   deck.firstBeat.store(grid.firstBeatSeconds, std::memory_order_release);
   deck.cursor = 0;
   deck.position.store(0, std::memory_order_release);
+  deck.cue.store(0, std::memory_order_release);
   deck.rate.store(1, std::memory_order_release);
   deck.jogRate.store(0, std::memory_order_release);
   deck.jogging.store(false, std::memory_order_release);
@@ -214,6 +216,39 @@ void AudioEngine::loadDeck(std::uint32_t index, Sample track, BeatGrid grid) {
     deck.waveform[bin] = peak;
   }
   deck.loaded.store(true, std::memory_order_release);
+}
+
+// A stopped deck can capture either its committed playhead or a pending seek.
+// Both mailboxes are lock-free; the render callback remains the sole cursor owner.
+bool AudioEngine::deckSetCue(std::uint32_t index) noexcept {
+  if (index >= kDeckCount || !running()) return false;
+  auto& deck = decks_[index];
+  if (!deck.loaded.load(std::memory_order_acquire) ||
+      deck.playing.load(std::memory_order_acquire) ||
+      deck.jogging.load(std::memory_order_acquire)) return false;
+  const float pending = deck.seek.load(std::memory_order_acquire);
+  const float cue = pending >= 0 ? pending : deck.position.load(std::memory_order_acquire);
+  deck.cue.store(cue, std::memory_order_release);
+  return true;
+}
+
+bool AudioEngine::deckCue(std::uint32_t index) noexcept {
+  if (index >= kDeckCount || !running()) return false;
+  auto& deck = decks_[index];
+  if (!deck.loaded.load(std::memory_order_acquire)) return false;
+  // A DJ CUE press cancels automix, pauses the transport and returns to
+  // its saved point; the render thread applies the seek with a short fade.
+  stopAutoMix();
+  deck.playing.store(false, std::memory_order_release);
+  deck.jogging.store(false, std::memory_order_release);
+  deck.jogRate.store(0, std::memory_order_release);
+  deck.jogRevision.fetch_add(1, std::memory_order_release);
+  deck.seek.store(deck.cue.load(std::memory_order_acquire), std::memory_order_release);
+  return true;
+}
+
+float AudioEngine::deckCuePosition(std::uint32_t index) const noexcept {
+  return index < kDeckCount ? decks_[index].cue.load(std::memory_order_acquire) : 0;
 }
 
 bool AudioEngine::deckPlay(std::uint32_t index, bool play) noexcept {

@@ -21,6 +21,8 @@ export interface RealtimeControls {
   readonly position7: number;
   readonly deckPosition0: number;
   readonly deckPosition1: number;
+  readonly deckCuePosition0: number;
+  readonly deckCuePosition1: number;
   readonly deckBpm0: number;
   readonly deckBpm1: number;
   readonly deckRate0: number;
@@ -31,6 +33,8 @@ export interface RealtimeControls {
   readonly deckPlaying1: boolean;
   readonly currentStep: number;
   deckPlay(deck: 0 | 1, play: boolean): boolean;
+  deckSetCue(deck: 0 | 1): boolean;
+  deckCue(deck: 0 | 1): boolean;
   deckSeek(deck: 0 | 1, position: number): boolean;
   deckRate(deck: 0 | 1, rate: number): boolean;
   deckSync(deck: 0 | 1): boolean;
