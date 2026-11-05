@@ -63,6 +63,38 @@ function WaveStrip({deck, controls, track, color, enabled}: {deck: DeckIndex; co
   </View></GestureDetector>;
 }
 
+// The performance stripe reflects the editable 8-voice sequencer, including
+// velocity accents. It remains visible beside the pads even without a loaded deck.
+function GrooveStripe({pattern, step, running}: {pattern: number[][]; step: number; running: boolean}) {
+  const [width, setWidth] = useState(320);
+  const path = useMemo(() => {
+    const p = Skia.Path.Make();
+    for (let index = 0; index < 16; index++) {
+      const energy = Math.min(1, pattern.reduce((total, row, pad) =>
+        total + (row[index] ?? 0) * (pad === 0 ? 0.45 : pad === 6 ? 0.18 : 0.085), 0));
+      const height = 4 + energy * 37;
+      const x = (index + 0.5) * width / 16;
+      p.moveTo(x, 43 - height);
+      p.lineTo(x, 43 + height);
+    }
+    return p;
+  }, [pattern, width]);
+  return <View style={nexus.grooveStripe}>
+    <View style={nexus.grooveStripeHeader}><Text style={nexus.grooveStripeTitle}>STRIPE / LIVE GROOVE</Text>
+      <Text style={nexus.grooveStripeMeta}>{running ? '● PLAYING' : '16 STEPS · READY'}</Text></View>
+    <View style={nexus.grooveCanvas} onLayout={event => setWidth(Math.max(1, event.nativeEvent.layout.width))}>
+      <Canvas style={{flex: 1}} accessible={false}>
+        <Path path={path} color="#66E8D4" style="stroke" strokeWidth={Math.max(3, width / 35)}
+          strokeCap="round" />
+        <Rect x={running ? (step + 0.5) * width / 16 : 0}
+          y={2} width={running ? 3 : 0} height={82} color="#FFF5C9" />
+      </Canvas>
+    </View>
+    <View style={nexus.grooveStripeFooter}><Text style={nexus.grooveStripeFoot}>EDITABLE PATTERN · 303 / 606 / 909</Text>
+      <Text style={nexus.grooveStripeFoot}>AUDIO IN NATIVE ENGINE</Text></View>
+  </View>;
+}
+
 function Key({label, onPress, active, disabled, accent}: {label: string; onPress: () => void; active?: boolean; disabled?: boolean; accent?: string}) {
   return <Pressable accessibilityRole="button" accessibilityState={{disabled, selected: active}} disabled={disabled}
     onPress={onPress} style={[styles.key, active && {borderColor: accent ?? '#F6D527', backgroundColor: '#F6D527'}, disabled && styles.disabled]}>
@@ -246,23 +278,7 @@ function DrumMachine({controls, enabled}: {controls: RealtimeControls; enabled: 
       <Text style={nexus.performanceTitle}>01 / PERFORMANCE</Text>
       <Text style={nexus.performanceMeta}>LOCAL AUDIO · LIVE</Text>
     </View>
-    <View style={nexus.wolfTop}>
-      <Text style={nexus.wolfTitle}>STRIPEWOLF / MUSIC PACKS</Text>
-      <Text style={nexus.wolfMeta}>9 GROOVES · 7 STYLES · EDITABLE</Text>
-    </View>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} nestedScrollEnabled
-      contentContainerStyle={nexus.wolfList} accessibilityLabel="Музыкальные паттерны Stripewolf">
-      {WOLF_GROOVES.map((groove, index) =>
-        <Pressable key={groove.id} accessibilityRole="button"
-          accessibilityLabel={`Создать ритм ${groove.title} в банке ${bank + 1}`}
-          accessibilityState={{selected: activeGroove === index}}
-          onPress={() => applyGroove(index)}
-          style={[nexus.wolfChip, activeGroove === index && nexus.wolfChipActive]}>
-          <Text style={nexus.wolfChipName}>{groove.title}</Text>
-          <Text style={nexus.wolfChipBpm}>{groove.bpm} BPM · {groove.kit === 1 ? '303' : groove.kit === 2 ? '606' : '909'}</Text>
-          <Text style={nexus.wolfChipHint}>{activeGroove === index ? 'В БАНКЕ · РЕДАКТИРУЙ' : 'ПРИМЕНИТЬ В БАНК'}</Text>
-        </Pressable>)}
-    </ScrollView>
+    <GrooveStripe pattern={pattern} step={step} running={running} />
     <View style={nexus.padsPanel}>
       <View style={nexus.strip}><Text style={nexus.stripLeft}>01 / PLAY THE GRID</Text><Text style={nexus.stripRight}>8 VOICES · 4 BANKS</Text></View>
       <View style={nexus.padsHeading}>
@@ -301,6 +317,23 @@ function DrumMachine({controls, enabled}: {controls: RealtimeControls; enabled: 
         <Text style={nexus.transportLabel}>{recording ? 'ЗАПИСЬ ●' : 'ЗАПИСЬ'}</Text>
       </Pressable>
     </View>
+    <View style={nexus.wolfTop}>
+      <Text style={nexus.wolfTitle}>STRIPEWOLF / MUSIC PACKS</Text>
+      <Text style={nexus.wolfMeta}>9 GROOVES · 7 STYLES · EDITABLE</Text>
+    </View>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} nestedScrollEnabled
+      contentContainerStyle={nexus.wolfList} accessibilityLabel="Музыкальные паттерны Stripewolf">
+      {WOLF_GROOVES.map((groove, index) =>
+        <Pressable key={groove.id} accessibilityRole="button"
+          accessibilityLabel={`Создать ритм ${groove.title} в банке ${bank + 1}`}
+          accessibilityState={{selected: activeGroove === index}}
+          onPress={() => applyGroove(index)}
+          style={[nexus.wolfChip, activeGroove === index && nexus.wolfChipActive]}>
+          <Text style={nexus.wolfChipName}>{groove.title}</Text>
+          <Text style={nexus.wolfChipBpm}>{groove.bpm} BPM · {groove.kit === 1 ? '303' : groove.kit === 2 ? '606' : '909'}</Text>
+          <Text style={nexus.wolfChipHint}>{activeGroove === index ? 'В БАНКЕ · РЕДАКТИРУЙ' : 'ПРИМЕНИТЬ В БАНК'}</Text>
+        </Pressable>)}
+    </ScrollView>
     <View style={nexus.settingsPanel}>
       <View style={nexus.settingCell}><Text style={nexus.settingCaption}>СТИЛЬ</Text>
         <View style={nexus.settingPicker}>
@@ -352,6 +385,11 @@ function DrumMachine({controls, enabled}: {controls: RealtimeControls; enabled: 
 function Studio() {
   const {controls, session, busy, error, toggleAudio} = useAudioSession();
   const [mix, setMix] = useState(false);
+  const contentRef = useRef<ScrollView>(null);
+  // Both workspaces remain mounted to preserve live drum patterns and deck state.
+  // Reset scroll position after switching; the old page previously retained its
+  // offset, making the navigation appear broken on compact iPhone screens.
+  useEffect(() => { contentRef.current?.scrollTo({y: 0, animated: false}); }, [mix]);
   const [tracks, setTracks] = useState<[TrackInfo | null, TrackInfo | null]>([null, null]);
   const [loading, setLoading] = useState<DeckIndex | null>(null);
   const loadingLock = useRef(false);
@@ -379,10 +417,13 @@ function Studio() {
     } finally { loadingLock.current = false; setLoading(null); }
   }
   return <SafeAreaView style={styles.safe} edges={['top', 'bottom', 'left', 'right']}><StatusBar barStyle="light-content" />
-    <ScrollView contentContainerStyle={[styles.content, {maxWidth: width > 800 ? 960 : 540}]} bounces={false}>
+    <ScrollView ref={contentRef} contentContainerStyle={[styles.content, {maxWidth: width > 800 ? 960 : 540}]} bounces={false}
+      keyboardShouldPersistTaps="handled">
       <View style={styles.header}><View><Text style={styles.brand}>NEXUS</Text><Text style={styles.sub}>ARTSS DJS · 34</Text></View>
         <Pressable accessibilityRole="button" onPress={() => { void toggleAudio(); }} disabled={busy || loading !== null} style={[styles.power, session && styles.powerOn]}>
-          <Text style={styles.powerText}>{busy ? '…' : session ? '● ON' : '◯ AUDIO'}</Text></Pressable></View>
+          <Text style={styles.powerText}>{busy ? '…' : session ? '● AUDIO ON' : '▶ ЗАПУСТИТЬ ЗВУК'}</Text></Pressable></View>
+      <Text style={nexus.pageTitle}>{mix ? 'DECKS / MIX' : 'STUDIO / STRIPE + PADS'}</Text>
+      {!session && !busy && <Text style={nexus.audioHelp}>Для воспроизведения нажми «ЗАПУСТИТЬ ЗВУК» сверху.</Text>}
       <View style={{display: mix ? 'none' : 'flex'}}><DrumMachine controls={controls} enabled={!!session && !busy} /></View>
       <View style={{display: mix ? 'flex' : 'none'}}><View style={styles.libraryHead}><View><Text style={styles.eyebrow}>01 / MUSIC LIBRARY</Text><Text style={styles.sectionTitle}>Начни с трека</Text></View>
         <View style={styles.target}><Text style={styles.targetLabel}>В ДЕКУ</Text>{([0, 1] as const).map(index => <Pressable key={index}
@@ -408,9 +449,9 @@ function Studio() {
       <Text style={styles.footer}>{session ? `${session.routes.join(' · ')}  ·  ${session.ioBufferMs.toFixed(1)} ms` : 'Включите звук для игры'}</Text>
     </ScrollView><View style={nexus.bottomNav}>
       <Pressable accessibilityRole="tab" accessibilityState={{selected: !mix}} onPress={() => setMix(false)}
-        style={[nexus.navButton, !mix && nexus.navSelected]}><Text style={nexus.navIcon}>◇</Text><Text style={[nexus.navLabel, !mix && nexus.navLabelSelected]}>СОЗДАТЬ</Text></Pressable>
+        style={[nexus.navButton, !mix && nexus.navSelected]}><Text style={[nexus.navIcon, !mix && nexus.navLabelSelected]}>▦</Text><Text style={[nexus.navLabel, !mix && nexus.navLabelSelected]}>STRIPE + ПЭДЫ</Text></Pressable>
       <Pressable accessibilityRole="tab" accessibilityState={{selected: mix}} onPress={() => setMix(true)}
-        style={[nexus.navButton, mix && nexus.navSelected]}><Text style={nexus.navIcon}>≋</Text><Text style={[nexus.navLabel, mix && nexus.navLabelSelected]}>MIX</Text></Pressable>
+        style={[nexus.navButton, mix && nexus.navSelected]}><Text style={[nexus.navIcon, mix && nexus.navLabelSelected]}>≋</Text><Text style={[nexus.navLabel, mix && nexus.navLabelSelected]}>ДЕКИ / MIX</Text></Pressable>
     </View></SafeAreaView>;
 }
 
@@ -488,6 +529,18 @@ const styles = StyleSheet.create({
 
 
 const nexus = StyleSheet.create({
+  pageTitle: {color: '#F6D527', fontSize: 11, fontWeight: '900', letterSpacing: 2.4, marginBottom: 13},
+  audioHelp: {color: '#E6D9BB', fontSize: 11, lineHeight: 17, padding: 9,
+    marginBottom: 12, borderRadius: 7, backgroundColor: '#332613'},
+  grooveStripe: {borderWidth: 1, borderColor: '#716551', backgroundColor: '#101312',
+    borderRadius: 9, padding: 10, gap: 5},
+  grooveStripeHeader: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'},
+  grooveStripeTitle: {fontSize: 11, fontWeight: '900', color: '#66E8D4', letterSpacing: 1.5},
+  grooveStripeMeta: {color: '#F6D527', fontSize: 9, fontWeight: '900'},
+  grooveCanvas: {height: 86, backgroundColor: '#070B0A', borderRadius: 5, overflow: 'hidden'},
+  grooveStripeFooter: {flexDirection: 'row', justifyContent: 'space-between'},
+  grooveStripeFoot: {color: '#8BA6A2', fontSize: 8, letterSpacing: 0.3},
+
   wolfTop: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, marginBottom: 8, gap: 8},
   wolfTitle: {fontSize: 11, fontWeight: '900', color: '#F6D527', letterSpacing: 1.4},
   wolfMeta: {fontSize: 8, fontWeight: '800', color: '#B2B3AA', letterSpacing: 0.6},
