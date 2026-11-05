@@ -210,7 +210,11 @@ function MasterEQ({controls, enabled}: {controls: RealtimeControls; enabled: boo
   </View>;
 }
 
-function DrumMachine({controls, enabled}: {controls: RealtimeControls; enabled: boolean}) {
+function DrumMachine({controls, enabled, activeDeck, track, deckPlaying, onDeckChange, onLoadTrack}: {
+  controls: RealtimeControls; enabled: boolean; activeDeck: DeckIndex;
+  track: TrackInfo | null; deckPlaying: boolean; onDeckChange: (deck: DeckIndex) => void;
+  onLoadTrack: () => void;
+}) {
   const [kit, setKit] = useState<1 | 2 | 3>(3);
   const [bpm, setBpm] = useState(136);
   const [running, setRunning] = useState(false);
@@ -278,7 +282,30 @@ function DrumMachine({controls, enabled}: {controls: RealtimeControls; enabled: 
       <Text style={nexus.performanceTitle}>01 / PERFORMANCE</Text>
       <Text style={nexus.performanceMeta}>LOCAL AUDIO · LIVE</Text>
     </View>
-    <GrooveStripe pattern={pattern} step={step} running={running} />
+    <View style={nexus.stripePicker}>
+      <Text style={nexus.stripePickerTitle}>LIVE STRIPE / WAVEFORM</Text>
+      <View style={nexus.stripePickerControls}>{([0, 1] as const).map(index =>
+        <Pressable key={index} accessibilityRole="button" accessibilityLabel={`Выбрать деку ${index === 0 ? 'A' : 'B'}`}
+          accessibilityState={{selected: activeDeck === index}} onPress={() => onDeckChange(index)}
+          style={[nexus.stripeDeckKey, activeDeck === index && nexus.stripeDeckKeyOn]}>
+          <Text style={[nexus.stripeDeckKeyText, activeDeck === index && nexus.stripeDeckKeyTextOn]}>
+            {index === 0 ? 'A' : 'B'}</Text>
+        </Pressable>)}</View>
+    </View>
+    {track ? <View style={nexus.trackStripe}>
+      <View style={nexus.trackStripeHeading}><Text numberOfLines={1} style={nexus.trackStripeTitle}>{track.title}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={deckPlaying ? 'Пауза трека' : 'Играть трек'}
+          disabled={!enabled} onPress={() => controls.deckPlay(activeDeck, !deckPlaying)}
+          style={nexus.trackStripePlay}><Text style={nexus.trackStripePlayText}>{deckPlaying ? 'Ⅱ' : '▶'}</Text></Pressable></View>
+      <WaveStrip deck={activeDeck} controls={controls} track={track}
+        color={COLORS[activeDeck]} enabled={enabled} />
+      <Pressable accessibilityRole="button" onPress={onLoadTrack} style={nexus.stripeImport}>
+        <Text style={nexus.stripeImportText}>＋ ЗАМЕНИТЬ ТРЕК · ФАЙЛЫ IPHONE</Text></Pressable>
+    </View> : <View>
+      <GrooveStripe pattern={pattern} step={step} running={running} />
+      <Pressable accessibilityRole="button" onPress={onLoadTrack} style={nexus.stripeImport}>
+        <Text style={nexus.stripeImportText}>＋ ЗАГРУЗИТЬ ТРЕК В ДЕКУ {activeDeck === 0 ? 'A' : 'B'}</Text></Pressable>
+    </View>}
     <View style={nexus.padsPanel}>
       <View style={nexus.strip}><Text style={nexus.stripLeft}>01 / PLAY THE GRID</Text><Text style={nexus.stripRight}>8 VOICES · 4 BANKS</Text></View>
       <View style={nexus.padsHeading}>
@@ -424,7 +451,9 @@ function Studio() {
           <Text style={styles.powerText}>{busy ? '…' : session ? '● AUDIO ON' : '▶ ЗАПУСТИТЬ ЗВУК'}</Text></Pressable></View>
       <Text style={nexus.pageTitle}>{mix ? 'DECKS / MIX' : 'STUDIO / STRIPE + PADS'}</Text>
       {!session && !busy && <Text style={nexus.audioHelp}>Для воспроизведения нажми «ЗАПУСТИТЬ ЗВУК» сверху.</Text>}
-      <View style={{display: mix ? 'none' : 'flex'}}><DrumMachine controls={controls} enabled={!!session && !busy} /></View>
+      <View style={{display: mix ? 'none' : 'flex'}}><DrumMachine controls={controls} enabled={!!session && !busy}
+        activeDeck={selected} track={tracks[selected]} deckPlaying={playback.playing[selected] ?? false}
+        onDeckChange={setSelected} onLoadTrack={() => { void load(selected); }} /></View>
       <View style={{display: mix ? 'flex' : 'none'}}>      <View style={styles.mixHeader}><Text style={styles.eyebrow}>02 / MIX STATION</Text><Text style={styles.mixNote}>ДВА КАНАЛА · ОДИН МИКС</Text></View>
       <View style={styles.deckRow}>{([0, 1] as const).map(index => <Deck key={index} index={index} controls={controls} enabled={!!session && !busy} track={tracks[index]}
         loading={loading === index} canLoad={!busy && loading === null} load={() => { void load(index); }} position={playback.positions[index] ?? 0} playing={playback.playing[index] ?? false} />)}</View>
@@ -530,6 +559,24 @@ const styles = StyleSheet.create({
 
 const nexus = StyleSheet.create({
   pageTitle: {color: '#F6D527', fontSize: 11, fontWeight: '900', letterSpacing: 2.4, marginBottom: 13},
+  stripePicker: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8},
+  stripePickerTitle: {fontSize: 10, color: '#66E8D4', letterSpacing: 1.3, fontWeight: '900'},
+  stripePickerControls: {flexDirection: 'row', alignItems: 'center', gap: 5},
+  stripeDeckKey: {height: 34, width: 38, borderWidth: 1, borderColor: '#5F6864',
+    borderRadius: 5, justifyContent: 'center', alignItems: 'center'},
+  stripeDeckKeyOn: {backgroundColor: '#F6D527', borderColor: '#F6D527'},
+  stripeDeckKeyText: {fontWeight: '900', fontSize: 12, color: '#FFFFFF'},
+  stripeDeckKeyTextOn: {color: '#080808'},
+  trackStripe: {borderWidth: 1, borderColor: '#716551', borderRadius: 8,
+    paddingHorizontal: 9, paddingVertical: 7, backgroundColor: '#111311'},
+  trackStripeHeading: {flexDirection: 'row', alignItems: 'center', gap: 8},
+  trackStripeTitle: {flex: 1, color: '#F6F7F2', fontSize: 10, fontWeight: '800'},
+  trackStripePlay: {width: 46, minHeight: 38, backgroundColor: '#F6D527',
+    borderRadius: 7, justifyContent: 'center', alignItems: 'center'},
+  trackStripePlayText: {color: '#080808', fontWeight: '900', fontSize: 17},
+  stripeImport: {marginTop: 5, minHeight: 36, borderWidth: 1, borderColor: '#635E52',
+    borderRadius: 7, alignItems: 'center', justifyContent: 'center'},
+  stripeImportText: {fontSize: 9, fontWeight: '900', color: '#F6D527', letterSpacing: 0.6},
   audioHelp: {color: '#E6D9BB', fontSize: 11, lineHeight: 17, padding: 9,
     marginBottom: 12, borderRadius: 7, backgroundColor: '#332613'},
   grooveStripe: {borderWidth: 1, borderColor: '#716551', backgroundColor: '#101312',
