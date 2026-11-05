@@ -264,11 +264,44 @@ function Dial({name, deck, state, controls, enabled}: {name: keyof Channel; deck
       <Animated.View style={[s.dialRotor, rotation]}><View style={[s.dialTick, {backgroundColor: ACCENT[deck]}]} /></Animated.View>
     </View></GestureDetector><Pressable disabled={!enabled} onPress={reset} accessibilityRole="button" accessibilityLabel={`Сброс ${name}`}><Text style={s.dialValue}>{display}</Text></Pressable></View>;
 }
+
+function ChannelFader({deck, controls, enabled, state}: {
+  deck: Deck; controls: RealtimeControls; enabled: boolean; state: SharedValue<Channel>;
+}) {
+  const origin = useSharedValue(1);
+  const gesture = Gesture.Pan().enabled(enabled).minDistance(0)
+    .onBegin(() => { origin.value = state.value.GAIN; })
+    .onUpdate(event => {
+      const gain = Math.max(0, Math.min(1.5, origin.value - event.translationY * 1.5 / 130));
+      state.value = {...state.value, GAIN: gain};
+      controls.setDeckGain(deck, gain);
+    });
+  const thumb = useAnimatedStyle(() => ({
+    transform: [{translateY: (1 - state.value.GAIN / 1.5) * 130}],
+  }));
+  function reset() {
+    state.value = {...state.value, GAIN: 1};
+    controls.setDeckGain(deck, 1);
+  }
+  return <View style={s.channelFader}>
+    <Text style={s.dialName}>LEVEL</Text>
+    <GestureDetector gesture={gesture}>
+      <View style={s.channelFaderTouch} accessibilityLabel={`Громкость деки ${deck === 0 ? 'A' : 'B'}`}>
+        <View style={s.channelFaderRail}/>
+        <Animated.View style={[s.channelFaderThumb, {borderColor: ACCENT[deck]}, thumb]}/>
+      </View>
+    </GestureDetector>
+    <Pressable accessibilityRole="button" accessibilityLabel="Сброс уровня" disabled={!enabled}
+      onPress={reset}><Text style={s.dialValue}>0 dB</Text></Pressable>
+  </View>;
+}
+
 function ChannelStrip({deck, controls, enabled}: {deck: Deck; controls: RealtimeControls; enabled: boolean}) {
   const state = useSharedValue<Channel>({LOW:0, MID:0, HIGH:0, FILTER:0, GAIN:1});
   useEffect(() => { if (enabled) { const v = state.value; controls.setDeckEQ(deck,v.LOW,v.MID,v.HIGH); controls.setDeckGain(deck,v.GAIN); controls.deckFilter(deck,v.FILTER); } }, [controls, deck, enabled, state]);
   return <View style={s.channel}><Text style={[s.channelName, {color: ACCENT[deck]}]}>DECK {deck === 0 ? 'A' : 'B'}</Text>
-    {(['FILTER','HIGH','MID','LOW','GAIN'] as const).map(name => <Dial key={name} name={name} deck={deck} controls={controls} state={state} enabled={enabled} />)}</View>;
+    {(['FILTER','HIGH','MID','LOW'] as const).map(name => <Dial key={name} name={name} deck={deck} controls={controls} state={state} enabled={enabled} />)}
+    <ChannelFader deck={deck} controls={controls} enabled={enabled} state={state} /></View>;
 }
 function Mixer({controls, enabled, track, deck}: {controls: RealtimeControls; enabled: boolean; track: TrackInfo | null; deck: Deck}) {
   const [rate, setRate] = useState<[number, number]>([1,1]);
@@ -413,6 +446,10 @@ const s=StyleSheet.create({
   steps:{flexDirection:'row',gap:3,alignItems:'center',marginBottom:5},lane:{width:34,color:'#94A5B8',fontSize:8},step:{width:24,height:29,borderWidth:1,borderColor:'#34414D',borderRadius:4,backgroundColor:'#182230'},stepOn:{backgroundColor:'#278B9D'},stepCurrent:{borderColor:'#FFF'},
   grooves:{flexDirection:'row',flexWrap:'wrap',gap:7},groove:{width:'48%',padding:11,borderRadius:8,borderWidth:1,borderColor:'#2B3949'},grooveName:{color:'#DCEAF2',fontSize:10,fontWeight:'800',marginBottom:5},
   channels:{flexDirection:'row',justifyContent:'space-around'},channel:{flex:1,alignItems:'center'},channelName:{fontSize:13,fontWeight:'800',letterSpacing:1},channelDivider:{width:1,backgroundColor:'#2B3949',marginHorizontal:14},
+  channelFader:{alignItems:'center',paddingTop:10},
+  channelFaderTouch:{width:62,height:154,alignItems:'center',paddingTop:12},
+  channelFaderRail:{position:'absolute',top:14,width:5,height:130,borderRadius:3,backgroundColor:'#4E6075'},
+  channelFaderThumb:{width:44,height:22,backgroundColor:'#D3E3F0',borderWidth:3,borderRadius:7},
   dialCell:{alignItems:'center',marginVertical:8},dialName:{color:'#A7B4C5',fontSize:9,fontWeight:'700',letterSpacing:1,marginBottom:8},dial:{width:62,height:62,borderRadius:31,borderWidth:2,backgroundColor:'#1B2532'},dialRotor:{width:58,height:58,alignItems:'center'},dialTick:{width:3,height:15,borderRadius:2,marginTop:4},dialValue:{color:'#DCE7F0',fontSize:10,paddingTop:8,paddingHorizontal:10,minHeight:30},
   libraryCard:{borderBottomWidth:1,borderColor:'#2A3746',paddingVertical:17,gap:7},libraryName:{color:'#EEF5F7',fontSize:15,fontWeight:'700'},
   tabRow:{flexDirection:'row',paddingHorizontal:14,gap:12,backgroundColor:'#0D131B'},tab:{flex:1,alignItems:'center',paddingVertical:13,borderBottomWidth:2,borderColor:'transparent'},tabActive:{borderColor:ACCENT[0]},tabText:{color:'#74869A',fontSize:11,fontWeight:'800',letterSpacing:1},tabTextActive:{color:ACCENT[0]},
