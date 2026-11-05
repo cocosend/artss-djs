@@ -587,6 +587,44 @@ void cueTransportRegression() {
   assert(std::abs(engine.deckCuePosition(1) - 0.75F) < 0.00001F);
 }
 
+void selectableCrossfadeCurves() {
+  AudioEngine engine;
+  engine.prepare(48000, makeBank(8, 0));
+  Sample positive, negative;
+  positive.stereo.assign(48000 * 2, 0.4F);
+  negative.stereo.assign(48000 * 2, -0.4F);
+  engine.loadDeck(0, std::move(positive), {120, 0, 1});
+  engine.loadDeck(1, std::move(negative), {120, 0, 1});
+  assert(!engine.setCrossfadeCurve(3));
+  assert(engine.setCrossfadeCurve(2));
+  engine.activate();
+  assert(engine.deckPlay(0, true) && engine.deckPlay(1, true));
+  assert(engine.crossfade(0.25F));
+  std::array<float, 2048> left{}, right{};
+  auto measure = [&](std::uint32_t curve) {
+    assert(engine.setCrossfadeCurve(curve));
+    render(engine, left.data(), right.data(), left.size());
+    for (float v : left) assert(std::isfinite(v) && std::abs(v) <= 0.960001F);
+    return left.back();
+  };
+  const float smooth = measure(0);
+  const float sharp = measure(1);
+  const float dipless = measure(2);
+  assert(sharp > smooth + 0.005F);
+  assert(std::isfinite(dipless));
+  const float before = left.back();
+  assert(engine.setCrossfadeCurve(1));
+  render(engine, left.data(), right.data(), left.size());
+  // Curve switching uses a per-sample gain slew rather than a discontinuity.
+  assert(std::abs(left.front() - before) < 0.025F);
+  assert(engine.crossfade(0.5F));
+  for (auto curve : {0U, 1U, 2U}) {
+    assert(engine.setCrossfadeCurve(curve));
+    render(engine, left.data(), right.data(), left.size());
+    assert(std::abs(left.back()) < 0.025F);
+  }
+}
+
 int main() {
   for (const unsigned sampleRate : {44100U, 48000U, 96000U}) {
     Sample click;
@@ -644,6 +682,7 @@ int main() {
     }
   }
 
+  selectableCrossfadeCurves();
   cueTransportRegression();
   automatedMixTransitions();
   transitionRegressions();

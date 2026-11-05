@@ -203,12 +203,28 @@ function Mixer({controls, enabled, track, deck}: {controls: RealtimeControls; en
 }
 function Crossfade({controls, enabled}: {controls: RealtimeControls; enabled: boolean}) {
   const [width,setWidth] = useState(1); const position = useSharedValue(0.5); const dragging = useSharedValue(false);
+  const [curve, setCurve] = useState<0 | 1 | 2>(2);
   useFrameCallback(() => { if (!dragging.value) position.value = controls.crossfadePosition; });
   const gesture = Gesture.Pan().enabled(enabled).minDistance(0).onBegin(e => { dragging.value = true; position.value=Math.max(0,Math.min(1,(e.x-14)/Math.max(1,width-28))); controls.crossfade(position.value); })
     .onUpdate(e => { position.value=Math.max(0,Math.min(1,(e.x-14)/Math.max(1,width-28))); controls.crossfade(position.value); }).onFinalize(() => { dragging.value = false; });
   const thumb=useAnimatedStyle(() => ({transform:[{translateX:position.value*Math.max(0,width-28)}]}));
-  return <GestureDetector gesture={gesture}><View style={s.faderTouch} onLayout={e => setWidth(e.nativeEvent.layout.width)}>
-    <View style={s.faderRail}/><Animated.View style={[s.faderThumb,thumb]}/></View></GestureDetector>;
+  return <View>
+    <View style={s.curveRow}>
+      {(['SMOOTH', 'SHARP', 'DIPLESS'] as const).map((label, index) => {
+        const mode = index as 0 | 1 | 2;
+        return <Pressable key={label} accessibilityRole="button" accessibilityState={{selected: curve === mode}}
+          disabled={!enabled} onPress={() => { if (controls.setCrossfadeCurve(mode)) setCurve(mode); }}
+          style={[s.curveButton, curve === mode && s.curveSelected]}>
+          <Text style={[s.curveLabel, curve === mode && s.curveLabelActive]}>{label}</Text>
+        </Pressable>;
+      })}
+    </View>
+    <GestureDetector gesture={gesture}>
+      <View style={s.faderTouch} onLayout={e => setWidth(e.nativeEvent.layout.width)}>
+        <View style={s.faderRail}/><Animated.View style={[s.faderThumb,thumb]}/>
+      </View>
+    </GestureDetector>
+  </View>;
 }
 
 function Studio() {
@@ -289,5 +305,10 @@ const s=StyleSheet.create({
   dialCell:{alignItems:'center',marginVertical:8},dialName:{color:'#A7B4C5',fontSize:9,fontWeight:'700',letterSpacing:1,marginBottom:8},dial:{width:62,height:62,borderRadius:31,borderWidth:2,backgroundColor:'#1B2532'},dialRotor:{width:58,height:58,alignItems:'center'},dialTick:{width:3,height:15,borderRadius:2,marginTop:4},dialValue:{color:'#DCE7F0',fontSize:10,paddingTop:8,paddingHorizontal:10,minHeight:30},
   libraryCard:{borderBottomWidth:1,borderColor:'#2A3746',paddingVertical:17,gap:7},libraryName:{color:'#EEF5F7',fontSize:15,fontWeight:'700'},
   tabRow:{flexDirection:'row',paddingHorizontal:14,gap:12,backgroundColor:'#0D131B'},tab:{flex:1,alignItems:'center',paddingVertical:13,borderBottomWidth:2,borderColor:'transparent'},tabActive:{borderColor:ACCENT[0]},tabText:{color:'#74869A',fontSize:11,fontWeight:'800',letterSpacing:1},tabTextActive:{color:ACCENT[0]},
+  curveRow:{flexDirection:'row',justifyContent:'center',gap:10,paddingTop:2},
+  curveButton:{minWidth:68,paddingVertical:5,paddingHorizontal:8,borderRadius:7,borderWidth:1,borderColor:'#303C4B',alignItems:'center'},
+  curveSelected:{borderColor:'#39D9EE',backgroundColor:'#122B35'},
+  curveLabel:{fontSize:9,color:'#75859A',fontWeight:'700'},
+  curveLabelActive:{color:'#39D9EE'},
   bottom:{paddingHorizontal:14,paddingTop:7,paddingBottom:3},transportRow:{flexDirection:'row',justifyContent:'space-between',gap:26},deckTransport:{flex:1,flexDirection:'row',gap:7},faderTouch:{height:45,justifyContent:'center'},faderRail:{height:3,marginHorizontal:14,backgroundColor:'#485463'},faderThumb:{position:'absolute',width:28,height:30,borderRadius:5,backgroundColor:'#DFEAF1',borderWidth:3,borderColor:'#647687'},error:{color:'#FF8A9A',fontSize:11,padding:9},
 });

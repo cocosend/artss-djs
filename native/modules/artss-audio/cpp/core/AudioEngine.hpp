@@ -57,6 +57,7 @@ class AudioEngine final {
   bool deckJog(std::uint32_t deck, float speed, bool touching) noexcept;
   bool deckLoop(std::uint32_t deck, float start, float end) noexcept;
   bool crossfade(float position) noexcept;
+  bool setCrossfadeCurve(std::uint32_t curve) noexcept;
   bool startAutoMix(std::uint32_t bars) noexcept;
   void stopAutoMix() noexcept;
   std::uint32_t autoMixState() const noexcept { return autoMixState_.load(std::memory_order_acquire); }
@@ -164,6 +165,10 @@ class AudioEngine final {
     std::uint32_t seekFadeRemaining{0}, seenJogRevision{0}, jogIdleFrames{0};
   };
   std::array<Deck, kDeckCount> decks_{};
+  // Curve IDs: 0 smooth (S-curve), 1 sharp (scratch cut), 2 dipless (existing).
+  std::atomic<std::uint32_t> requestedCrossfadeCurve_{2};
+  float curveGainA_{0.707106781F}, curveGainB_{0.707106781F};
+  float curveBassA_{0.5F}, curveBassB_{0.5F};
   std::atomic<float> requestedCrossfade_{0.5F};
   float crossfade_{0.5F};
   std::atomic<float> crossfadePosition_{0.5F};

@@ -46,6 +46,7 @@ export interface RealtimeControls {
   startAutoMix(bars: number): boolean;
   stopAutoMix(): boolean;
   crossfade(position: number): boolean;
+  setCrossfadeCurve(curve: 0 | 1 | 2): boolean;
   setDeckEQ(deck: 0 | 1, low: number, mid: number, high: number): boolean;
   setDeckGain(deck: 0 | 1, gain: number): boolean;
   setEQ(lowDb: number, midDb: number, highDb: number): boolean;

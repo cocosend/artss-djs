@@ -107,6 +107,15 @@ class RealtimeControls final : public jsi::HostObject {
             engine->stopAutoMix(); return true;
           });
     }
+    if (name == "setCrossfadeCurve") {
+      return jsi::Function::createFromHostFunction(runtime, property, 1,
+          [engine = engine_](jsi::Runtime&, const jsi::Value&, const jsi::Value* args, std::size_t count) -> jsi::Value {
+            if (count < 1 || !args[0].isNumber()) return false;
+            const double curve = args[0].asNumber();
+            if (!std::isfinite(curve) || curve != std::floor(curve) || curve < 0 || curve > 2) return false;
+            return engine->setCrossfadeCurve(static_cast<std::uint32_t>(curve));
+          });
+    }
     if (name == "crossfade") {
       return jsi::Function::createFromHostFunction(runtime, property, 1,
           [engine = engine_](jsi::Runtime&, const jsi::Value&, const jsi::Value* args, std::size_t count) -> jsi::Value {
