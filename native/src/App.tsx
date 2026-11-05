@@ -419,7 +419,7 @@ function Studio() {
   return <SafeAreaView style={styles.safe} edges={['top', 'bottom', 'left', 'right']}><StatusBar barStyle="light-content" />
     <ScrollView ref={contentRef} contentContainerStyle={[styles.content, {maxWidth: width > 800 ? 960 : 540}]} bounces={false}
       keyboardShouldPersistTaps="handled">
-      <View style={styles.header}><View><Text style={styles.brand}>NEXUS</Text><Text style={styles.sub}>ARTSS DJS · 34</Text></View>
+      <View style={styles.header}><View><Text style={styles.brand}>ARTSS DJS</Text><Text style={styles.sub}>NEXUS 35 · LIVE PERFORMANCE</Text></View>
         <Pressable accessibilityRole="button" onPress={() => { void toggleAudio(); }} disabled={busy || loading !== null} style={[styles.power, session && styles.powerOn]}>
           <Text style={styles.powerText}>{busy ? '…' : session ? '● AUDIO ON' : '▶ ЗАПУСТИТЬ ЗВУК'}</Text></Pressable></View>
       <Text style={nexus.pageTitle}>{mix ? 'DECKS / MIX' : 'STUDIO / STRIPE + PADS'}</Text>
