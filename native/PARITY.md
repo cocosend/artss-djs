@@ -5,7 +5,7 @@ This is a code-level checklist, not App Store release certification.
 Checked items are implemented in the native source; no physical-device latency/FPS claim.
 
 - [x] Two independent loaded decks with play/pause, BPM sync, and persistent per-deck CUE position.
-- [ ] Visual, inertial jog wheels and complete scratch/nudge/pitch-bend behavior (native jog transport exists).
+- [ ] Visual, inertial jog wheels and complete scratch/nudge/pitch-bend behavior (Skia dual jog gesture/audio bridge now exists; native audio inertia and pitch-bend refinement pending).
 - [ ] Smooth/sharp/dipless selectable crossfader curves and independent channel faders (all three curves implemented; dedicated channel faders pending).
 - [ ] 3-band EQ with true isolation modes (per-deck EQ exists).
 - [ ] Full gain, master true-peak limiter and stereo VU meters (independent stereo RMS L/R meters now exist; true-peak limiting remains).
@@ -43,3 +43,10 @@ Checked items are implemented in the native source; no physical-device latency/F
 - Two finite Float32 RMS levels published as lock-free atomics per audio callback.
 - Skia GPU bars read from the UI worklet without React state updates on each frame.
 - Regression checks stereo channel isolation, normalized levels, master mute and stop reset.
+
+## Cycle 4: interactive dual jog wheels
+
+- Two independent Skia GPU decks with metallic radial gradients and position markers.
+- Native per-deck scratch gestures call existing JSI `deckJog` worklet controls.
+- One UI-thread frame callback per jog for spin and display-only momentum; zero DSP changes.
+- Existing `jogAndLiveSeek` C++ regression covers safe reverse scrubbing and transport recovery.
