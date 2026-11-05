@@ -812,3 +812,164 @@ html{background:#050505}body{background:#050505!important;color:#f5f3ed}
 @media(max-width:430px){.nexus-app .live-pad-stage #pads .pad{height:clamp(86px,24vw,108px)!important}.nexus-app .hero-deck{grid-template-columns:68px minmax(0,1fr) 68px}.nexus-app .deck-transport{min-height:108px!important}.nexus-app .hero-wave{padding:4px!important}.nexus-app .pad-stage-label{font-size:8px}}
 
 .nexus-app .live-pad-stage #pads .pad{border-bottom-color:#f1d247!important}.nexus-app .live-pad-stage #pads .pad:nth-child(1){border-bottom-color:#ed5942!important}.nexus-app .live-pad-stage #pads .pad-glyph{color:#f1d247!important}.nexus-app .live-pad-stage #pads .pad:nth-child(1) .pad-glyph{color:#ed5942!important}.nexus-app .auto-track-panel .auto-track-glyph{background:#f1d247!important;color:#111!important;border-color:#f1d247!important}.nexus-app .auto-track-panel input[type=checkbox],.nexus-app .utility-actions input[type=range]{accent-color:#f1d247!important}.nexus-app .main-mixer input[type=range]{accent-color:#f1d247!important}
+
+/* ==========================================================================
+   PIONEER DJ MIXSOUND & BEATWAVE HARD TECHNO ENGINE STYLING
+   Modeled after Pioneer CDJ-3000 / DJM-900NXS2 & Rekordbox iOS
+   ========================================================================== */
+.dj-mode-switch{display:flex;gap:3px;align-items:center;background:#14161b;padding:2px;border:1px solid #323742;border-radius:6px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.dj-tab-btn{padding:4px 9px;border:0;border-radius:4px;background:transparent;color:#9ca3af;font-size:10px;font-weight:900;letter-spacing:.06em;cursor:pointer;white-space:nowrap;transition:all .12s}
+.dj-tab-btn.active{background:#f1d247;color:#0e1014;box-shadow:0 1px 4px #0008}
+
+.pioneer-dj-stage{order:2;margin-bottom:14px;background:#06080b;border:1px solid #2d3340;border-radius:4px;padding:12px;box-shadow:0 8px 30px #000c;position:relative}
+.pioneer-dj-stage[hidden]{display:none!important}
+
+/* Header strip */
+.dj-stage-header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #232834;padding-bottom:10px;margin-bottom:12px}
+.dj-stage-title{display:flex;align-items:center;gap:8px}
+.dj-badge-pioneer{background:#ff2434;color:#fff;font-size:9px;font-weight:1000;letter-spacing:.12em;padding:2px 6px;border-radius:2px}
+.dj-stage-title b{font-size:13px;letter-spacing:.1em;color:#f3f4f6}
+.dj-stage-tools{display:flex;gap:6px}
+.dj-stage-tools button{background:#161922;border:1px solid #363d4e;color:#cbd5e1;font-size:10px;font-weight:800;padding:4px 8px;border-radius:3px}
+
+/* VIEW 1: Dual Horizontal Waveforms (IMG_6965) */
+.dj-waveforms-stripe{position:relative;background:#05070a;border:1px solid #262c3a;border-radius:4px;overflow:hidden;margin-bottom:12px}
+.dj-wave-canvas-h{width:100%;height:68px;display:block;cursor:pointer}
+.dj-wave-center-needle{position:absolute;top:0;bottom:0;left:50%;width:2px;background:#fff;box-shadow:0 0 8px #ffffffaa;pointer-events:none;z-index:2}
+.dj-wave-labels{position:absolute;top:4px;left:8px;right:8px;display:flex;justify-content:space-between;pointer-events:none;font-size:9px;font-weight:900}
+.dj-wave-lbl-a{color:#00e5ff;text-shadow:0 0 6px #00e5ff88}
+.dj-wave-lbl-b{color:#ff7700;text-shadow:0 0 6px #ff770088}
+
+/* DECKS CONTROLLER GRID (IMG_6965) */
+.dj-decks-grid{display:grid;grid-template-columns:1fr 160px 1fr;gap:10px;align-items:start}
+@media(max-width:768px){.dj-decks-grid{grid-template-columns:1fr;gap:14px}}
+
+.pioneer-deck-card{background:#0e1117;border:1px solid #282e3c;border-radius:4px;padding:10px}
+.deck-card-a{border-top:3px solid #00e5ff}
+.deck-card-b{border-top:3px solid #ff7700}
+
+.deck-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.deck-id-badge{font-size:11px;font-weight:1000;padding:2px 7px;border-radius:2px}
+.deck-card-a .deck-id-badge{background:#00e5ff;color:#050608}
+.deck-card-b .deck-id-badge{background:#ff7700;color:#050608}
+.deck-info-stack{text-align:left;flex:1;margin-left:8px}
+.deck-info-stack strong{display:block;font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.deck-info-stack span{font-size:9px;color:#94a3b8}
+.deck-load-btn{background:#1e2330;border:1px solid #3c465b;color:#e2e8f0;font-size:9px;font-weight:800;padding:3px 7px;border-radius:2px}
+
+/* Jog Wheel */
+.jog-container{display:flex;align-items:center;justify-content:center;position:relative;margin:10px 0}
+.pioneer-jog{width:140px;height:140px;border-radius:50%;position:relative;cursor:grab;touch-action:none;user-select:none;
+  background:radial-gradient(circle at 50% 50%,#090b0e 0%,#181a20 22%,#0a0b0e 24%,#1d2128 42%,#0f1116 44%,#222631 66%,#0a0b0f 70%),
+  repeating-radial-gradient(circle,#16181d 0,#16181d 2px,#0d0f13 3px,#0d0f13 4px);
+  border:4px solid #383e4d;box-shadow:inset 0 0 14px #000,0 4px 16px #000a}
+.pioneer-jog:active{cursor:grabbing}
+.deck-card-a .pioneer-jog{border-color:#1c3947}
+.deck-card-b .pioneer-jog{border-color:#4a2b16}
+
+.pioneer-jog-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:52px;height:52px;border-radius:50%;
+  background:radial-gradient(circle,#282d38 0%,#13161c 65%,#0b0d11 100%);border:2px solid #586175;display:grid;place-items:center;
+  box-shadow:0 0 8px #0008,inset 0 1px 1px #ffffff44}
+.pioneer-jog-center span{font-size:18px;font-weight:1000}
+.deck-card-a .pioneer-jog-center span{color:#00e5ff;text-shadow:0 0 8px #00e5ff}
+.deck-card-b .pioneer-jog-center span{color:#ff7700;text-shadow:0 0 8px #ff7700}
+
+.jog-led-marker{position:absolute;top:8px;left:50%;width:6px;height:6px;border-radius:50%;transform:translateX(-50%)}
+.deck-card-a .jog-led-marker{background:#00e5ff;box-shadow:0 0 8px #00e5ff}
+.deck-card-b .jog-led-marker{background:#ff7700;box-shadow:0 0 8px #ff7700}
+
+/* Pitch & Deck Side Controls */
+.deck-controls-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+.pitch-fader-unit{display:flex;flex-direction:column;align-items:center;gap:4px}
+.pitch-fader-unit label{font-size:8px;letter-spacing:.12em;color:#94a3b8;font-weight:900}
+.pitch-slider-vertical{writing-mode:bt-lr;-webkit-appearance:slider-vertical;width:24px;height:88px;accent-color:#00e5ff}
+.deck-card-b .pitch-slider-vertical{accent-color:#ff7700}
+.pitch-readout{font-size:9px;font-weight:900;color:#f1f5f9}
+
+.deck-pad-modes{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.deck-pad-modes button{background:#161922;border:1px solid #303747;border-radius:2px;color:#94a3b8;font-size:8px;font-weight:900;padding:5px 4px}
+.deck-pad-modes button.active{background:#263242;color:#fff;border-color:#53617b}
+
+/* Deck Transport Row */
+.pioneer-transport-row{display:grid;grid-template-columns:1fr 1.3fr 1fr;gap:6px;margin-top:10px}
+.pioneer-btn{background:#161922;border:1px solid #363d4e;border-radius:3px;color:#f8fafc;font-size:11px;font-weight:950;letter-spacing:.08em;padding:10px 4px;display:flex;align-items:center;justify-content:center;gap:4px}
+.pioneer-btn:active{transform:scale(.96);filter:brightness(1.2)}
+.pioneer-btn-cue{border-color:#485268}
+.deck-card-a .pioneer-btn-cue{border-color:#00e5ff66;color:#00e5ff}
+.deck-card-b .pioneer-btn-cue{border-color:#ff770066;color:#ff7700}
+.pioneer-btn-play.playing{background:#13332a;border-color:#10b981;color:#10b981;box-shadow:0 0 10px #10b98155}
+.pioneer-btn-sync.syncing{background:#253748;border-color:#00e5ff;color:#00e5ff}
+
+/* CENTER MIXER (IMG_6965) */
+.pioneer-center-mixer{background:#0a0c10;border:1px solid #2c3240;border-radius:4px;padding:10px;display:flex;flex-direction:column;justify-content:space-between}
+.mixer-master-meter-unit{margin-bottom:10px;text-align:center}
+.mixer-master-meter-unit span{font-size:8px;font-weight:1000;letter-spacing:.18em;color:#94a3b8}
+.master-led-ladders{display:flex;gap:6px;justify-content:center;margin-top:4px}
+.led-ladder{display:flex;flex-direction:column-reverse;gap:2px;background:#101319;padding:3px;border-radius:2px;border:1px solid #232733}
+.led-seg{width:16px;height:4px;border-radius:1px;background:#1e2430;transition:background .06s}
+.led-seg.on.green{background:#10b981;box-shadow:0 0 4px #10b981}
+.led-seg.on.cyan{background:#06b6d4;box-shadow:0 0 4px #06b6d4}
+.led-seg.on.amber{background:#f59e0b;box-shadow:0 0 4px #f59e0b}
+.led-seg.on.red{background:#ef4444;box-shadow:0 0 6px #ef4444}
+
+.mixer-strip-channels{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:10px}
+.mixer-knob-strip{display:flex;flex-direction:column;align-items:center;gap:4px}
+.mixer-knob-strip small{font-size:8px;font-weight:900;color:#94a3b8}
+
+/* Rotary Knob Element */
+.pioneer-rotary-knob{width:36px;height:36px;border-radius:50%;background:#181c24;border:2px solid #374151;position:relative;touch-action:none;cursor:ns-resize;display:grid;place-items:center;box-shadow:inset 0 1px 2px #ffffff22,0 2px 6px #000}
+.pioneer-rotary-notch{width:2px;height:12px;background:#00e5ff;position:absolute;top:2px;left:50%;transform-origin:50% 16px;border-radius:1px}
+.knob-b .pioneer-rotary-notch{background:#ff7700}
+
+/* Crossfader Unit */
+.pioneer-crossfader-unit{background:#11141c;border:1px solid #2e3444;border-radius:3px;padding:8px}
+.crossfader-labels{display:flex;justify-content:space-between;font-size:10px;font-weight:1000;margin-bottom:4px}
+.crossfader-labels .cf-a{color:#00e5ff}
+.crossfader-labels .cf-b{color:#ff7700}
+.pioneer-crossfader-unit input[type=range]{width:100%;accent-color:#e2e8f0;height:24px;margin:0}
+
+/* VIEW 2: Dual Vertical Waveforms (IMG_6967) */
+.dj-vertical-wave-view{display:flex;flex-direction:column;gap:8px}
+.vert-wave-canvas-container{position:relative;background:#06080c;border:1px solid #232835;border-radius:4px;overflow:hidden;height:280px}
+.vert-wave-canvas{width:100%;height:100%;display:block}
+.vert-wave-center-line{position:absolute;top:50%;left:0;right:0;height:2px;background:#ffffffcc;box-shadow:0 0 8px #ffffffaa;pointer-events:none}
+.vert-wave-dots{position:absolute;top:50%;transform:translateY(-50%);display:flex;width:100%;justify-content:space-around;pointer-events:none}
+.vert-dot{width:10px;height:10px;border-radius:50%}
+.vert-dot.a{background:#00e5ff;box-shadow:0 0 10px #00e5ff}
+.vert-dot.b{background:#ff7700;box-shadow:0 0 10px #ff7700}
+
+/* VIEW 3: Portrait Rotary Mixer (IMG_6966 left) */
+.dj-portrait-mixer-view{display:grid;grid-template-columns:1fr 60px 1fr;gap:8px;background:#0b0d13;border:1px solid #262c3a;border-radius:4px;padding:12px}
+.rotary-column{display:flex;flex-direction:column;gap:12px;align-items:center}
+.rotary-col-head{font-size:10px;font-weight:1000;padding:2px 8px;border-radius:2px}
+.rotary-col-a .rotary-col-head{color:#00e5ff;background:#0e2832}
+.rotary-col-b .rotary-col-head{color:#ff7700;background:#321c0e}
+.rotary-unit{display:flex;flex-direction:column;align-items:center;gap:3px}
+.rotary-unit label{font-size:8px;font-weight:900;color:#94a3b8}
+
+/* VIEW 4: FX Rack & Interactive XY Pad (IMG_6966 right) */
+.dj-fx-rack-view{display:flex;flex-direction:column;gap:10px}
+.fx-category-tabs{display:flex;border-bottom:1px solid #2d3342}
+.fx-cat-btn{flex:1;background:transparent;border:0;color:#94a3b8;font-size:10px;font-weight:900;letter-spacing:.1em;padding:8px;border-bottom:2px solid transparent}
+.fx-cat-btn.active{color:#fff;border-bottom-color:#00e5ff}
+
+.fx-cards-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.fx-card{background:#11151e;border:1px solid #2e3547;border-radius:4px;padding:12px;cursor:pointer;position:relative;text-align:left;transition:all .12s}
+.fx-card:active{transform:scale(.98)}
+.fx-card.active{background:#172233;border-color:#00e5ff;box-shadow:0 0 12px #00e5ff44}
+.fx-card-title{font-size:11px;font-weight:1000;letter-spacing:.08em;color:#f8fafc;margin-bottom:6px;display:block}
+.fx-card.active .fx-card-title{color:#00e5ff}
+.fx-graphic{height:42px;display:flex;align-items:center;justify-content:center}
+.fx-graphic svg{width:100%;height:100%}
+
+/* XY Touch Pad */
+.xy-pad-container{background:#0e121a;border:1px solid #283042;border-radius:4px;padding:10px}
+.xy-pad-head{display:flex;justify-content:space-between;margin-bottom:6px;font-size:9px;font-weight:900}
+.xy-pad-surface{width:100%;height:150px;background:radial-gradient(circle at 50% 50%,#18202d 0%,#090c12 80%);
+  border:1px solid #333d52;border-radius:3px;position:relative;touch-action:none;cursor:crosshair;overflow:hidden}
+.xy-crosshair-h{position:absolute;top:50%;left:0;right:0;height:1px;background:#384358;pointer-events:none}
+.xy-crosshair-v{position:absolute;left:50%;top:0;bottom:0;width:1px;background:#384358;pointer-events:none}
+.xy-puck{width:16px;height:16px;border-radius:50%;background:#00e5ff;border:2px solid #fff;
+  box-shadow:0 0 12px #00e5ff;position:absolute;transform:translate(-50%,-50%);pointer-events:none;transition:transform .04s}
+.xy-caption{font-size:8px;font-weight:800;color:#94a3b8;margin-top:4px;text-align:center}
+

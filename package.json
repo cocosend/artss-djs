@@ -1,12 +1,24 @@
 {
-  "name": "artss-dj-creator", "version": "33.0.0", "private": true, "type": "module",
-  "devDependencies": {"typescript": "5.8.3"},
+  "name": "artss-dj-creator",
+  "version": "33.0.0",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "typescript": "5.8.3"
+  },
   "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
     "typecheck": "tsc --noEmit",
     "compile": "tsc",
     "build": "npm run compile && node scripts/build.mjs",
     "test": "node --test tests/*.test.mjs",
     "native:syntax": "node scripts/check-native.mjs",
+    "lint": "tsc --noEmit",
     "check": "npm run typecheck && npm run compile && npm run build && npm test && npm run native:syntax"
+  },
+  "dependencies": {
+    "@types/express": "^5.0.6",
+    "express": "^5.3.0"
   }
 }

@@ -8,6 +8,8 @@
  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
  <meta name="apple-mobile-web-app-title" content="ARTSS NEXUS">
  <meta name="description" content="ARTSS NEXUS DJ Creator — eight live pads, 16-step sequencer, recording, DSP mixer and local WAV export for iPhone.">
+ <meta property="og:title" content="ARTSS NEXUS — DJ CREATOR 33">
+ <meta property="og:description" content="ARTSS NEXUS DJ Creator — eight live pads, 16-step sequencer, recording, DSP mixer and local WAV export for iPhone.">
  <link rel="icon" href="/icon.svg" type="image/svg+xml">
  <link rel="manifest" href="/manifest.webmanifest">
  <link rel="stylesheet" href="/studio27.css">
@@ -35,7 +37,270 @@
   <button id="drawerPresets" type="button">♫ СТИЛИ</button>
   
  </aside>
- <div class="edition-line"><span>01 / PERFORMANCE</span><span>LOCAL AUDIO · LIVE</span></div>
+ <div class="edition-line">
+  <span>01 / PIONEER DJ & PERFORMANCE</span>
+  <div class="dj-mode-switch" role="tablist" aria-label="Режимы интерфейса">
+   <button type="button" class="dj-tab-btn active" data-view-mode="pads" id="tabPads" aria-selected="true">▦ ПЭДЫ</button>
+   <button type="button" class="dj-tab-btn" data-view-mode="decks" id="tabDecks" aria-selected="false">🎛️ ДЕКИ</button>
+   <button type="button" class="dj-tab-btn" data-view-mode="wave" id="tabWave" aria-selected="false">≋ ВОЛНЫ</button>
+   <button type="button" class="dj-tab-btn" data-view-mode="mix" id="tabMix" aria-selected="false">☷ МИКШЕР</button>
+   <button type="button" class="dj-tab-btn" data-view-mode="fx" id="tabFX" aria-selected="false">⚡ FX-ПАД</button>
+  </div>
+ </div>
+
+ <section id="pioneerDJ" class="pioneer-dj-stage" aria-label="Pioneer DJ контроллер" hidden>
+  <div class="dj-stage-header">
+   <div class="dj-stage-title">
+    <span class="dj-badge-pioneer">PIONEER DJ</span>
+    <b>MIXSOUND PRO</b>
+    <span id="djBpmBadge" style="font-size:10px;color:#f1d247;font-weight:900;">124.0 BPM · SYNC</span>
+   </div>
+   <div class="dj-stage-tools">
+    <button type="button" id="djAutoMixBtn">⚡ АВТО-СВЕДЕНИЕ</button>
+    <button type="button" id="djCloseBtn">✕ ЗАКРЫТЬ</button>
+   </div>
+  </div>
+
+  <!-- Horizontal Waveform Stripe (IMG_6965) -->
+  <div id="djWaveHContainer" class="dj-waveforms-stripe">
+   <div class="dj-wave-labels">
+    <span class="dj-wave-lbl-a" id="djWaveLblA">A: NIGHT CIRCUIT (124.00 F#m)</span>
+    <span class="dj-wave-lbl-b" id="djWaveLblB">B: RETRO COAST (125.00 Am)</span>
+   </div>
+   <canvas id="djWaveCanvasH" class="dj-wave-canvas-h" width="960" height="136"></canvas>
+   <div class="dj-wave-center-needle"></div>
+  </div>
+
+  <!-- VIEW 1: DECKS CONTROLLER (IMG_6965) -->
+  <div id="djViewDecksContent" class="dj-view-content dj-decks-grid">
+   <!-- Deck A Card -->
+   <div class="pioneer-deck-card deck-card-a">
+    <div class="deck-card-head">
+     <span class="deck-id-badge">A</span>
+     <div class="deck-info-stack">
+      <strong id="deckTitleA">Night Circuit</strong>
+      <span id="deckMetaA">124.00 BPM · F#m · 00:00</span>
+     </div>
+     <button type="button" class="deck-load-btn" id="deckLoadA">ТРЕК</button>
+     <input type="file" id="djFileInputA" accept="audio/*,.wav,.mp3,.m4a,.flac" hidden>
+    </div>
+
+    <div class="deck-controls-row">
+     <div class="pitch-fader-unit">
+      <label>TEMPO</label>
+      <input type="range" min="-16" max="16" step="0.1" value="0" id="djPitchA" class="pitch-slider-vertical" aria-label="Deck A Pitch Fader">
+      <span class="pitch-readout" id="djPitchReadoutA">0.0%</span>
+     </div>
+
+     <div class="jog-container">
+      <div class="pioneer-jog" id="djJogA" role="slider" aria-label="Deck A Vinyl Jog Wheel">
+       <div class="jog-led-marker" id="djJogMarkerA"></div>
+       <div class="pioneer-jog-center"><span>A</span></div>
+      </div>
+     </div>
+
+     <div class="deck-pad-modes">
+      <button type="button" class="active" data-deck-mode="A" data-mode="HOT CUE">HOT CUE</button>
+      <button type="button" data-deck-mode="A" data-mode="LOOP">LOOP</button>
+      <button type="button" data-deck-mode="A" data-mode="STEMS">STEMS</button>
+      <button type="button" data-deck-mode="A" data-mode="FX">FX</button>
+     </div>
+    </div>
+
+    <div class="pioneer-transport-row">
+     <button type="button" class="pioneer-btn pioneer-btn-cue" id="djCueA">CUE</button>
+     <button type="button" class="pioneer-btn pioneer-btn-play" id="djPlayA">▶II</button>
+     <button type="button" class="pioneer-btn pioneer-btn-sync" id="djSyncA">SYNC</button>
+    </div>
+   </div>
+
+   <!-- Center Mixer -->
+   <div class="pioneer-center-mixer">
+    <div class="mixer-master-meter-unit">
+     <span>MASTER VU</span>
+     <div class="master-led-ladders">
+      <div class="led-ladder" id="djVUMasterL">
+       <i class="led-seg green"></i><i class="led-seg green"></i><i class="led-seg green"></i><i class="led-seg cyan"></i>
+       <i class="led-seg cyan"></i><i class="led-seg amber"></i><i class="led-seg amber"></i><i class="led-seg red"></i>
+      </div>
+      <div class="led-ladder" id="djVUMasterR">
+       <i class="led-seg green"></i><i class="led-seg green"></i><i class="led-seg green"></i><i class="led-seg cyan"></i>
+       <i class="led-seg cyan"></i><i class="led-seg amber"></i><i class="led-seg amber"></i><i class="led-seg red"></i>
+      </div>
+     </div>
+    </div>
+
+    <div class="mixer-strip-channels">
+     <div class="mixer-knob-strip">
+      <small>LOW</small>
+      <div class="pioneer-rotary-knob" id="djKnobLow"><div class="pioneer-rotary-notch"></div></div>
+      <input type="range" min="0" max="1" step="0.01" value="0.85" id="djVolFaderA" class="pitch-slider-vertical" style="height:60px;" aria-label="Deck A Channel Volume">
+     </div>
+     <div class="mixer-knob-strip">
+      <small>MID</small>
+      <div class="pioneer-rotary-knob" id="djKnobMid"><div class="pioneer-rotary-notch"></div></div>
+      <div class="led-ladder" id="djVUDeckA" style="height:60px;width:12px;">
+       <i class="led-seg green"></i><i class="led-seg green"></i><i class="led-seg cyan"></i><i class="led-seg amber"></i><i class="led-seg red"></i>
+      </div>
+     </div>
+     <div class="mixer-knob-strip">
+      <small>HIGH</small>
+      <div class="pioneer-rotary-knob" id="djKnobHigh"><div class="pioneer-rotary-notch"></div></div>
+      <div class="led-ladder" id="djVUDeckB" style="height:60px;width:12px;">
+       <i class="led-seg green"></i><i class="led-seg green"></i><i class="led-seg cyan"></i><i class="led-seg amber"></i><i class="led-seg red"></i>
+      </div>
+     </div>
+     <div class="mixer-knob-strip">
+      <small>FILTER</small>
+      <div class="pioneer-rotary-knob" id="djKnobFilter"><div class="pioneer-rotary-notch"></div></div>
+      <input type="range" min="0" max="1" step="0.01" value="0.85" id="djVolFaderB" class="pitch-slider-vertical" style="height:60px;" aria-label="Deck B Channel Volume">
+     </div>
+    </div>
+
+    <div class="pioneer-crossfader-unit">
+     <div class="crossfader-labels"><span class="cf-a">A</span><span>CROSSFADER</span><span class="cf-b">B</span></div>
+     <input type="range" min="0" max="1" step="0.01" value="0.5" id="djCrossfader" aria-label="Pioneer Crossfader">
+    </div>
+   </div>
+
+   <!-- Deck B Card -->
+   <div class="pioneer-deck-card deck-card-b" id="pioneerDeckCardB">
+    <div class="deck-card-head">
+     <span class="deck-id-badge">B</span>
+     <div class="deck-info-stack">
+      <strong id="deckTitleB">Retro Coast</strong>
+      <span id="deckMetaB">125.00 BPM · Am · 00:00</span>
+     </div>
+     <button type="button" class="deck-load-btn" id="deckLoadB">ТРЕК</button>
+     <input type="file" id="djFileInputB" accept="audio/*,.wav,.mp3,.m4a,.flac" hidden>
+    </div>
+
+    <div class="deck-controls-row">
+     <div class="deck-pad-modes">
+      <button type="button" class="active" data-deck-mode="B" data-mode="HOT CUE">HOT CUE</button>
+      <button type="button" data-deck-mode="B" data-mode="LOOP">LOOP</button>
+      <button type="button" data-deck-mode="B" data-mode="STEMS">STEMS</button>
+      <button type="button" data-deck-mode="B" data-mode="FX">FX</button>
+     </div>
+
+     <div class="jog-container">
+      <div class="pioneer-jog" id="djJogB" role="slider" aria-label="Deck B Vinyl Jog Wheel">
+       <div class="jog-led-marker" id="djJogMarkerB"></div>
+       <div class="pioneer-jog-center"><span>B</span></div>
+      </div>
+     </div>
+
+     <div class="pitch-fader-unit">
+      <label>TEMPO</label>
+      <input type="range" min="-16" max="16" step="0.1" value="0" id="djPitchB" class="pitch-slider-vertical" aria-label="Deck B Pitch Fader">
+      <span class="pitch-readout" id="djPitchReadoutB">0.0%</span>
+     </div>
+    </div>
+
+    <div class="pioneer-transport-row">
+     <button type="button" class="pioneer-btn pioneer-btn-cue" id="djCueB">CUE</button>
+     <button type="button" class="pioneer-btn pioneer-btn-play" id="djPlayB">▶II</button>
+     <button type="button" class="pioneer-btn pioneer-btn-sync" id="djSyncB">SYNC</button>
+    </div>
+   </div>
+  </div>
+
+  <!-- VIEW 2: DUAL VERTICAL WAVEFORMS (IMG_6967) -->
+  <div id="djViewWaveContent" class="dj-view-content dj-vertical-wave-view" hidden>
+   <div class="vert-wave-canvas-container">
+    <canvas id="djWaveCanvasV" class="vert-wave-canvas" width="600" height="560"></canvas>
+    <div class="vert-wave-center-line"></div>
+    <div class="vert-wave-dots"><i class="vert-dot a"></i><i class="vert-dot b"></i></div>
+   </div>
+   <div class="pioneer-transport-row">
+    <button type="button" class="pioneer-btn" id="djSyncAll">SYNC A/B</button>
+    <button type="button" class="pioneer-btn pioneer-btn-play" id="djPlayAll">▶ СВЕДЕНИЕ</button>
+    <button type="button" class="pioneer-btn" id="djCueAll">CUE ALL</button>
+   </div>
+  </div>
+
+  <!-- VIEW 3: PORTRAIT ROTARY MIXER (IMG_6966 left) -->
+  <div id="djViewMixContent" class="dj-view-content dj-portrait-mixer-view" hidden>
+   <div class="rotary-column rotary-col-a">
+    <span class="rotary-col-head">DECK A</span>
+    <div class="rotary-unit"><div class="pioneer-rotary-knob" id="rotaryFilterA"><div class="pioneer-rotary-notch"></div></div><label>FILTER</label></div>
+    <div class="rotary-unit"><div class="pioneer-rotary-knob" id="rotaryHighA"><div class="pioneer-rotary-notch"></div></div><label>HIGH</label></div>
+    <div class="rotary-unit"><div class="pioneer-rotary-knob" id="rotaryMidA"><div class="pioneer-rotary-notch"></div></div><label>MID</label></div>
+    <div class="rotary-unit"><div class="pioneer-rotary-knob" id="rotaryLowA"><div class="pioneer-rotary-notch"></div></div><label>LOW</label></div>
+    <div class="rotary-unit"><div class="pioneer-rotary-knob" id="rotaryGainA"><div class="pioneer-rotary-notch"></div></div><label>GAIN</label></div>
+   </div>
+
+   <div class="mixer-master-meter-unit" style="display:flex;flex-direction:column;align-items:center;justify-content:center;">
+    <div class="master-led-ladders" style="height:190px;">
+     <div class="led-ladder" id="djPortraitVUL" style="gap:4px;">
+      <i class="led-seg green" style="height:8px;"></i><i class="led-seg green" style="height:8px;"></i>
+      <i class="led-seg cyan" style="height:8px;"></i><i class="led-seg cyan" style="height:8px;"></i>
+      <i class="led-seg amber" style="height:8px;"></i><i class="led-seg amber" style="height:8px;"></i>
+      <i class="led-seg red" style="height:8px;"></i>
+     </div>
+    </div>
+   </div>
+
+   <div class="rotary-column rotary-col-b">
+    <span class="rotary-col-head">DECK B</span>
+    <div class="rotary-unit"><div class="pioneer-rotary-knob knob-b" id="rotaryFilterB"><div class="pioneer-rotary-notch"></div></div><label>FILTER</label></div>
+    <div class="rotary-unit"><div class="pioneer-rotary-knob knob-b" id="rotaryHighB"><div class="pioneer-rotary-notch"></div></div><label>HIGH</label></div>
+    <div class="rotary-unit"><div class="pioneer-rotary-knob knob-b" id="rotaryMidB"><div class="pioneer-rotary-notch"></div></div><label>MID</label></div>
+    <div class="rotary-unit"><div class="pioneer-rotary-knob knob-b" id="rotaryLowB"><div class="pioneer-rotary-notch"></div></div><label>LOW</label></div>
+    <div class="rotary-unit"><div class="pioneer-rotary-knob knob-b" id="rotaryGainB"><div class="pioneer-rotary-notch"></div></div><label>GAIN</label></div>
+   </div>
+  </div>
+
+  <!-- VIEW 4: FX RACK & XY PAD (IMG_6966 right) -->
+  <div id="djViewFXContent" class="dj-view-content dj-fx-rack-view" hidden>
+   <div class="fx-category-tabs">
+    <button type="button" class="fx-cat-btn active" data-fx-cat="build">BUILD</button>
+    <button type="button" class="fx-cat-btn" data-fx-cat="motion">MOTION</button>
+    <button type="button" class="fx-cat-btn" data-fx-cat="space">SPACE</button>
+   </div>
+
+   <div class="fx-cards-grid">
+    <div class="fx-card" id="fxRiser" role="button" tabindex="0">
+     <span class="fx-card-title">RISER</span>
+     <div class="fx-graphic">
+      <svg viewBox="0 0 100 40"><path d="M5 35 L95 5 L95 35 Z" fill="#00e5ff33" stroke="#00e5ff" stroke-width="2"/></svg>
+     </div>
+    </div>
+    <div class="fx-card" id="fxEcho" role="button" tabindex="0">
+     <span class="fx-card-title">ECHO</span>
+     <div class="fx-graphic">
+      <svg viewBox="0 0 100 40"><circle cx="50" cy="20" r="8" fill="none" stroke="#fff" stroke-width="1.5"/><circle cx="50" cy="20" r="14" fill="none" stroke="#fff" stroke-width="1.5" stroke-dasharray="3 3"/><circle cx="50" cy="20" r="20" fill="none" stroke="#fff" stroke-width="1" stroke-dasharray="2 2"/></svg>
+     </div>
+    </div>
+    <div class="fx-card" id="fxPhaser" role="button" tabindex="0">
+     <span class="fx-card-title">PHASER</span>
+     <div class="fx-graphic">
+      <svg viewBox="0 0 100 40"><path d="M5 20 Q 25 5, 50 20 T 95 20" fill="none" stroke="#a855f7" stroke-width="2.5"/></svg>
+     </div>
+    </div>
+    <div class="fx-card" id="fxGate" role="button" tabindex="0">
+     <span class="fx-card-title">GATE</span>
+     <div class="fx-graphic">
+      <svg viewBox="0 0 100 40"><rect x="10" y="8" width="10" height="24" fill="#cbd5e1"/><rect x="32" y="8" width="10" height="24" fill="#cbd5e1"/><rect x="54" y="8" width="10" height="24" fill="#cbd5e1"/><rect x="76" y="8" width="10" height="24" fill="#cbd5e1"/></svg>
+     </div>
+    </div>
+   </div>
+
+   <div class="xy-pad-container">
+    <div class="xy-pad-head">
+     <span>RISER INTENSITY <b id="riserIntensityVal" style="color:#00e5ff;">62½%</b></span>
+     <span id="xyCoords">FILTER: 2400Hz · RES: 4.5</span>
+    </div>
+    <input type="range" min="0" max="100" value="62.5" id="riserIntensitySlider" style="width:100%;accent-color:#00e5ff;margin-bottom:8px;" aria-label="Riser Intensity">
+    <div class="xy-pad-surface" id="djXYPad" role="slider" aria-label="Touch and Drag XY Filter Pad">
+     <div class="xy-crosshair-h"></div>
+     <div class="xy-crosshair-v"></div>
+     <div class="xy-puck" id="djXYPuck" style="top:50%;left:50%;"></div>
+    </div>
+    <div class="xy-caption">TOUCH + DRAG · X: CUTOFF / Y: RESONANCE</div>
+   </div>
+  </div>
+ </section>
  <section class="live-pad-stage" aria-label="Живые пэды"><div class="pad-stage-label"><span>01 / PLAY THE GRID</span><span>8 VOICES · 4 BANKS</span></div>
   <div class="section-heading pad-head"><div class="headline"><span class="heading-icon">▦</span><h2>ДРАМ-ПЭДЫ</h2></div><div id="kitBanks" class="kit-banks" role="group" aria-label="Банки паттернов"><button type="button" data-kit="0" class="active">A</button><button type="button" data-kit="1">B</button><button type="button" data-kit="2">C</button><button type="button" data-kit="3">D</button></div></div>
   <div id="pads" class="pads" aria-label="Все восемь звуковых пэдов"></div>

@@ -1,0 +1,7 @@
+{
+  "name": "ARTSS NEXUS — DJ CREATOR 33",
+  "description": "ARTSS NEXUS DJ Creator — eight live pads, 16-step sequencer, recording, DSP mixer and local WAV export for iPhone.",
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
