@@ -220,7 +220,18 @@ function DrumMachine({controls, enabled}: {controls: RealtimeControls; enabled: 
   const [kit, setKit] = useState<1 | 2 | 3>(3);
   const [bpm, setBpm] = useState(136);
   const [running, setRunning] = useState(false);
-  const [pattern, setPattern] = useState(INITIAL_PATTERN);
+  const [banks, setBanks] = useState(() => Array.from({length: 4}, () => INITIAL_PATTERN.map(row => [...row])));
+  const [bank, setBank] = useState(0);
+  const [recording, setRecording] = useState(false);
+  const pattern = banks[bank]!;
+  function setPattern(next: number[][]) { setBanks(old => old.map((rows, index) => index === bank ? next : rows)); }
+  function recordHit(pad: PadIndex) {
+    if (!recording || !running) return;
+    const at = controls.currentStep;
+    if (at < 0 || at >= 16 || !controls.setStep(pad, at, 1)) return;
+    setBanks(old => old.map((rows, b) => b !== bank ? rows : rows.map((row, p) =>
+      p !== pad ? row : row.map((v, i) => i === at ? 1 : v))));
+  }
   const [step, setStep] = useState(0);
   useEffect(() => {
     for (let pad = 0; pad < 8; ++pad) for (let at = 0; at < 16; ++at)
@@ -250,8 +261,9 @@ function DrumMachine({controls, enabled}: {controls: RealtimeControls; enabled: 
     if (controls.setSequencer(next)) { setRunning(next); if (!next) setStep(0); }
   }
   return <View style={styles.drumMachine}>
-    <View style={styles.drumHeading}><Text style={styles.eyebrow}>03 / DRUM MACHINE</Text>
-      <Text style={styles.drumTitle}>303 · 606 · 909</Text></View>
+    <View style={styles.drumHeading}><Text style={styles.eyebrow}>01 / PERFORMANCE</Text>
+      <Text style={styles.drumTitle}>ДРАМ-ПЭДЫ</Text></View>
+    <View style={styles.kitRow}>{['A','B','C','D'].map((name, i) => <Key key={name} label={name} active={bank === i} onPress={() => setBank(i)} />)}</View>
     <View style={styles.kitRow}>{([1, 2, 3] as const).map(value =>
       <Pressable key={value} accessibilityRole="button" accessibilityLabel={`Kit ${value === 1 ? '303' : value === 2 ? '606' : '909'}`}
         accessibilityState={{selected: kit === value, disabled: !enabled}} disabled={!enabled} onPress={() => selectKit(value)}
@@ -259,12 +271,15 @@ function DrumMachine({controls, enabled}: {controls: RealtimeControls; enabled: 
         <Text style={[styles.kitText, kit === value && styles.kitTextSelected]}>{value === 1 ? '303' : value === 2 ? '606' : '909'}</Text>
       </Pressable>)}</View>
     <View style={styles.padGrid}>{KIT_LABELS[kit].map((label, index) =>
-      <PerformancePad key={index} index={index as PadIndex} label={label} controls={controls} enabled={enabled} onSelect={() => {}} />)}</View>
+      <PerformancePad key={index} index={index as PadIndex} label={label} controls={controls} enabled={enabled} onSelect={recordHit} />)}</View>
     <View style={styles.sequenceHeader}><Text style={styles.eyebrow}>16 STEP · 4 LANES</Text>
       <View style={styles.sequenceTransport}><Key label="−" onPress={() => changeBpm(-1)} disabled={!enabled} />
         <Text style={styles.sequenceBpm}>{bpm} BPM</Text><Key label="＋" onPress={() => changeBpm(1)} disabled={!enabled} />
         <Key label={running ? '■ STOP' : '▶ PLAY'} onPress={toggleSequence} disabled={!enabled} active={running} accent="#F6D527" />
       </View></View>
+    <View style={styles.sequenceTransport}><Key label="● ЗАПИСЬ ШАГОВ" active={recording} disabled={!enabled} onPress={() => setRecording(!recording)} />
+      <Key label="СОЗДАТЬ РИТМ" disabled={!enabled} onPress={() => setPattern(INITIAL_PATTERN.map((row, pad) => row.map((v, i) =>
+        pad === 0 ? v : v || (LANES.some(lane => lane === pad) && Math.random() < (i % 2 ? 0.12 : 0.22) ? 0.6 : 0))))} /></View>
     {LANES.map(pad => <View style={styles.stepsRow} key={pad}>
       <Text style={styles.stepsName}>{KIT_LABELS[kit][pad]}</Text>{pattern[pad]?.map((value, at) =>
         <Pressable key={at} accessibilityRole="button" accessibilityLabel={`${KIT_LABELS[kit][pad]} шаг ${at + 1}`}
@@ -276,6 +291,7 @@ function DrumMachine({controls, enabled}: {controls: RealtimeControls; enabled: 
 
 function Studio() {
   const {controls, session, busy, error, toggleAudio} = useAudioSession();
+  const [mix, setMix] = useState(false);
   const [tracks, setTracks] = useState<[TrackInfo | null, TrackInfo | null]>([null, null]);
   const [loading, setLoading] = useState<DeckIndex | null>(null);
   const loadingLock = useRef(false);
@@ -304,10 +320,11 @@ function Studio() {
   }
   return <SafeAreaView style={styles.safe} edges={['top', 'bottom', 'left', 'right']}><StatusBar barStyle="light-content" />
     <ScrollView contentContainerStyle={[styles.content, {maxWidth: width > 800 ? 760 : 540}]} bounces={false}>
-      <View style={styles.header}><View><Text style={styles.sub}>ARTSS / PERFORMANCE</Text><Text style={styles.brand}>DJ <Text style={styles.brandAccent}>CREATOR</Text></Text></View>
+      <View style={styles.header}><View><Text style={styles.sub}>NEXUS</Text><Text style={styles.brand}>DJ <Text style={styles.brandAccent}>CREATOR</Text></Text></View>
         <Pressable accessibilityRole="button" onPress={() => { void toggleAudio(); }} disabled={busy || loading !== null} style={[styles.power, session && styles.powerOn]}>
           <Text style={styles.powerText}>{busy ? '…' : session ? '● ON' : '◯ AUDIO'}</Text></Pressable></View>
-      <View style={styles.libraryHead}><View><Text style={styles.eyebrow}>01 / MUSIC LIBRARY</Text><Text style={styles.sectionTitle}>Начни с трека</Text></View>
+      <View style={{display: mix ? 'none' : 'flex'}}><DrumMachine controls={controls} enabled={!!session && !busy} /></View>
+      <View style={{display: mix ? 'flex' : 'none'}}><View style={styles.libraryHead}><View><Text style={styles.eyebrow}>01 / MUSIC LIBRARY</Text><Text style={styles.sectionTitle}>Начни с трека</Text></View>
         <View style={styles.target}><Text style={styles.targetLabel}>В ДЕКУ</Text>{([0, 1] as const).map(index => <Pressable key={index}
           accessibilityRole="button" accessibilityState={{selected: selected === index}} onPress={() => setSelected(index)}
           style={[styles.targetButton, selected === index && {backgroundColor: COLORS[index]}]}><Text style={[styles.targetText, selected === index && styles.targetTextOn]}>{index === 0 ? 'A' : 'B'}</Text></Pressable>)}</View></View>
@@ -327,9 +344,9 @@ function Studio() {
         loading={loading === index} canLoad={!busy && loading === null} load={() => { void load(index); }} position={playback.positions[index] ?? 0} playing={playback.playing[index] ?? false} />)}</View>
       <Crossfader controls={controls} enabled={!!session} />
       <MasterEQ controls={controls} enabled={!!session && !busy} />
-      <DrumMachine controls={controls} enabled={!!session && !busy} />
-      <Text style={styles.footer}>{session ? `${session.routes.join(' · ')}  ·  ${session.ioBufferMs.toFixed(1)} ms` : 'Включите звук, загрузите два трека и начните сведение'}</Text>
-    </ScrollView></SafeAreaView>;
+      </View>
+      <Text style={styles.footer}>{session ? `${session.routes.join(' · ')}  ·  ${session.ioBufferMs.toFixed(1)} ms` : 'Включите звук для игры'}</Text>
+    </ScrollView><View style={styles.kitRow}><Key label="СОЗДАТЬ" active={!mix} onPress={() => setMix(false)} /><Key label="MIX" active={mix} onPress={() => setMix(true)} /></View></SafeAreaView>;
 }
 
 export default function App() {
