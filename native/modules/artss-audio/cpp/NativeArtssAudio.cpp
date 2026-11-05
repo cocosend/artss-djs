@@ -20,12 +20,24 @@ class RealtimeControls final : public jsi::HostObject {
     if (name == "invalidBuffers") return static_cast<double>(backend_->invalidBuffers());
     if (name == "deckPosition0") return engine_->deckPosition(0);
     if (name == "deckPosition1") return engine_->deckPosition(1);
+    if (name == "deckCuePosition0") return engine_->deckCuePosition(0);
+    if (name == "deckCuePosition1") return engine_->deckCuePosition(1);
     if (name == "deckBpm0") return engine_->deckBpm(0);
     if (name == "deckBpm1") return engine_->deckBpm(1);
     if (name == "deckRate0") return engine_->deckPlaybackRate(0);
     if (name == "deckRate1") return engine_->deckPlaybackRate(1);
     if (name == "deckFirstBeat0") return engine_->deckFirstBeat(0);
     if (name == "deckFirstBeat1") return engine_->deckFirstBeat(1);
+    if (name == "deckCue" || name == "deckSetCue") {
+      return jsi::Function::createFromHostFunction(runtime, property, 1,
+          [engine = engine_, name](jsi::Runtime&, const jsi::Value&, const jsi::Value* args, std::size_t count) -> jsi::Value {
+            if (count < 1 || !args[0].isNumber()) return false;
+            const double deck = args[0].asNumber();
+            if (!std::isfinite(deck) || deck != std::floor(deck) || deck < 0 || deck >= 2) return false;
+            const auto index = static_cast<std::uint32_t>(deck);
+            return name == "deckCue" ? engine->deckCue(index) : engine->deckSetCue(index);
+          });
+    }
     if (name == "deckSync") {
       return jsi::Function::createFromHostFunction(runtime, property, 1,
           [engine = engine_](jsi::Runtime&, const jsi::Value&, const jsi::Value* args, std::size_t count) -> jsi::Value {
