@@ -9,8 +9,9 @@
     "lint": "eslint App.tsx src modules/artss-audio/src",
     "test:core": "node scripts/test-core.mjs",
     "bundle:ios": "react-native bundle --platform ios --dev false --entry-file index.js --bundle-output build/main.jsbundle --assets-dest build/assets",
-    "verify": "npm run typecheck && npm run lint && npm run test:core && npm run codegen:check && npm run bundle:ios",
-    "codegen:check": "node node_modules/react-native/scripts/generate-codegen-artifacts.js -p . -o build/codegen-ios -t ios"
+    "verify": "npm run typecheck && npm run lint && npm run test:core && npm run test:grooves && npm run codegen:check && npm run bundle:ios",
+    "codegen:check": "node node_modules/react-native/scripts/generate-codegen-artifacts.js -p . -o build/codegen-ios -t ios",
+    "test:grooves": "node --experimental-strip-types --test tests/stripewolf-grooves.test.mjs"
   },
   "dependencies": {
     "react": "19.2.3",

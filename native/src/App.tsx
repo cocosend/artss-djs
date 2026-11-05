@@ -7,15 +7,10 @@ import {useDerivedValue, useFrameCallback, useSharedValue} from 'react-native-re
 import {loadPreset, pickTrack, type PadIndex, type RealtimeControls, type TrackInfo} from 'react-native-artss-audio';
 import {useAudioSession} from './audio/useAudioSession';
 import {PerformancePad} from './components/PerformancePad';
+import {WOLF_GROOVES, buildWolfPattern} from './audio/stripewolfGrooves';
 
 type DeckIndex = 0 | 1;
 const COLORS = ['#F6D527', '#FF4569'] as const;
-const PRESETS = [
-  {name: 'Maddix', genre: 'PEAK TECHNO', bpm: 145}, {name: 'ARTBAT', genre: 'MELODIC', bpm: 124},
-  {name: 'Brejcha', genre: 'MINIMAL', bpm: 126}, {name: 'Guetta', genre: 'DANCE', bpm: 128},
-  {name: 'Kazantip', genre: 'RAVE', bpm: 138}, {name: 'Legends', genre: 'CLASSIC', bpm: 130},
-  {name: 'Modern', genre: 'FUTURE', bpm: 132},
-] as const;
 const EMPTY = Object.freeze(new Array<number>(96).fill(0));
 const KIT_LABELS = [[], ['KICK', 'SUB', 'CLAP', 'HAT', 'OPEN', 'PERC', 'ACID', 'CRASH'],
   ['KICK', 'SNARE', 'CLAP', 'HAT', 'OPEN', 'RIM', 'BELL', 'PERC'],
@@ -190,6 +185,7 @@ function DrumMachine({controls, enabled}: {controls: RealtimeControls; enabled: 
   const [banks, setBanks] = useState(() => Array.from({length: 4}, () => INITIAL_PATTERN.map(row => [...row])));
   const [bank, setBank] = useState(0);
   const [recording, setRecording] = useState(false);
+  const [activeGroove, setActiveGroove] = useState<number | null>(null);
   const pattern = banks[bank]!;
   function setPattern(next: number[][]) { setBanks(old => old.map((rows, index) => index === bank ? next : rows)); }
   function recordHit(pad: PadIndex, at: number) {
@@ -227,18 +223,46 @@ function DrumMachine({controls, enabled}: {controls: RealtimeControls; enabled: 
     if (controls.setSequencer(next)) { setRunning(next); if (!next) setStep(0); }
   }
 
+  function applyGroove(index: number) {
+    const groove = WOLF_GROOVES[index];
+    if (!groove) return;
+    // Only the selected A/B/C/D bank is replaced; the other three stay editable.
+    // The real C++ sequencer picks up these velocities/kit/BPM through atomics.
+    setPattern(buildWolfPattern(index));
+    setKit(groove.kit);
+    setBpm(groove.bpm);
+    setActiveGroove(index);
+  }
   const kitName = kit === 1 ? '303 / ACID' : kit === 2 ? '606 / CLASSIC' : '909 / TECHNO';
   function generateRhythm() {
     const next = INITIAL_PATTERN.map((row, pad) => row.map((value, index) =>
       pad === 0 ? value : value || (LANES.some(lane => lane === pad) &&
         Math.random() < (index % 2 ? 0.12 : 0.23) ? 0.7 : 0)));
     setPattern(next);
+    setActiveGroove(null);
   }
   return <View style={nexus.workspace}>
     <View style={nexus.performanceLine}>
       <Text style={nexus.performanceTitle}>01 / PERFORMANCE</Text>
       <Text style={nexus.performanceMeta}>LOCAL AUDIO · LIVE</Text>
     </View>
+    <View style={nexus.wolfTop}>
+      <Text style={nexus.wolfTitle}>STRIPEWOLF / MUSIC PACKS</Text>
+      <Text style={nexus.wolfMeta}>9 GROOVES · 7 STYLES · EDITABLE</Text>
+    </View>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} nestedScrollEnabled
+      contentContainerStyle={nexus.wolfList} accessibilityLabel="Музыкальные паттерны Stripewolf">
+      {WOLF_GROOVES.map((groove, index) =>
+        <Pressable key={groove.id} accessibilityRole="button"
+          accessibilityLabel={`Создать ритм ${groove.title} в банке ${bank + 1}`}
+          accessibilityState={{selected: activeGroove === index}}
+          onPress={() => applyGroove(index)}
+          style={[nexus.wolfChip, activeGroove === index && nexus.wolfChipActive]}>
+          <Text style={nexus.wolfChipName}>{groove.title}</Text>
+          <Text style={nexus.wolfChipBpm}>{groove.bpm} BPM · {groove.kit === 1 ? '303' : groove.kit === 2 ? '606' : '909'}</Text>
+          <Text style={nexus.wolfChipHint}>{activeGroove === index ? 'В БАНКЕ · РЕДАКТИРУЙ' : 'ПРИМЕНИТЬ В БАНК'}</Text>
+        </Pressable>)}
+    </ScrollView>
     <View style={nexus.padsPanel}>
       <View style={nexus.strip}><Text style={nexus.stripLeft}>01 / PLAY THE GRID</Text><Text style={nexus.stripRight}>8 VOICES · 4 BANKS</Text></View>
       <View style={nexus.padsHeading}>
@@ -356,7 +380,7 @@ function Studio() {
   }
   return <SafeAreaView style={styles.safe} edges={['top', 'bottom', 'left', 'right']}><StatusBar barStyle="light-content" />
     <ScrollView contentContainerStyle={[styles.content, {maxWidth: width > 800 ? 960 : 540}]} bounces={false}>
-      <View style={styles.header}><View><Text style={styles.brand}>NEXUS</Text><Text style={styles.sub}>DJ CREATOR · 33</Text></View>
+      <View style={styles.header}><View><Text style={styles.brand}>NEXUS</Text><Text style={styles.sub}>ARTSS DJS · 34</Text></View>
         <Pressable accessibilityRole="button" onPress={() => { void toggleAudio(); }} disabled={busy || loading !== null} style={[styles.power, session && styles.powerOn]}>
           <Text style={styles.powerText}>{busy ? '…' : session ? '● ON' : '◯ AUDIO'}</Text></Pressable></View>
       <View style={{display: mix ? 'none' : 'flex'}}><DrumMachine controls={controls} enabled={!!session && !busy} /></View>
@@ -365,11 +389,11 @@ function Studio() {
           accessibilityRole="button" accessibilityState={{selected: selected === index}} onPress={() => setSelected(index)}
           style={[styles.targetButton, selected === index && {backgroundColor: COLORS[index]}]}><Text style={[styles.targetText, selected === index && styles.targetTextOn]}>{index === 0 ? 'A' : 'B'}</Text></Pressable>)}</View></View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.presetScroll} contentContainerStyle={styles.presetList}>
-        {PRESETS.map((preset, index) => <Pressable key={preset.name} accessibilityRole="button"
-          accessibilityLabel={`Загрузить демолуп ${preset.name} в деку ${selected === 0 ? 'A' : 'B'}`}
+        {WOLF_GROOVES.map((preset, index) => <Pressable key={preset.id} accessibilityRole="button"
+          accessibilityLabel={`Загрузить оригинальный демолуп ${preset.title} в деку ${selected === 0 ? 'A' : 'B'}`}
           disabled={loading !== null || busy} onPress={() => { void load(selected, index); }} style={[styles.preset, (loading !== null || busy) && styles.disabled]}>
           <Text style={styles.presetIndex}>{String(index + 1).padStart(2, '0')} / DEMO</Text>
-          <Text style={styles.presetName}>{preset.name}</Text><View style={styles.presetBottom}><Text style={styles.presetGenre}>{preset.genre}</Text><Text style={styles.presetBpm}>{preset.bpm} BPM</Text></View>
+          <Text numberOfLines={2} style={styles.presetName}>{preset.title}</Text><View style={styles.presetBottom}><Text style={styles.presetGenre}>{preset.style.toUpperCase()}</Text><Text style={styles.presetBpm}>{preset.bpm} BPM</Text></View>
         </Pressable>)}</ScrollView>
       <Pressable accessibilityRole="button" disabled={loading !== null || busy} onPress={() => { void load(selected); }} style={[styles.import, (loading !== null || busy) && styles.disabled]}>
         <Text style={styles.importIcon}>＋</Text><View style={styles.importText}><Text style={styles.importTitle}>Загрузить свой трек</Text>
@@ -411,7 +435,7 @@ const styles = StyleSheet.create({
   presetScroll: {marginHorizontal: -14}, presetList: {paddingHorizontal: 14, gap: 9},
   preset: {width: 146, height: 122, borderRadius: 14, borderWidth: 1, borderColor: '#6A6250', backgroundColor: '#201E19', padding: 12, justifyContent: 'space-between'},
   presetIndex: {color: '#F6D527', fontSize: 9, fontWeight: '900', letterSpacing: 1.2},
-  presetName: {color: '#FFFFFF', fontSize: 20, fontWeight: '900', letterSpacing: -0.5},
+  presetName: {color: '#FFFFFF', fontSize: 14, fontWeight: '900', letterSpacing: -0.2},
   presetBottom: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'},
   presetGenre: {color: '#ABB9CB', fontSize: 8, fontWeight: '800'}, presetBpm: {color: '#F6D527', fontSize: 9, fontWeight: '900'},
   import: {height: 66, marginTop: 10, borderRadius: 12, borderWidth: 1, borderColor: '#496179', backgroundColor: '#201E19', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14},
@@ -464,6 +488,15 @@ const styles = StyleSheet.create({
 
 
 const nexus = StyleSheet.create({
+  wolfTop: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, marginBottom: 8, gap: 8},
+  wolfTitle: {fontSize: 11, fontWeight: '900', color: '#F6D527', letterSpacing: 1.4},
+  wolfMeta: {fontSize: 8, fontWeight: '800', color: '#B2B3AA', letterSpacing: 0.6},
+  wolfList: {gap: 8, paddingBottom: 12},
+  wolfChip: {width: 174, minHeight: 90, backgroundColor: '#1E1D1B', borderColor: '#4E4C43', borderWidth: 1, borderRadius: 11, padding: 10, justifyContent: 'space-between'},
+  wolfChipActive: {borderColor: '#F6D527', backgroundColor: '#373019'},
+  wolfChipName: {fontSize: 11, fontWeight: '900', color: '#FAF8F1'},
+  wolfChipBpm: {fontSize: 10, fontWeight: '900', color: '#F6D527'},
+  wolfChipHint: {fontSize: 8, fontWeight: '700', color: '#B9B5AA', letterSpacing: 0.6},
   workspace: {gap: 12},
   performanceLine: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 2},
   performanceTitle: {color: '#F6D527', fontWeight: '900', fontSize: 12, letterSpacing: 2.5},

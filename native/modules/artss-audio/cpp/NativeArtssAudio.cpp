@@ -206,7 +206,7 @@ AsyncPromise<std::string> NativeArtssAudio::pickTrack(jsi::Runtime& runtime, dou
 AsyncPromise<std::string> NativeArtssAudio::loadPreset(jsi::Runtime& runtime, double deck, double preset) {
   AsyncPromise<std::string> promise(runtime, invoker_);
   if (!std::isfinite(deck) || deck < 0 || deck >= 2 || deck != std::floor(deck) ||
-      !std::isfinite(preset) || preset < 0 || preset >= 7 || preset != std::floor(preset)) {
+      !std::isfinite(preset) || preset < 0 || preset >= 9 || preset != std::floor(preset)) {
     promise.reject(Error{"Invalid preset or deck"});
     return promise;
   }

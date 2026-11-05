@@ -104,7 +104,7 @@ export async function pickTrack(deck: 0 | 1): Promise<TrackInfo> {
 }
 
 export async function loadPreset(deck: 0 | 1, preset: number): Promise<TrackInfo> {
-  if (!Number.isInteger(preset) || preset < 0 || preset > 6) throw new Error('Неизвестный пресет');
+  if (!Number.isInteger(preset) || preset < 0 || preset > 8) throw new Error('Неизвестный пресет');
   return parseTrack(await NativeArtssAudio.loadPreset(deck, preset));
 }
 

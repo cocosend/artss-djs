@@ -36,10 +36,13 @@ const void* kLifecycleQueueKey = &kLifecycleQueueKey;
 constexpr UInt32 kMaximumFrames = 4096;
 const std::array<const char*, kPadCount> kSampleNames{
     "kick", "snare", "clap", "closed-hat", "open-hat", "low-tom", "rim", "shaker"};
-constexpr std::array<const char*, 7> kPresetNames{
-    "Maddix", "ARTBAT", "Brejcha", "Guetta", "Kazantip", "Legends", "Modern"};
-constexpr std::array<int, 7> kPresetBpm{145, 124, 126, 128, 138, 130, 132};
-constexpr std::array<int, 7> kPresetRoots{38, 34, 41, 36, 33, 43, 39};
+// Original eight-bar motifs adapted from Stripewolf Wave's 9 DemoPicker entries.
+constexpr std::array<const char*, 9> kPresetNames{
+    "Kazantip Retro Coast", "Kazantip Sunrise 303", "Acid Night Circuit",
+    "303 Black Sea Warehouse", "Modern Midnight Pulse", "Maddix Rumble 909",
+    "ARTBAT Orbital Dawn", "Brejcha Rubber Bass", "Guetta Neon Drive"};
+constexpr std::array<int, 9> kPresetBpm{132, 138, 142, 146, 150, 148, 124, 128, 130};
+constexpr std::array<int, 9> kPresetRoots{33, 33, 43, 43, 39, 38, 34, 41, 36};
 
 void check(OSStatus status, const char* operation) {
   if (status != noErr) throw std::runtime_error(std::string(operation) + ": " + std::to_string(status));
@@ -119,21 +122,26 @@ Sample decode(NSURL* url, double sampleRate, double maxSeconds = 30) {
 Sample synthPreset(std::uint32_t preset, double sampleRate) {
   constexpr double pi = 3.14159265358979323846;
   const double beat = 60.0 / kPresetBpm[preset];
-  const auto frames = static_cast<std::size_t>(std::ceil(beat * 16 * sampleRate));
+  const auto frames = static_cast<std::size_t>(std::ceil(beat * 32 * sampleRate));  // Eight bars.
   Sample result;
   result.stereo.resize(frames * 2);
   const double root = 440.0 * std::pow(2.0, (kPresetRoots[preset] - 69) / 12.0);
-  constexpr int notes[7][4] = {{0, 0, 3, -2}, {0, 7, 3, 5}, {0, -2, 5, 3},
-      {0, 5, 7, 3}, {0, 3, -2, 5}, {0, 7, 5, 3}, {0, 3, 7, 5}};
+  constexpr int notes[9][4] = {{0, 3, -2, 5}, {0, 7, 5, 3}, {0, 7, 5, 3},
+       {0, -2, 3, 7}, {0, 3, 7, 5}, {0, 0, 3, -2}, {0, 7, 3, 5},
+       {0, -2, 5, 3}, {0, 5, 7, 3}};
+  const bool acid303 = preset <= 4;
+  const bool sub808 = preset <= 1 || preset == 4 || preset == 5 || preset == 6;
+  const bool punch909 = preset <= 1 || preset == 4 || preset == 5 || preset == 8;
   for (std::size_t i = 0; i < frames; ++i) {
     const double t = i / sampleRate;
     const double beatPosition = t / beat;
     const auto beatNumber = static_cast<int>(beatPosition);
     const double phase = (beatPosition - beatNumber) * beat;
     const double kickEnv = std::exp(-phase * 21.0);
-    const double kick = std::sin(2.0 * pi * (52.0 * phase + 42.0 * (1.0 - std::exp(-phase * 28.0)) / 28.0)) * kickEnv * .42;
+    const double kick = std::sin(2.0 * pi * (52.0 * phase + 42.0 * (1.0 - std::exp(-phase * 28.0)) / 28.0))
+        * kickEnv * (punch909 ? .49 : .38);
     const double eighth = std::fmod(t, beat / 2.0);
-    const double hatEnv = std::exp(-eighth * (preset == 4 ? 52.0 : 70.0));
+    const double hatEnv = std::exp(-eighth * (preset <= 1 ? 52.0 : 70.0));
     // Deterministic inharmonic texture with a short envelope; no random state on the audio thread.
     const double noise = std::sin(2 * pi * 6413 * t) * std::sin(2 * pi * 9127 * t);
     const double hat = noise * hatEnv * .09;
@@ -142,12 +150,20 @@ Sample synthPreset(std::uint32_t preset, double sampleRate) {
     const double bassPhase = std::fmod(t, beat / 2.0);
     const double bassFreq = root * std::pow(2.0, notes[preset][(beatNumber / 4) % 4] / 12.0);
     const double bass = std::sin(2 * pi * bassFreq * t) * (0.5 + 0.5 * std::sin(2 * pi * bassFreq * 2 * t))
-        * std::exp(-bassPhase * 5.0) * .18;
+        * std::exp(-bassPhase * 5.0) * .14;
+    const double acidPhase = std::fmod(bassFreq * 2.0 * t, 1.0);
+    const double acidGate = ((beatNumber % 4) != 3 ? 1.0 : .42);
+    const double acid = acid303 ? (acidPhase * 2.0 - 1.0) *
+        std::exp(-bassPhase * (preset == 3 ? 14.0 : 9.0)) * acidGate * .075 : 0.0;
+    const double sub = sub808 ? std::sin(2.0 * pi * (root * .5) * t) *
+        std::exp(-std::fmod(t, beat) * 5.0) * .072 : 0.0;
     const double leadPhase = std::fmod(t, beat);
     const double lead = (preset % 2 == 0 ? std::sin(2 * pi * root * 4 * t) : std::sin(2 * pi * root * 3 * t))
         * std::exp(-leadPhase * 8.0) * .045;
-    const float left = static_cast<float>(std::clamp(kick + hat + snare + bass + lead, -.95, .95));
-    const float right = static_cast<float>(std::clamp(kick + hat * .8 + snare * 1.1 + bass + lead * .7, -.95, .95));
+    const double loopFade = std::min({1.0, static_cast<double>(i) / 256.0,
+        static_cast<double>(frames - i - 1) / 256.0});
+    const float left = static_cast<float>(std::clamp((kick + hat + snare + bass + acid + sub + lead) * loopFade, -.95, .95));
+    const float right = static_cast<float>(std::clamp((kick + hat * .8 + snare * 1.1 + bass + acid * .8 + sub + lead * .7) * loopFade, -.95, .95));
     result.stereo[i * 2] = left;
     result.stereo[i * 2 + 1] = right;
   }
