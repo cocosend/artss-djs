@@ -409,9 +409,19 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
   const float targetLow = std::pow(10.0F, lowDb_.load(std::memory_order_relaxed) / 20.0F);
   const float targetMid = std::pow(10.0F, midDb_.load(std::memory_order_relaxed) / 20.0F);
   const float targetHigh = std::pow(10.0F, highDb_.load(std::memory_order_relaxed) / 20.0F);
+  // Control-rate snapshots: atomics are read once per callback, never in the
+  // per-sample mixer. Audio smoothing remains sample-rate independent.
+  const bool sequenceOn = sequencerPlaying_.load(std::memory_order_relaxed);
+  const double stepFrames = sampleRate_ * 15.0 / tempo_.load(std::memory_order_relaxed);
+  const float targetCrossfade = requestedCrossfade_.load(std::memory_order_relaxed);
+  std::array<float, kDeckCount> filterAmounts{}, filterCoefficients{}, rates{};
+  for (std::size_t index = 0; index < kDeckCount; ++index) {
+    filterAmounts[index] = decks_[index].filterAmount.load(std::memory_order_relaxed);
+    filterCoefficients[index] = decks_[index].filterCoefficient.load(std::memory_order_relaxed);
+    rates[index] = decks_[index].rate.load(std::memory_order_relaxed);
+  }
   float blockPeak = 0;
   for (std::uint32_t frame = 0; frame < frames; ++frame) {
-    const bool sequenceOn = sequencerPlaying_.load(std::memory_order_relaxed);
     if (sequenceOn && !sequencerWasPlaying_) {
       sequenceFrame_ = 0;
       nextStepFrame_ = 0;
@@ -424,7 +434,7 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
         if (velocity > 0) startVoice(static_cast<std::uint32_t>(pad), velocity);
       }
       sequenceStep_ = (sequenceStep_ + 1) % kSteps;
-      nextStepFrame_ += sampleRate_ * 15.0 / tempo_.load(std::memory_order_relaxed);
+      nextStepFrame_ += stepFrames;
     }
     if (sequenceOn) ++sequenceFrame_;
     else if (sequencerWasPlaying_) currentStep_.store(0, std::memory_order_relaxed);
@@ -454,7 +464,7 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
       l += vl;
       r += vr;
     }
-    crossfade_ += std::clamp(requestedCrossfade_.load(std::memory_order_relaxed) - crossfade_, -gainSlew_, gainSlew_);
+    crossfade_ += std::clamp(targetCrossfade - crossfade_, -gainSlew_, gainSlew_);
     const float gainA = std::sqrt(std::max(0.0F, 1 - crossfade_));
     const float gainB = std::sqrt(std::max(0.0F, crossfade_));
     for (std::size_t index = 0; index < kDeckCount; ++index) {
@@ -477,7 +487,7 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
       } else if (deck.jogIdleFrames < jogTimeoutFrames_) ++deck.jogIdleFrames;
       const float targetRate = jogging ? (deck.jogIdleFrames < jogTimeoutFrames_ ?
                                deck.jogRate.load(std::memory_order_relaxed) : 0) :
-                               playing ? deck.rate.load(std::memory_order_relaxed) : 0;
+                               playing ? rates[index] : 0;
       deck.actualRate += std::clamp(targetRate - deck.actualRate, -jogSlew_, jogSlew_);
       const bool atEdge = (deck.cursor <= 0 && deck.actualRate < 0) ||
                           (deck.cursor >= total - 1 && deck.actualRate > 0);
@@ -497,10 +507,10 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
         }
         deck.lastL = sampleL;
         deck.lastR = sampleR;
-        deck.filterAmountSmooth += std::clamp(deck.filterAmount.load(std::memory_order_relaxed) - deck.filterAmountSmooth,
+        deck.filterAmountSmooth += std::clamp(filterAmounts[index] - deck.filterAmountSmooth,
                                                -gainSlew_, gainSlew_);
         const float amount = deck.filterAmountSmooth;
-        deck.filterG += std::clamp(deck.filterCoefficient.load(std::memory_order_relaxed) - deck.filterG,
+        deck.filterG += std::clamp(filterCoefficients[index] - deck.filterG,
                                    -gainSlew_, gainSlew_);
         const float g = deck.filterG;
         const float denominator = 1.0F / (1.0F + 1.41421356F * g + g * g);
@@ -529,7 +539,10 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
             deck.seekTailL = deck.lastL;
             deck.seekTailR = deck.lastR;
             deck.seekFadeRemaining = kFadeFrames;
-            deck.cursor = static_cast<double>(deck.loopStart.load(std::memory_order_relaxed)) * total;
+            const double start = static_cast<double>(deck.loopStart.load(std::memory_order_relaxed)) * total;
+            // Retain fractional overshoot at every wrap; dropping it drifts the beat grid.
+            const double span = loopEnd - start;
+            deck.cursor = span > 0 ? start + std::fmod(deck.cursor - loopEnd, span) : start;
           }
           else { deck.cursor = total - 1; deck.playing.store(false, std::memory_order_release); }
         }

@@ -1,6 +1,6 @@
 # ARTSS NEXUS — production development contract
 
-Repository: `cocosend/artss-djs`. The only canonical production site is `https://artss-djs.vercel.app/`.
+Repository: `cocosend/artss-djs`. The canonical deliverable is the native iOS IPA. Vercel is retired for this project; do not reconnect or deploy it.
 This repo currently deploys a **Web Audio/TypeScript iPhone PWA**. A separate `native/` source experiment is **not** a deployed React Native app; do not claim native 120 FPS, native JSI/CoreAudio latency, App Store compatibility, or iPhone hardware validation without evidence.
 
 ## User-approved appearance and workflow

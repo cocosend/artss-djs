@@ -50,10 +50,10 @@ export function MasterFader({controls, enabled}: {controls: RealtimeControls; en
 const styles = StyleSheet.create({
   container: {marginTop: 25},
   labels: {flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 2},
-  title: {color: '#18181C', fontWeight: '800', fontSize: 11, letterSpacing: 1.2},
+  title: {color: '#EDF6FA', fontWeight: '800', fontSize: 11, letterSpacing: 1.2},
   hint: {color: '#7A7A82', fontSize: 11},
   trackTouch: {height: 60, justifyContent: 'center'},
-  track: {height: 5, backgroundColor: '#D9D9DD', borderRadius: 3, marginHorizontal: 22},
-  fill: {height: 5, backgroundColor: '#DF233D', borderRadius: 3},
-  thumb: {position: 'absolute', width: 44, height: 44, borderRadius: 22, backgroundColor: '#18181C', borderWidth: 5, borderColor: '#F3F2EF'},
+  track: {height: 5, backgroundColor: '#344653', borderRadius: 3, marginHorizontal: 22},
+  fill: {height: 5, backgroundColor: '#42E8D1', borderRadius: 3},
+  thumb: {position: 'absolute', width: 44, height: 44, borderRadius: 22, backgroundColor: '#EDF6FA', borderWidth: 5, borderColor: '#344653'},
 });

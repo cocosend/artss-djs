@@ -1,4 +1,4 @@
-import {useMemo} from 'react';
+import {memo, useMemo} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import {Canvas, Path, Skia} from '@shopify/react-native-skia';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
@@ -41,7 +41,7 @@ const ICON_PATHS: Record<string, string> = {
 const TONES = ['#FF4569', '#69E5D8', '#FFFFFF', '#6DE4C8',
   '#DBE9F7', '#B4C4D6', '#FE5E92', '#69E5D8'] as const;
 
-export function PerformancePad({index, label, controls, enabled, onSelect}: Props) {
+export const PerformancePad = memo(function PerformancePad({index, label, controls, enabled, onSelect}: Props) {
   const pressed = useSharedValue(0);
   const failed = useSharedValue(0);
   const tone = TONES[index];
@@ -63,7 +63,7 @@ export function PerformancePad({index, label, controls, enabled, onSelect}: Prop
     .onFinalize(() => { pressed.value = withTiming(0, {duration: 90}); });
   const animated = useAnimatedStyle(() => ({
     transform: [{scale: 1 - pressed.value * 0.035}],
-    backgroundColor: failed.value ? '#55242B' : pressed.value > 0.1 ? '#443021' : '#25231D',
+    backgroundColor: failed.value ? '#55242B' : pressed.value > 0.1 ? '#22433F' : '#17212B',
   }));
 
   function accessibleTrigger() {
@@ -96,11 +96,11 @@ export function PerformancePad({index, label, controls, enabled, onSelect}: Prop
       </Animated.View>
     </GestureDetector>
   );
-}
+});
 
 const styles = StyleSheet.create({
   pad: {width: '23.5%', minHeight: 112, borderRadius: 3, borderWidth: 1,
-    borderColor: '#666157', borderBottomWidth: 4, borderBottomColor: '#F6D527',
+    borderColor: '#344653', borderBottomWidth: 4, borderBottomColor: '#42E8D1',
     padding: 7, justifyContent: 'space-between', alignItems: 'center'},
   disabled: {opacity: 0.72},
   number: {color: '#B5BAD4', fontSize: 9, fontWeight: '800', alignSelf: 'flex-start'},
