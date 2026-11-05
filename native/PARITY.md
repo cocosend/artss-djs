@@ -6,7 +6,7 @@ Checked items are implemented in the native source; no physical-device latency/F
 
 - [x] Two independent loaded decks with play/pause, BPM sync, and persistent per-deck CUE position.
 - [ ] Visual, inertial jog wheels and complete scratch/nudge/pitch-bend behavior (native jog transport exists).
-- [ ] Smooth/sharp/dipless selectable crossfader curves and independent channel faders (single crossfade exists).
+- [ ] Smooth/sharp/dipless selectable crossfader curves and independent channel faders (all three curves implemented; dedicated channel faders pending).
 - [ ] 3-band EQ with true isolation modes (per-deck EQ exists).
 - [ ] Full gain, master true-peak limiter and stereo VU meters (sample-peak limiter, gain and peak meter exist).
 - [ ] Peak/RMS/frequency-colored stereo scrolling waveform with zoom and beat-grid markers (peak overview exists).
@@ -30,3 +30,10 @@ Checked items are implemented in the native source; no physical-device latency/F
 - All new control operations are noexcept, atomic and allocation-free.
 - Native regression coverage: control validation, seek-to-cue, independence, replay, PCM safety and reload.
 - Execute `cd native && npm run test:core`, `npm run typecheck`, and native CI before declaring test success.
+
+## Cycle 2: selectable crossfader curves
+
+- Smooth S-curve, sharp scratch cut and FIX38-preserving dipless curve.
+- Per-sample smoothing of both channel and bass gains prevents curve-switch clicks.
+- Native C++ regression for gain transitions, curve validation, output bounds and zero render allocations.
+- The mode selector is accessible from the native mixer main transport.
