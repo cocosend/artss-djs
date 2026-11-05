@@ -6,6 +6,8 @@ export type PositionKey = `position${PadIndex}`;
 export interface RealtimeControls {
   readonly running: boolean;
   readonly peak: number;
+  readonly meterRmsL: number;
+  readonly meterRmsR: number;
   readonly frames: number;
   readonly droppedCommands: number;
   readonly renderOverruns: number;
