@@ -38,7 +38,7 @@ const std::array<const char*, kPadCount> kSampleNames{
     "kick", "snare", "clap", "closed-hat", "open-hat", "low-tom", "rim", "shaker"};
 constexpr std::array<const char*, 7> kPresetNames{
     "Maddix", "ARTBAT", "Brejcha", "Guetta", "Kazantip", "Legends", "Modern"};
-constexpr std::array<int, 7> kPresetBpm{145, 124, 126, 128, 138, 130, 132};
+constexpr std::array<int, 7> kPresetBpm{148, 124, 128, 130, 132, 142, 150};
 constexpr std::array<int, 7> kPresetRoots{38, 34, 41, 36, 33, 43, 39};
 
 void check(OSStatus status, const char* operation) {
