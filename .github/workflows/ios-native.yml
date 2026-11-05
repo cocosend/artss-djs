@@ -26,7 +26,18 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: native/package-lock.json
-      - run: npm ci --no-audit --no-fund
+      - name: Install native dependencies (retry upstream Skia 504 errors)
+        run: |
+          for attempt in 1 2 3; do
+            if npm ci --no-audit --no-fund; then
+              exit 0
+            fi
+            echo "npm installation failed (attempt $attempt/3); retrying transient Skia download"
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+            sleep $((attempt * 12))
+          done
       - run: npm run verify
       - run: bundle install && bundle exec pod install --project-directory=ios
       - name: Compile for iOS simulator
