@@ -2,7 +2,7 @@ import {useEffect, useMemo, useRef, useState} from 'react';
 import {ActivityIndicator, Pressable, ScrollView, StatusBar, StyleSheet, Text, useWindowDimensions, View} from 'react-native';
 import {Gesture, GestureDetector, GestureHandlerRootView} from 'react-native-gesture-handler';
 import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
-import {Canvas, Circle, Path, Rect, Skia} from '@shopify/react-native-skia';
+import {Canvas, Path, Rect, Skia} from '@shopify/react-native-skia';
 import {useDerivedValue, useFrameCallback, useSharedValue} from 'react-native-reanimated';
 import {loadPreset, pickTrack, type PadIndex, type RealtimeControls, type TrackInfo} from 'react-native-artss-audio';
 import {useAudioSession} from './audio/useAudioSession';
@@ -68,43 +68,10 @@ function WaveStrip({deck, controls, track, color, enabled}: {deck: DeckIndex; co
   </View></GestureDetector>;
 }
 
-function Platter({deck, controls, enabled, duration, color}: {deck: DeckIndex; controls: RealtimeControls; enabled: boolean; duration: number; color: string}) {
-  const progress = useSharedValue(0);
-  useFrameCallback(() => { progress.value = deck === 0 ? controls.deckPosition0 : controls.deckPosition1; });
-  const angle = useDerivedValue(() => progress.value * duration * (2 * Math.PI * 33.333 / 60));
-  const markerX = useDerivedValue(() => 52 + 38 * Math.sin(angle.value));
-  const markerY = useDerivedValue(() => 52 - 38 * Math.cos(angle.value));
-  const jog = Gesture.Pan().minDistance(0).onBegin(() => {
-    'worklet';
-    if (enabled) controls.deckJog(deck, 0, true);
-  }).onUpdate(event => {
-    'worklet';
-    if (!enabled) return;
-    const x = event.x - 52, y = event.y - 52;
-    const radiusSquared = x * x + y * y;
-    const angularVelocity = (x * event.velocityY - y * event.velocityX) / Math.max(256, radiusSquared);
-    const speed = Math.max(-4, Math.min(4, angularVelocity * 60 / (2 * Math.PI * 33.333)));
-    controls.deckJog(deck, speed, true);
-  }).onFinalize(() => {
-    'worklet';
-    if (enabled) controls.deckJog(deck, 0, false);
-  });
-  return <View style={styles.platterGroup}><Text style={styles.platterLabel}>JOG · SCRATCH</Text>
-    <GestureDetector gesture={jog}><View style={[styles.platter, !enabled && styles.disabled]}>
-      <Canvas style={styles.platterCanvas} accessible={false}>
-        <Circle cx={52} cy={52} r={50} color="#05070A" />
-        {[46, 43, 40, 36, 32, 28].map(radius => <Circle key={radius} cx={52} cy={52} r={radius} color={radius % 2 ? '#1C2430' : '#111821'} style="stroke" strokeWidth={1} />)}
-        <Circle cx={52} cy={52} r={18} color={color} />
-        <Circle cx={52} cy={52} r={3} color="#081016" />
-        <Circle cx={markerX} cy={markerY} r={3} color="#F6F9FF" />
-      </Canvas>
-    </View></GestureDetector></View>;
-}
-
 function Key({label, onPress, active, disabled, accent}: {label: string; onPress: () => void; active?: boolean; disabled?: boolean; accent?: string}) {
   return <Pressable accessibilityRole="button" accessibilityState={{disabled, selected: active}} disabled={disabled}
-    onPress={onPress} style={[styles.key, active && {borderColor: accent ?? '#FFFFFF', backgroundColor: '#26333E'}, disabled && styles.disabled]}>
-    <Text style={[styles.keyText, active && {color: accent ?? '#FFFFFF'}]}>{label}</Text>
+    onPress={onPress} style={[styles.key, active && {borderColor: accent ?? '#F6D527', backgroundColor: '#F6D527'}, disabled && styles.disabled]}>
+    <Text style={[styles.keyText, active && {color: '#0B0B0B'}]}>{label}</Text>
   </Pressable>;
 }
 
@@ -160,7 +127,7 @@ function Deck({index, controls, enabled, track, loading, canLoad, load, position
       <Text style={styles.loadHint}>{track ? `${time(track.duration)}  ·  ЗАМЕНИТЬ ↗` : 'СВОЙ ФАЙЛ В ДЕКУ'}</Text>
     </Pressable>
     <WaveStrip deck={index} controls={controls} track={track} color={color} enabled={ready} />
-    <Platter deck={index} controls={controls} enabled={ready} duration={track?.duration ?? 0} color={color} />
+
     <View style={styles.timeline}><Text style={styles.time}>{time(position * (track?.duration ?? 0))}</Text><Text style={styles.time}>−{time((1 - position) * (track?.duration ?? 0))}</Text></View>
     <View style={styles.transport}><Key label="CUE" onPress={cueAction} disabled={!ready} accent={color} />
       <Pressable accessibilityRole="button" accessibilityLabel={playing ? 'Пауза' : 'Воспроизвести'} disabled={!ready} onPress={toggle}
@@ -260,32 +227,102 @@ function DrumMachine({controls, enabled}: {controls: RealtimeControls; enabled: 
     const next = !running;
     if (controls.setSequencer(next)) { setRunning(next); if (!next) setStep(0); }
   }
-  return <View style={styles.drumMachine}>
-    <View style={styles.drumHeading}><Text style={styles.eyebrow}>01 / PERFORMANCE</Text>
-      <Text style={styles.drumTitle}>ДРАМ-ПЭДЫ</Text></View>
-    <View style={styles.kitRow}>{['A','B','C','D'].map((name, i) => <Key key={name} label={name} active={bank === i} onPress={() => setBank(i)} />)}</View>
-    <View style={styles.kitRow}>{([1, 2, 3] as const).map(value =>
-      <Pressable key={value} accessibilityRole="button" accessibilityLabel={`Kit ${value === 1 ? '303' : value === 2 ? '606' : '909'}`}
-        accessibilityState={{selected: kit === value, disabled: !enabled}} disabled={!enabled} onPress={() => selectKit(value)}
-        style={[styles.kitButton, kit === value && styles.kitSelected, !enabled && styles.disabled]}>
-        <Text style={[styles.kitText, kit === value && styles.kitTextSelected]}>{value === 1 ? '303' : value === 2 ? '606' : '909'}</Text>
-      </Pressable>)}</View>
-    <View style={styles.padGrid}>{KIT_LABELS[kit].map((label, index) =>
-      <PerformancePad key={index} index={index as PadIndex} label={label} controls={controls} enabled={enabled} onSelect={recordHit} />)}</View>
-    <View style={styles.sequenceHeader}><Text style={styles.eyebrow}>16 STEP · 4 LANES</Text>
-      <View style={styles.sequenceTransport}><Key label="−" onPress={() => changeBpm(-1)} disabled={!enabled} />
-        <Text style={styles.sequenceBpm}>{bpm} BPM</Text><Key label="＋" onPress={() => changeBpm(1)} disabled={!enabled} />
-        <Key label={running ? '■ STOP' : '▶ PLAY'} onPress={toggleSequence} disabled={!enabled} active={running} accent="#F6D527" />
-      </View></View>
-    <View style={styles.sequenceTransport}><Key label="● ЗАПИСЬ ШАГОВ" active={recording} disabled={!enabled} onPress={() => setRecording(!recording)} />
-      <Key label="СОЗДАТЬ РИТМ" disabled={!enabled} onPress={() => setPattern(INITIAL_PATTERN.map((row, pad) => row.map((v, i) =>
-        pad === 0 ? v : v || (LANES.some(lane => lane === pad) && Math.random() < (i % 2 ? 0.12 : 0.22) ? 0.6 : 0))))} /></View>
-    {LANES.map(pad => <View style={styles.stepsRow} key={pad}>
-      <Text style={styles.stepsName}>{KIT_LABELS[kit][pad]}</Text>{pattern[pad]?.map((value, at) =>
-        <Pressable key={at} accessibilityRole="button" accessibilityLabel={`${KIT_LABELS[kit][pad]} шаг ${at + 1}`}
-          accessibilityState={{selected: value > 0, disabled: !enabled}} disabled={!enabled}
-          onPress={() => toggleStep(pad, at)} style={[styles.stepCell, value > 0 && styles.stepActive,
-            running && step === at && styles.stepCurrent]} />)}</View>)}
+
+  const kitName = kit === 1 ? '303 / ACID' : kit === 2 ? '606 / CLASSIC' : '909 / TECHNO';
+  function generateRhythm() {
+    const next = INITIAL_PATTERN.map((row, pad) => row.map((value, index) =>
+      pad === 0 ? value : value || (LANES.some(lane => lane === pad) &&
+        Math.random() < (index % 2 ? 0.12 : 0.23) ? 0.7 : 0)));
+    setPattern(next);
+  }
+  return <View style={nexus.workspace}>
+    <View style={nexus.performanceLine}>
+      <Text style={nexus.performanceTitle}>01 / PERFORMANCE</Text>
+      <Text style={nexus.performanceMeta}>LOCAL AUDIO · LIVE</Text>
+    </View>
+    <View style={nexus.padsPanel}>
+      <View style={nexus.strip}><Text style={nexus.stripLeft}>01 / PLAY THE GRID</Text><Text style={nexus.stripRight}>8 VOICES · 4 BANKS</Text></View>
+      <View style={nexus.padsHeading}>
+        <Text style={nexus.padsTitle}>▦  ДРАМ-ПЭДЫ</Text>
+        <View style={nexus.bankRow}>{(['A','B','C','D'] as const).map((name, index) =>
+          <Pressable key={name} accessibilityRole="button" accessibilityLabel={`Банк ${name}`}
+            accessibilityState={{selected: bank === index}} onPress={() => setBank(index)}
+            style={[nexus.bankButton, bank === index && nexus.bankSelected]}>
+            <Text style={[nexus.bankText, bank === index && nexus.bankTextSelected]}>{name}</Text>
+          </Pressable>)}</View>
+      </View>
+      <View style={styles.padGrid}>{KIT_LABELS[kit].map((label, index) =>
+        <PerformancePad key={index} index={index as PadIndex} label={label} controls={controls}
+          enabled={enabled} onSelect={recordHit} />)}</View>
+    </View>
+    <View style={nexus.transportPanel}>
+      <Pressable accessibilityRole="button" accessibilityLabel={running ? 'Остановить ритм' : 'Запустить ритм'}
+        accessibilityState={{disabled: !enabled, selected: running}} disabled={!enabled} onPress={toggleSequence}
+        style={[nexus.transportSide, !enabled && styles.disabled]}>
+        <View style={[nexus.playRing, running && nexus.playRingOn]}><Text style={nexus.playIcon}>{running ? 'Ⅱ' : '▶'}</Text></View>
+        <Text style={nexus.transportLabel}>{running ? 'СТОП' : 'ПУСК'}</Text>
+      </Pressable>
+      <View style={nexus.signalPanel}>
+        <View style={nexus.signalHeader}><Text style={nexus.signalName}>● {kitName}</Text>
+          <Text style={nexus.signalTime}>{running ? `ШАГ ${String(step + 1).padStart(2, '0')}` : 'ОЖИДАНИЕ'}</Text></View>
+        <View style={nexus.signalScreen}>{Array.from({length: 16}, (_, index) =>
+          <View key={index} style={[nexus.signalBar, (pattern[0]?.[index] ?? 0) > 0 && nexus.signalActive,
+            running && index === step && nexus.signalCursor]} />)}</View>
+        <View style={nexus.signalFooter}><Text style={nexus.signalFootText}>16 STEPS · LIVE GRID</Text>
+          <Text style={nexus.signalStatus}>{running ? 'ВОСПРОИЗВЕДЕНИЕ' : 'ОСТАНОВЛЕНО'}</Text></View>
+      </View>
+      <Pressable accessibilityRole="button" accessibilityLabel="Запись нажатий драм-пэдов в секвенсор"
+        accessibilityState={{disabled: !enabled, selected: recording}} disabled={!enabled}
+        onPress={() => setRecording(v => !v)} style={[nexus.transportSide, !enabled && styles.disabled]}>
+        <View style={[nexus.recordRing, recording && nexus.recordRingOn]}><View style={nexus.recordCenter} /></View>
+        <Text style={nexus.transportLabel}>{recording ? 'ЗАПИСЬ ●' : 'ЗАПИСЬ'}</Text>
+      </Pressable>
+    </View>
+    <View style={nexus.settingsPanel}>
+      <View style={nexus.settingCell}><Text style={nexus.settingCaption}>СТИЛЬ</Text>
+        <View style={nexus.settingPicker}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Предыдущий стиль" style={nexus.arrowButton}
+            onPress={() => selectKit(((kit + 1) % 3 + 1) as 1 | 2 | 3)}><Text style={nexus.arrowText}>‹</Text></Pressable>
+          <Text style={nexus.styleValue}>{kitName}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Следующий стиль" style={nexus.arrowButton}
+            onPress={() => selectKit((kit % 3 + 1) as 1 | 2 | 3)}><Text style={nexus.arrowText}>›</Text></Pressable>
+        </View>
+      </View>
+      <View style={nexus.bpmCell}><Text style={nexus.bpmCaption}>BPM</Text>
+        <View style={nexus.bpmPicker}><Pressable accessibilityRole="button" accessibilityLabel="Темп минус один"
+          style={nexus.bpmArrow} onPress={() => changeBpm(-1)} disabled={!enabled}><Text style={nexus.bpmArrowText}>‹</Text></Pressable>
+          <Text style={nexus.bpmNumber}>{bpm}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Темп плюс один"
+            style={nexus.bpmArrow} onPress={() => changeBpm(1)} disabled={!enabled}><Text style={nexus.bpmArrowText}>›</Text></Pressable></View>
+      </View>
+      <View style={nexus.settingCell}><Text style={nexus.settingCaption}>СЦЕНА</Text>
+        <View style={nexus.settingPicker}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Предыдущая сцена" style={nexus.arrowButton}
+            onPress={() => setBank((bank + 3) % 4)}><Text style={nexus.arrowText}>‹</Text></Pressable>
+          <Text style={nexus.sceneValue}>BANK {(['A','B','C','D'] as const)[bank]}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Следующая сцена" style={nexus.arrowButton}
+            onPress={() => setBank((bank + 1) % 4)}><Text style={nexus.arrowText}>›</Text></Pressable>
+        </View>
+      </View>
+    </View>
+    <Pressable accessibilityRole="button" accessibilityLabel="Создать новый ритм" style={nexus.createRhythm}
+      onPress={generateRhythm}><Text style={nexus.createStar}>✦</Text>
+      <View style={nexus.createText}><Text style={nexus.createTitle}>СОЗДАТЬ РИТМ</Text><Text style={nexus.createDetail}>АВТОРИТМ · 16 ШАГОВ</Text></View>
+      <Text style={nexus.createArrow}>›</Text></Pressable>
+    <View style={nexus.sequencerPanel}>
+      <View style={nexus.sequenceTitleRow}><Text style={nexus.sequenceTitle}>02 / STEP SEQUENCER</Text>
+        <Text style={nexus.sequenceSub}>4 LANES · 16 STEPS</Text></View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={true} nestedScrollEnabled>
+        <View>{LANES.map(pad => <View style={nexus.stepsRow} key={pad}>
+          <Text style={nexus.stepsName}>{KIT_LABELS[kit][pad]}</Text>
+          {pattern[pad]?.map((value, at) =>
+            <Pressable key={at} accessibilityRole="button" accessibilityLabel={`${KIT_LABELS[kit][pad]} шаг ${at + 1}`}
+              accessibilityState={{selected: value > 0, disabled: !enabled}} disabled={!enabled}
+              onPress={() => toggleStep(pad, at)} style={[nexus.stepCell, value > 0 && nexus.stepActive,
+                running && step === at && nexus.stepCurrent]} />)}</View>)}</View>
+      </ScrollView>
+      <Text style={nexus.sequenceHint}>ЗАПИСЬ фиксирует нажатия на пэды в текущем банке при запущенном ритме.</Text>
+    </View>
   </View>;
 }
 
@@ -319,8 +356,8 @@ function Studio() {
     } finally { loadingLock.current = false; setLoading(null); }
   }
   return <SafeAreaView style={styles.safe} edges={['top', 'bottom', 'left', 'right']}><StatusBar barStyle="light-content" />
-    <ScrollView contentContainerStyle={[styles.content, {maxWidth: width > 800 ? 760 : 540}]} bounces={false}>
-      <View style={styles.header}><View><Text style={styles.sub}>NEXUS</Text><Text style={styles.brand}>DJ <Text style={styles.brandAccent}>CREATOR</Text></Text></View>
+    <ScrollView contentContainerStyle={[styles.content, {maxWidth: width > 800 ? 960 : 540}]} bounces={false}>
+      <View style={styles.header}><View><Text style={styles.brand}>NEXUS</Text><Text style={styles.sub}>DJ CREATOR · 33</Text></View>
         <Pressable accessibilityRole="button" onPress={() => { void toggleAudio(); }} disabled={busy || loading !== null} style={[styles.power, session && styles.powerOn]}>
           <Text style={styles.powerText}>{busy ? '…' : session ? '● ON' : '◯ AUDIO'}</Text></Pressable></View>
       <View style={{display: mix ? 'none' : 'flex'}}><DrumMachine controls={controls} enabled={!!session && !busy} /></View>
@@ -346,7 +383,12 @@ function Studio() {
       <MasterEQ controls={controls} enabled={!!session && !busy} />
       </View>
       <Text style={styles.footer}>{session ? `${session.routes.join(' · ')}  ·  ${session.ioBufferMs.toFixed(1)} ms` : 'Включите звук для игры'}</Text>
-    </ScrollView><View style={styles.kitRow}><Key label="СОЗДАТЬ" active={!mix} onPress={() => setMix(false)} /><Key label="MIX" active={mix} onPress={() => setMix(true)} /></View></SafeAreaView>;
+    </ScrollView><View style={nexus.bottomNav}>
+      <Pressable accessibilityRole="tab" accessibilityState={{selected: !mix}} onPress={() => setMix(false)}
+        style={[nexus.navButton, !mix && nexus.navSelected]}><Text style={nexus.navIcon}>◇</Text><Text style={[nexus.navLabel, !mix && nexus.navLabelSelected]}>СОЗДАТЬ</Text></Pressable>
+      <Pressable accessibilityRole="tab" accessibilityState={{selected: mix}} onPress={() => setMix(true)}
+        style={[nexus.navButton, mix && nexus.navSelected]}><Text style={nexus.navIcon}>≋</Text><Text style={[nexus.navLabel, mix && nexus.navLabelSelected]}>MIX</Text></Pressable>
+    </View></SafeAreaView>;
 }
 
 export default function App() {
@@ -354,10 +396,10 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  safe: {flex: 1, backgroundColor: '#070A10'}, content: {padding: 14, paddingBottom: 34, width: '100%', alignSelf: 'center'},
-  header: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 27, gap: 8},
-  brand: {fontSize: 27, fontWeight: '900', letterSpacing: -1, color: '#FFFFFF', marginTop: 4}, brandAccent: {color: '#33E7FC'},
-  sub: {fontSize: 9, letterSpacing: 2, color: '#8D9BAE', fontWeight: '800'},
+  safe: {flex: 1, backgroundColor: '#050506'}, content: {padding: 14, paddingBottom: 34, width: '100%', alignSelf: 'center'},
+  header: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 13, gap: 8, paddingBottom: 13, borderBottomWidth: 1, borderColor: '#5B5642'},
+  brand: {fontSize: 27, fontWeight: '900', letterSpacing: -1, color: '#FFFFFF', marginTop: 4}, brandAccent: {color: '#F6D527'},
+  sub: {fontSize: 10, letterSpacing: 2.8, color: '#F6D527', fontWeight: '900'},
   power: {paddingHorizontal: 12, height: 38, justifyContent: 'center', borderRadius: 19, backgroundColor: '#26303F'},
   powerOn: {backgroundColor: '#1B564D'}, powerText: {fontSize: 9, fontWeight: '800', color: '#FFFFFF'},
   eyebrow: {fontSize: 9, letterSpacing: 1.7, fontWeight: '900', color: '#8D9BAE'},
@@ -368,39 +410,39 @@ const styles = StyleSheet.create({
   targetButton: {height: 29, width: 29, borderRadius: 7, alignItems: 'center', justifyContent: 'center'},
   targetText: {color: '#B4C4D5', fontWeight: '900', fontSize: 12}, targetTextOn: {color: '#071018'},
   presetScroll: {marginHorizontal: -14}, presetList: {paddingHorizontal: 14, gap: 9},
-  preset: {width: 146, height: 122, borderRadius: 14, borderWidth: 1, borderColor: '#314158', backgroundColor: '#152031', padding: 12, justifyContent: 'space-between'},
-  presetIndex: {color: '#33E7FC', fontSize: 9, fontWeight: '900', letterSpacing: 1.2},
+  preset: {width: 146, height: 122, borderRadius: 14, borderWidth: 1, borderColor: '#6A6250', backgroundColor: '#201E19', padding: 12, justifyContent: 'space-between'},
+  presetIndex: {color: '#F6D527', fontSize: 9, fontWeight: '900', letterSpacing: 1.2},
   presetName: {color: '#FFFFFF', fontSize: 20, fontWeight: '900', letterSpacing: -0.5},
   presetBottom: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'},
-  presetGenre: {color: '#ABB9CB', fontSize: 8, fontWeight: '800'}, presetBpm: {color: '#FFCA56', fontSize: 9, fontWeight: '900'},
-  import: {height: 66, marginTop: 10, borderRadius: 12, borderWidth: 1, borderColor: '#496179', backgroundColor: '#1C293B', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14},
-  importIcon: {color: '#33E7FC', fontSize: 29, marginRight: 12}, importText: {flex: 1},
+  presetGenre: {color: '#ABB9CB', fontSize: 8, fontWeight: '800'}, presetBpm: {color: '#F6D527', fontSize: 9, fontWeight: '900'},
+  import: {height: 66, marginTop: 10, borderRadius: 12, borderWidth: 1, borderColor: '#496179', backgroundColor: '#201E19', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14},
+  importIcon: {color: '#F6D527', fontSize: 29, marginRight: 12}, importText: {flex: 1},
   importTitle: {color: '#FFFFFF', fontSize: 13, fontWeight: '900'}, importHint: {color: '#A5B4C6', fontSize: 10, marginTop: 4}, importArrow: {color: '#FFFFFF', fontSize: 20},
   mixHeader: {flexDirection: 'row', justifyContent: 'space-between', marginTop: 27, marginBottom: 12},
   mixNote: {color: '#8193A8', fontSize: 8, fontWeight: '900'},
-  deckRow: {flexDirection: 'row', gap: 8}, deck: {flex: 1, minWidth: 0, borderTopWidth: 4, borderRadius: 12, padding: 9, backgroundColor: '#131E2C'},
+  deckRow: {flexDirection: 'row', gap: 8}, deck: {flex: 1, minWidth: 0, borderTopWidth: 4, borderRadius: 5, padding: 9, backgroundColor: '#211F1A', borderWidth: 1, borderColor: '#575148'},
   deckHeading: {flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 26},
   letter: {width: 23, height: 23, borderRadius: 5, alignItems: 'center', justifyContent: 'center'}, letterText: {fontSize: 13, fontWeight: '900', color: '#071018'},
   deckLabel: {fontSize: 10, fontWeight: '900', color: '#F6F9FF', flex: 1}, status: {fontSize: 7, fontWeight: '700'},
-  load: {height: 62, justifyContent: 'center', marginTop: 8, padding: 9, backgroundColor: '#263549', borderRadius: 8},
+  load: {height: 62, justifyContent: 'center', marginTop: 8, padding: 9, backgroundColor: '#302D24', borderRadius: 8},
   track: {fontSize: 11, fontWeight: '800', color: '#F7F8FA'}, loadHint: {fontSize: 8, color: '#9DAABA', marginTop: 4, letterSpacing: 0.4},
-  wave: {marginTop: 9, height: 86, borderRadius: 5, overflow: 'hidden', backgroundColor: '#080F1A'}, canvas: {flex: 1},
-  platterGroup: {alignItems: 'center', marginTop: 8}, platterLabel: {color: '#95A6B8', fontSize: 8, fontWeight: '800', marginBottom: 4},
+  wave: {marginTop: 9, height: 104, borderRadius: 5, overflow: 'hidden', backgroundColor: '#050505'}, canvas: {flex: 1},
+  platterGroup: {alignItems: 'center', marginTop: 8}, platterLabel: {color: '#C5BEAD', fontSize: 8, fontWeight: '800', marginBottom: 4},
   platter: {width: 104, height: 104}, platterCanvas: {width: 104, height: 104},
   timeline: {flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5}, time: {color: '#B1BDCC', fontSize: 9, fontVariant: ['tabular-nums']},
-  transport: {flexDirection: 'row', gap: 7, marginTop: 6}, key: {flex: 1, minWidth: 0, height: 34, justifyContent: 'center', alignItems: 'center', backgroundColor: '#27303E', borderWidth: 1, borderColor: '#394454', borderRadius: 7},
+  transport: {flexDirection: 'row', gap: 7, marginTop: 6}, key: {flex: 1, minWidth: 0, minHeight: 44, justifyContent: 'center', alignItems: 'center', backgroundColor: '#232322', borderWidth: 1, borderColor: '#66635D', borderRadius: 5},
   keyText: {fontSize: 11, fontWeight: '800', color: '#E4ECF6'}, play: {flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 7},
-  playText: {fontSize: 19, fontWeight: '900', color: '#071018'}, caption: {fontSize: 8, fontWeight: '800', letterSpacing: 1.2, color: '#95A6B8', marginTop: 16, marginBottom: 6},
+  playText: {fontSize: 19, fontWeight: '900', color: '#071018'}, caption: {fontSize: 8, fontWeight: '800', letterSpacing: 1.2, color: '#C5BEAD', marginTop: 16, marginBottom: 6},
   tempo: {flexDirection: 'row', alignItems: 'center', gap: 4}, rate: {fontSize: 11, width: 38, textAlign: 'center', color: '#F6F9FF', fontWeight: '800'},
   filterValue: {fontSize: 9, width: 54, textAlign: 'center', color: '#F6F9FF', fontWeight: '800'},
   loopRow: {flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 7}, disabled: {opacity: 0.38},
-  mixer: {marginTop: 12, padding: 14, borderRadius: 12, backgroundColor: '#172332'}, mixHeading: {flexDirection: 'row', justifyContent: 'space-between'},
-  mixLetter: {fontSize: 15, fontWeight: '900'}, mixTitle: {fontSize: 9, color: '#B9C8D8', fontWeight: '800', letterSpacing: 1.6},
-  faderTouch: {height: 54, justifyContent: 'center', marginTop: 8}, faderRail: {height: 5, marginHorizontal: 12, backgroundColor: '#3B4657', borderRadius: 3},
+  mixer: {marginTop: 12, padding: 14, borderRadius: 12, backgroundColor: '#201E19'}, mixHeading: {flexDirection: 'row', justifyContent: 'space-between'},
+  mixLetter: {fontSize: 15, fontWeight: '900'}, mixTitle: {fontSize: 9, color: '#E7E2D5', fontWeight: '800', letterSpacing: 1.6},
+  faderTouch: {height: 54, justifyContent: 'center', marginTop: 8}, faderRail: {height: 5, marginHorizontal: 12, backgroundColor: '#696250', borderRadius: 3},
   faderCanvas: {...StyleSheet.absoluteFillObject}, error: {color: '#FF8397', padding: 10, fontSize: 12},
-  eqPanel: {marginTop: 10, padding: 12, borderRadius: 12, backgroundColor: '#172332'},
+  eqPanel: {marginTop: 10, padding: 12, borderRadius: 12, backgroundColor: '#201E19'},
   eqRow: {flexDirection: 'row', gap: 6, marginTop: 10}, eqBand: {flex: 1, minWidth: 0},
-  eqLabel: {color: '#B9C8D8', textAlign: 'center', fontSize: 9, fontWeight: '800', marginBottom: 6},
+  eqLabel: {color: '#E7E2D5', textAlign: 'center', fontSize: 9, fontWeight: '800', marginBottom: 6},
   eqControls: {flexDirection: 'row', alignItems: 'center', gap: 2},
   eqValue: {color: '#F6F9FF', fontSize: 9, fontWeight: '800', textAlign: 'center', minWidth: 32},
   footer: {marginTop: 18, textAlign: 'center', color: '#7F91A5', fontSize: 10},
@@ -419,4 +461,79 @@ const styles = StyleSheet.create({
   stepsName: {width: 39, fontSize: 7, color: '#DEE4EB', fontWeight: '900'},
   stepCell: {flex: 1, height: 26, minWidth: 8, borderRadius: 3, backgroundColor: '#2B3038', borderWidth: 1, borderColor: '#414852'},
   stepActive: {backgroundColor: '#F6D527', borderColor: '#FFE66A'}, stepCurrent: {borderColor: '#FF435B', borderWidth: 2},
+});
+
+
+const nexus = StyleSheet.create({
+  workspace: {gap: 12},
+  performanceLine: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 2},
+  performanceTitle: {color: '#F6D527', fontWeight: '900', fontSize: 12, letterSpacing: 2.5},
+  performanceMeta: {color: '#B8B0A2', fontSize: 9, fontWeight: '900', letterSpacing: 1.2},
+  padsPanel: {borderColor: '#6A6458', borderWidth: 1, backgroundColor: '#11100E', paddingBottom: 10},
+  strip: {height: 34, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#242119', paddingHorizontal: 11},
+  stripLeft: {fontSize: 10, fontWeight: '900', color: '#F6D527', letterSpacing: 1.4},
+  stripRight: {fontSize: 9, fontWeight: '900', color: '#C6BCA4', letterSpacing: 1.1},
+  padsHeading: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', paddingHorizontal: 10, paddingVertical: 13, gap: 10},
+  padsTitle: {color: '#F7F4EF', fontSize: 18, fontWeight: '900', letterSpacing: 0.5},
+  bankRow: {flexDirection: 'row', borderWidth: 1, borderColor: '#73736B', padding: 3, borderRadius: 9, gap: 3},
+  bankButton: {width: 34, height: 39, alignItems: 'center', justifyContent: 'center', backgroundColor: '#242321', borderWidth: 1, borderColor: '#5A594F', borderRadius: 3},
+  bankSelected: {backgroundColor: '#F6D527', borderColor: '#F6D527'},
+  bankText: {fontSize: 14, fontWeight: '900', color: '#F7F4EF'},
+  bankTextSelected: {color: '#060606'},
+  transportPanel: {minHeight: 154, borderWidth: 1, borderColor: '#68655D', backgroundColor: '#191817', borderRadius: 3, flexDirection: 'row'},
+  transportSide: {width: 78, minHeight: 154, alignItems: 'center', justifyContent: 'center', gap: 8},
+  transportLabel: {fontSize: 10, fontWeight: '900', color: '#FFFFFF', textAlign: 'center'},
+  playRing: {height: 67, width: 67, borderWidth: 3, borderColor: '#F6D527', borderRadius: 40, backgroundColor: '#080808', alignItems: 'center', justifyContent: 'center'},
+  playRingOn: {backgroundColor: '#282312'},
+  playIcon: {fontSize: 29, color: '#C5FFF8'},
+  recordRing: {height: 67, width: 67, borderWidth: 3, borderColor: '#ED403F', borderRadius: 40, backgroundColor: '#110909', alignItems: 'center', justifyContent: 'center'},
+  recordRingOn: {backgroundColor: '#4D1618'},
+  recordCenter: {width: 32, height: 32, borderRadius: 20, backgroundColor: '#FC173C', borderWidth: 3, borderColor: '#FF6D6D'},
+  signalPanel: {flex: 1, minWidth: 0, padding: 7, borderLeftWidth: 1, borderRightWidth: 1, borderColor: '#5A554A', justifyContent: 'space-around'},
+  signalHeader: {flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 3},
+  signalName: {color: '#F6D527', fontSize: 9, fontWeight: '900'},
+  signalTime: {color: '#E0DDE1', fontSize: 9, fontWeight: '800'},
+  signalScreen: {height: 63, backgroundColor: '#050505', borderRadius: 4, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 2, gap: 2},
+  signalBar: {flex: 1, height: 3, backgroundColor: '#56524B'},
+  signalActive: {backgroundColor: '#F6D527', height: 4},
+  signalCursor: {height: 45, backgroundColor: '#F83558'},
+  signalFooter: {flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 3},
+  signalFootText: {fontSize: 8, color: '#AFA793', fontWeight: '800'},
+  signalStatus: {fontSize: 8, color: '#64E8D3', fontWeight: '900'},
+  settingsPanel: {flexDirection: 'row', borderWidth: 1, borderColor: '#666157', backgroundColor: '#171615', minHeight: 130, borderRadius: 3},
+  settingCell: {flex: 1, minWidth: 0, padding: 6, justifyContent: 'center', alignItems: 'center'},
+  settingCaption: {fontSize: 9, fontWeight: '900', letterSpacing: 1, color: '#B6AC9B', marginBottom: 15},
+  settingPicker: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 1},
+  arrowButton: {minWidth: 27, height: 44, justifyContent: 'center', alignItems: 'center'},
+  arrowText: {fontSize: 30, color: '#F6D527'},
+  styleValue: {color: '#FFFFFF', fontSize: 9, fontWeight: '900', textAlign: 'center', flexShrink: 1},
+  sceneValue: {color: '#FFFFFF', fontSize: 10, fontWeight: '900', textAlign: 'center', flexShrink: 1},
+  bpmCell: {width: 116, padding: 5, backgroundColor: '#F6D527', justifyContent: 'center', alignItems: 'center'},
+  bpmCaption: {color: '#0B0B0B', fontSize: 10, fontWeight: '900', letterSpacing: 2},
+  bpmPicker: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', width: '100%'},
+  bpmArrow: {width: 29, height: 44, alignItems: 'center', justifyContent: 'center'},
+  bpmArrowText: {color: '#000000', fontSize: 31},
+  bpmNumber: {fontSize: 32, fontWeight: '900', color: '#030303', fontVariant: ['tabular-nums']},
+  createRhythm: {backgroundColor: '#F6D527', minHeight: 76, borderRadius: 14, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', gap: 13},
+  createStar: {fontSize: 30, color: '#151009'},
+  createText: {flex: 1},
+  createTitle: {fontSize: 18, fontWeight: '900', letterSpacing: 0.3, color: '#111111'},
+  createDetail: {fontSize: 9, color: '#151515', fontWeight: '700', marginTop: 4, letterSpacing: 1},
+  createArrow: {fontSize: 36, color: '#111111'},
+  sequencerPanel: {backgroundColor: '#181715', borderWidth: 1, borderColor: '#666057', padding: 10, borderRadius: 4, gap: 9},
+  sequenceTitleRow: {flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4},
+  sequenceTitle: {fontSize: 10, fontWeight: '900', color: '#F6D527', letterSpacing: 1.3},
+  sequenceSub: {fontSize: 8, color: '#BBB2A0', fontWeight: '800'},
+  stepsRow: {flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 5},
+  stepsName: {fontSize: 9, fontWeight: '900', color: '#FFFFFF', width: 43},
+  stepCell: {width: 33, height: 36, borderRadius: 4, borderWidth: 1, borderColor: '#5C584C', backgroundColor: '#292825'},
+  stepActive: {backgroundColor: '#F6D527', borderColor: '#FFE76E'},
+  stepCurrent: {borderColor: '#FF3857', borderWidth: 3},
+  sequenceHint: {color: '#AFA798', fontSize: 9, lineHeight: 14},
+  bottomNav: {flexDirection: 'row', backgroundColor: '#111111', borderTopWidth: 1, borderColor: '#5B594F', paddingHorizontal: 10, paddingVertical: 5, gap: 8},
+  navButton: {flex: 1, minHeight: 59, borderRadius: 10, alignItems: 'center', justifyContent: 'center', gap: 3},
+  navSelected: {backgroundColor: '#F6D527'},
+  navIcon: {fontSize: 22, color: '#A6A6A6'},
+  navLabel: {fontSize: 10, fontWeight: '900', color: '#B7B3AB'},
+  navLabelSelected: {color: '#080808'},
 });
