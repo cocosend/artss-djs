@@ -28,12 +28,13 @@ size_t renderDrum(Drum drum, float* output, size_t capacity,
   if (!frames) return 0;
   uint32_t state=0xAC1D909u ^ (static_cast<unsigned>(drum)*0x9e3779b9u) ^ (variation*0x85ebca6bu);
   if (!state) state=1;
-  float phase=0.f, low=0.f, high=0.f;
+  float phase=0.f, noiseLow=0.f, acidLow=0.f, high=0.f;
+  const float noiseAlpha = -std::expm1(-2 * kPi * 350.f / sampleRate);
   const float toneOffset=(static_cast<int>(variation%5)-2)*.018f;
   for (size_t i=0;i<frames;++i) {
     const float t=static_cast<float>(i)/sampleRate;
     const float n=noise(state);
-    low+=.045f*(n-low); high=n-low;
+    noiseLow+=noiseAlpha*(n-noiseLow); high=n-noiseLow;
     const auto osc=[&](float hz) noexcept {return std::sin(2*kPi*hz*t);};
     float v=0.f;
     switch (drum) {
@@ -70,10 +71,15 @@ size_t renderDrum(Drum drum, float* output, size_t capacity,
         v=std::sin(phase)*std::exp(-t*6.2f)*.63f; break;
       case Drum::Acid303: {
         const float f=110.f*(1.f+toneOffset);
-        const float p=std::fmod(f*t,1.f),saw=2.f*p-1.f;
-        const float cutoff=.04f+.47f*std::exp(-t*14.f);
-        low+=cutoff*(saw-low);
-        v=(low*.52f+osc(f)*.12f)*std::exp(-t*7.f); break;
+        const float p=std::fmod(f*t,1.f), dt=f/sampleRate;
+        float correction=0;
+        if (p<dt) {const float x=p/dt; correction=x+x-x*x-1;}
+        else if (p>1-dt) {const float x=(p-1)/dt; correction=x*x+x+x+1;}
+        const float saw=2.f*p-1.f-correction;
+        const float hz=220.f+2400.f*std::exp(-t*14.f);
+        const float cutoff=-std::expm1(-2*kPi*std::min(hz,sampleRate*.4f)/sampleRate);
+        acidLow+=cutoff*(saw-acidLow);
+        v=(acidLow*.52f+osc(f)*.12f)*std::exp(-t*7.f); break;
       }
       case Drum::Perc606:
         v=(osc(328.f)*.42f+high*.26f)*std::exp(-t*28.f); break;

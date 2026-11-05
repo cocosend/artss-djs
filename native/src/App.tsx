@@ -1,683 +1,265 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {ActivityIndicator, Pressable, ScrollView, StatusBar, StyleSheet, Text, useWindowDimensions, View} from 'react-native';
+import {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {ActivityIndicator, Pressable, ScrollView, StatusBar, StyleSheet, Text, View} from 'react-native';
 import {Gesture, GestureDetector, GestureHandlerRootView} from 'react-native-gesture-handler';
 import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
-import {Canvas, Path, Rect, Skia} from '@shopify/react-native-skia';
-import {useDerivedValue, useFrameCallback, useSharedValue} from 'react-native-reanimated';
+import {Canvas, LinearGradient, Path, Rect, Skia, vec} from '@shopify/react-native-skia';
+import Animated, {useAnimatedStyle, useDerivedValue, useFrameCallback, useSharedValue, type SharedValue} from 'react-native-reanimated';
+import {scheduleOnRN} from 'react-native-worklets';
 import {loadPreset, pickTrack, type PadIndex, type RealtimeControls, type TrackInfo} from 'react-native-artss-audio';
 import {useAudioSession} from './audio/useAudioSession';
-import {MasterFader} from './components/MasterFader';
 import {PerformancePad} from './components/PerformancePad';
+import {MasterFader} from './components/MasterFader';
 import {WOLF_GROOVES, buildWolfPattern} from './audio/stripewolfGrooves';
 
-type DeckIndex = 0 | 1;
-const COLORS = ['#42E8D1', '#A995FF'] as const;
+type Deck = 0 | 1;
+const ACCENT = ['#39D9EE', '#FF8655'] as const;
+const TABS = ['ПЭДЫ', 'МИКС', 'ТРЕКИ'] as const;
+const LABELS = [[], ['KICK','SUB','CLAP','HAT','OPEN','PERC','ACID','CRASH'],
+  ['KICK','SNARE','CLAP','HAT','OPEN','RIM','BELL','PERC'], ['KICK','SNARE','CLAP','HAT','OPEN','TOM','RIDE','ACID']];
 const EMPTY = Object.freeze(new Array<number>(96).fill(0));
-const KIT_LABELS = [[], ['KICK', 'SUB', 'CLAP', 'HAT', 'OPEN', 'PERC', 'ACID', 'CRASH'],
-  ['KICK', 'SNARE', 'CLAP', 'HAT', 'OPEN', 'RIM', 'BELL', 'PERC'],
-  ['KICK', 'SNARE', 'CLAP', 'HAT', 'OPEN', 'TOM', 'RIDE', 'ACID']] as const;
 const LANES = [0, 2, 3, 6] as const;
-const INITIAL_PATTERN: number[][] = Array.from({length: 8}, (_, pad) => Array.from({length: 16}, (_, step) =>
-  pad === 0 && step % 4 === 0 ? 1 : pad === 2 && (step === 4 || step === 12) ? 0.75 :
-  pad === 3 && step % 2 === 0 ? 0.42 : 0));
+const initialBank = () => buildWolfPattern(0);
 
-function time(seconds: number): string {
-  const value = Math.max(0, Math.floor(seconds));
-  return `${Math.floor(value / 60).toString().padStart(2, '0')}:${(value % 60).toString().padStart(2, '0')}`;
+function Button({text, onPress, active = false, disabled = false, color = ACCENT[0]}: {
+  text: string; onPress: () => void; active?: boolean; disabled?: boolean; color?: string;
+}) {
+  return <Pressable accessibilityRole="button" accessibilityState={{disabled, selected: active}}
+    disabled={disabled} onPress={onPress} style={[s.button, active && {borderColor: color, backgroundColor: '#183137'}, disabled && s.disabled]}>
+    <Text style={[s.buttonText, active && {color}]}>{text}</Text></Pressable>;
 }
 
-function WaveStrip({deck, controls, track, color, enabled}: {deck: DeckIndex; controls: RealtimeControls; track: TrackInfo | null; color: string; enabled: boolean}) {
+// One real PCM overview only. GPU geometry is rebuilt only when the source or width changes.
+const Stripe = memo(function StripeView({controls, deck, track, samples, pad, enabled}: {
+  controls: RealtimeControls; deck: Deck; track: TrackInfo | null; samples: readonly number[];
+  pad: PadIndex; enabled: boolean;
+}) {
   const [width, setWidth] = useState(1);
   const progress = useSharedValue(0);
   const dragging = useSharedValue(false);
-  useFrameCallback(() => { if (!dragging.value) progress.value = deck === 0 ? controls.deckPosition0 : controls.deckPosition1; });
-  const playhead = useDerivedValue(() => progress.value * width);
+  useFrameCallback(() => {
+    if (dragging.value) return;
+    progress.value = track ? (deck === 0 ? controls.deckPosition0 : controls.deckPosition1)
+      : Math.max(0, controls[`position${pad}`]);
+  });
+  const x = useDerivedValue(() => Math.max(0, Math.min(width - 2, progress.value * width)));
   const path = useMemo(() => {
     const result = Skia.Path.Make();
-    (track?.waveform ?? EMPTY).forEach((peak, index) => {
-      const x = (index + 0.5) * width / Math.max(1, (track?.waveform ?? EMPTY).length);
-      const h = Math.max(1, peak * 33);
-      result.moveTo(x, 38 - h);
-      result.lineTo(x, 38 + h);
+    const peaks = track?.waveform ?? samples;
+    peaks.forEach((peak, i) => {
+      const at = (i + 0.5) * width / Math.max(1, peaks.length);
+      const height = Math.max(0.6, Math.min(1, peak) * 30);
+      result.moveTo(at, 35 - height); result.lineTo(at, 35 + height);
     });
     return result;
-  }, [track, width]);
-  const seek = Gesture.Pan().enabled(enabled).minDistance(0).onBegin(event => {
-    'worklet';
-    dragging.value = true;
-    progress.value = Math.max(0, Math.min(0.9999, event.x / width));
-    controls.deckSeek(deck, progress.value);
-  }).onUpdate(event => {
-    'worklet';
-    if (!enabled) return;
-    progress.value = Math.max(0, Math.min(1, event.x / width));
-    controls.deckSeek(deck, Math.min(0.9999, progress.value));
-  }).onEnd(event => {
-    'worklet';
-    if (enabled) controls.deckSeek(deck, Math.max(0, Math.min(0.9999, event.x / width)));
-  }).onFinalize(() => { 'worklet'; dragging.value = false; });
-  return <GestureDetector gesture={seek}><View onLayout={event => setWidth(Math.max(1, event.nativeEvent.layout.width))} style={styles.wave}>
-    <Canvas style={styles.canvas} accessible={false}>
-      <Path path={path} style="stroke" strokeWidth={Math.max(1.3, width / 110)} color={color} />
-      <Rect x={playhead} y={2} width={2} height={72} color="#FFFFFF" />
+  }, [samples, track, width]);
+  const seek = Gesture.Pan().enabled(enabled && !!track).minDistance(0)
+    .onBegin(event => { dragging.value = true; progress.value = Math.max(0, Math.min(0.9999, event.x / width)); controls.deckSeek(deck, progress.value); })
+    .onUpdate(event => { progress.value = Math.max(0, Math.min(0.9999, event.x / width)); controls.deckSeek(deck, progress.value); })
+    .onFinalize(() => { dragging.value = false; });
+  return <GestureDetector gesture={seek}><View style={s.stripe} onLayout={e => setWidth(Math.max(1, e.nativeEvent.layout.width))}>
+    <Canvas style={s.fill} accessible={false}>
+      <Path path={path} style="stroke" strokeWidth={Math.max(1, width / 180)}>
+        <LinearGradient start={vec(0, 0)} end={vec(width, 0)} colors={['#32D9EF','#677EFF','#BB74F2','#F9CD56','#FF8655']} />
+      </Path><Rect x={x} y={3} width={2} height={64} color="#FFFFFF" />
     </Canvas>
   </View></GestureDetector>;
-}
+});
 
-// The performance stripe reflects the editable 8-voice sequencer, including
-// velocity accents. It remains visible beside the pads even without a loaded deck.
-function GrooveStripe({pattern, controls, bpm, running}: {pattern: number[][]; controls: RealtimeControls; bpm: number; running: boolean}) {
-  const [width, setWidth] = useState(320);
-  const phase = useSharedValue(0);
-  const lastStep = useSharedValue(-1);
-  const stepTime = useSharedValue(0);
-  useFrameCallback(frame => {
-    if (!running) { phase.value = 0; lastStep.value = -1; return; }
-    const current = controls.currentStep;
-    if (current !== lastStep.value) { lastStep.value = current; stepTime.value = frame.timestamp; }
-    phase.value = (current + Math.min(0.999, (frame.timestamp - stepTime.value) * bpm / 15000)) * width / 16;
-  });
-  const path = useMemo(() => {
-    const p = Skia.Path.Make();
-    for (let index = 0; index < 16; index++) {
-      const energy = Math.min(1, pattern.reduce((total, row, pad) =>
-        total + (row[index] ?? 0) * (pad === 0 ? 0.45 : pad === 6 ? 0.18 : 0.085), 0));
-      const height = 4 + energy * 37;
-      const x = (index + 0.5) * width / 16;
-      p.moveTo(x, 43 - height);
-      p.lineTo(x, 43 + height);
-    }
-    return p;
-  }, [pattern, width]);
-  return <View style={nexus.grooveStripe}>
-    <View style={nexus.grooveStripeHeader}><Text style={nexus.grooveStripeTitle}>STRIPE / LIVE GROOVE</Text>
-      <Text style={nexus.grooveStripeMeta}>{running ? '● PLAYING' : '16 STEPS · READY'}</Text></View>
-    <View style={nexus.grooveCanvas} onLayout={event => setWidth(Math.max(1, event.nativeEvent.layout.width))}>
-      <Canvas style={{flex: 1}} accessible={false}>
-        <Path path={path} color="#66E8D4" style="stroke" strokeWidth={Math.max(3, width / 35)}
-          strokeCap="round" />
-        <Rect x={phase}
-          y={2} width={running ? 3 : 0} height={82} color="#FFF5C9" />
-      </Canvas>
-    </View>
-    <View style={nexus.grooveStripeFooter}><Text style={nexus.grooveStripeFoot}>EDITABLE PATTERN · 303 / 606 / 909</Text>
-      <Text style={nexus.grooveStripeFoot}>AUDIO IN NATIVE ENGINE</Text></View>
-  </View>;
-}
-
-function Key({label, onPress, active, disabled, accent}: {label: string; onPress: () => void; active?: boolean; disabled?: boolean; accent?: string}) {
-  return <Pressable accessibilityRole="button" accessibilityState={{disabled, selected: active}} disabled={disabled}
-    onPress={onPress} style={[styles.key, active && {borderColor: accent ?? '#42E8D1', backgroundColor: '#42E8D1'}, disabled && styles.disabled]}>
-    <Text style={[styles.keyText, active && {color: '#0B0B0B'}]}>{label}</Text>
-  </Pressable>;
-}
-
-function Deck({index, controls, enabled, track, loading, canLoad, load, position, playing}: {
-  index: DeckIndex; controls: RealtimeControls; enabled: boolean; track: TrackInfo | null;
-  loading: boolean; canLoad: boolean; load: () => void; position: number; playing: boolean;
-}) {
-  const [rate, setRate] = useState(1);
-  const [filter, setFilter] = useState(0);
-  const [cue, setCue] = useState(0);
-  const [loop, setLoop] = useState(0);
-  const previousTrack = useRef<TrackInfo | null>(null);
-  useEffect(() => {
-    if (previousTrack.current !== track) {
-      previousTrack.current = track;
-      setRate(1); setCue(0); setLoop(0); setFilter(0);
-    }
-  }, [track]);
-  const color = COLORS[index];
-  const ready = enabled && !!track && !loading;
-  function toggle() { if (ready) controls.deckPlay(index, !playing); }
-  function cueAction() {
-    if (!ready) return;
-    if (playing) { controls.deckPlay(index, false); controls.deckSeek(index, cue); }
-    else { setCue(position); controls.deckSeek(index, position); }
-  }
-  function setLoopBeats(beats: number) {
-    if (!ready || !track) return;
-    if (loop === beats) { controls.deckLoop(index, 0, 1); setLoop(0); return; }
-    const analyzedBpm = index === 0 ? controls.deckBpm0 : controls.deckBpm1;
-    if (!analyzedBpm) return;
-    const firstBeat = index === 0 ? controls.deckFirstBeat0 : controls.deckFirstBeat1;
-    const beatSeconds = 60 / analyzedBpm;
-    const span = Math.min(1, beats * beatSeconds / track.duration);
-    const beatIndex = Math.ceil(Math.max(0, position * track.duration - firstBeat) / beatSeconds);
-    const start = Math.min(Math.max(0, (firstBeat + beatIndex * beatSeconds) / track.duration), 1 - span);
-    controls.deckLoop(index, start, start + span);
-    setLoop(beats);
-  }
-  function changeRate(delta: number) {
-    const next = Math.min(1.5, Math.max(0.5, Math.round((rate + delta) * 100) / 100));
-    if (ready && controls.deckRate(index, next)) setRate(next);
-  }
-  function changeFilter(delta: number) {
-    const next = Math.max(-1, Math.min(1, Math.round((filter + delta) * 4) / 4));
-    if (ready && controls.deckFilter(index, next)) setFilter(next);
-  }
-  return <View style={[styles.deck, {borderTopColor: color}]}>
-    <View style={styles.deckHeading}><View style={[styles.letter, {backgroundColor: color}]}><Text style={styles.letterText}>{index === 0 ? 'A' : 'B'}</Text></View>
-      <Text style={styles.deckLabel}>DECK {index === 0 ? 'A' : 'B'}</Text><Text style={[styles.status, {color}]}>{playing ? '● LIVE' : track ? '○ READY' : '○ EMPTY'}</Text></View>
-    <Pressable onPress={load} disabled={!canLoad || loading} style={[styles.load, !canLoad && styles.disabled]}>
-      {loading ? <ActivityIndicator color={color} /> : <Text numberOfLines={2} style={styles.track}>{track?.title ?? '＋  ЗАГРУЗИТЬ ТРЕК'}</Text>}
-      <Text style={styles.loadHint}>{track ? `${time(track.duration)}  ·  ЗАМЕНИТЬ ↗` : 'СВОЙ ФАЙЛ В ДЕКУ'}</Text>
-    </Pressable>
-    <WaveStrip deck={index} controls={controls} track={track} color={color} enabled={ready} />
-
-    <View style={styles.timeline}><Text style={styles.time}>{time(position * (track?.duration ?? 0))}</Text><Text style={styles.time}>−{time((1 - position) * (track?.duration ?? 0))}</Text></View>
-    <View style={styles.transport}><Key label="CUE" onPress={cueAction} disabled={!ready} accent={color} />
-      <Pressable accessibilityRole="button" accessibilityLabel={playing ? 'Пауза' : 'Воспроизвести'} disabled={!ready} onPress={toggle}
-        style={[styles.play, {backgroundColor: color}, !ready && styles.disabled]}><Text style={styles.playText}>{playing ? 'Ⅱ' : '▶'}</Text></Pressable></View>
-    <Text style={styles.caption}>TEMPO</Text>
-    <View style={styles.tempo}><Key label="−" onPress={() => changeRate(-0.01)} disabled={!ready} /><Text style={styles.rate}>{Math.round((rate - 1) * 100) >= 0 ? '+' : ''}{Math.round((rate - 1) * 100)}%</Text><Key label="＋" onPress={() => changeRate(0.01)} disabled={!ready} /></View>
-    <Key label="SYNC" onPress={() => { if (controls.deckSync(index)) setRate(index === 0 ? controls.deckRate0 : controls.deckRate1); }} disabled={!ready || !playing || !(index === 0 ? controls.deckBpm0 && controls.deckBpm1 && controls.deckPlaying1 : controls.deckBpm0 && controls.deckBpm1 && controls.deckPlaying0)} />
-    <View style={styles.tempo}><Key label="LP −" onPress={() => changeFilter(-0.25)} disabled={!ready} /><Text style={styles.filterValue}>{filter === 0 ? 'FILTER OFF' : `${filter < 0 ? 'LP' : 'HP'} ${Math.round(Math.abs(filter) * 100)}%`}</Text><Key label="＋ HP" onPress={() => changeFilter(0.25)} disabled={!ready} /></View>
-    <View style={styles.loopRow}><Text style={styles.caption}>LOOP · {Math.round(index === 0 ? controls.deckBpm0 : controls.deckBpm1) || '—'} BPM</Text><Key label={loop ? `${loop} / OFF` : '4 BEATS'} active={loop !== 0} accent={color} disabled={!ready || !(index === 0 ? controls.deckBpm0 : controls.deckBpm1)} onPress={() => setLoopBeats(loop || 4)} /></View>
-    <View style={styles.tempo}>{[1, 2, 4, 8].map(beats => <Key key={beats} label={String(beats)} active={loop === beats} disabled={!ready} onPress={() => setLoopBeats(beats)} />)}</View>
-  </View>;
-}
-
-function Crossfader({controls, enabled}: {controls: RealtimeControls; enabled: boolean}) {
-  const [width, setWidth] = useState(1);
-  const value = useSharedValue(0.5);
-  const thumb = useDerivedValue(() => value.value * Math.max(0, width - 24));
-  const gesture = Gesture.Pan().enabled(enabled).minDistance(0).onBegin(event => {
-    'worklet';
-    const next = Math.max(0, Math.min(1, (event.x - 12) / Math.max(1, width - 24)));
-    value.value = next;
-    controls.crossfade(next);
-  }).onUpdate(event => {
-    'worklet';
-    const next = Math.max(0, Math.min(1, (event.x - 12) / Math.max(1, width - 24)));
-    value.value = next;
-    controls.crossfade(next);
-  });
-  return <View style={styles.mixer}><View style={styles.mixHeading}><Text style={[styles.mixLetter, {color: COLORS[0]}]}>A</Text><Text style={styles.mixTitle}>CROSSFADER</Text><Text style={[styles.mixLetter, {color: COLORS[1]}]}>B</Text></View>
-    <GestureDetector gesture={gesture}><View style={styles.faderTouch} onLayout={event => setWidth(Math.max(1, event.nativeEvent.layout.width))}>
-      <View style={styles.faderRail} /><Canvas style={styles.faderCanvas} accessible={false}><Rect x={thumb} y={5} width={24} height={42} color="#F6F9FF" /></Canvas>
-    </View></GestureDetector></View>;
-}
-
-function MasterEQ({controls, enabled}: {controls: RealtimeControls; enabled: boolean}) {
-  const [bands, setBands] = useState<[number, number, number]>([0, 0, 0]);
-  useEffect(() => { if (enabled) controls.setEQ(...bands); }, [controls, enabled, bands]);
-  function adjust(index: 0 | 1 | 2, delta: number) {
-    const next: [number, number, number] = [...bands];
-    next[index] = Math.max(-12, Math.min(12, next[index] + delta));
-    if (enabled && controls.setEQ(...next)) setBands(next);
-  }
-  return <View style={styles.eqPanel}>
-    <Text style={styles.mixTitle}>MASTER EQ · ±12 dB</Text>
-    <View style={styles.eqRow}>{(['LOW', 'MID', 'HIGH'] as const).map((label, index) =>
-      <View key={label} style={styles.eqBand}>
-        <Text style={styles.eqLabel}>{label}</Text>
-        <View style={styles.eqControls}>
-          <Key label="−" disabled={!enabled} onPress={() => adjust(index as 0 | 1 | 2, -1)} />
-          <Text style={styles.eqValue}>{bands[index]! > 0 ? '+' : ''}{bands[index]} dB</Text>
-          <Key label="+" disabled={!enabled} onPress={() => adjust(index as 0 | 1 | 2, 1)} />
-        </View>
-      </View>)}</View>
-  </View>;
-}
-
-function DrumMachine({controls, enabled, activeDeck, track, deckPlaying, onDeckChange, onLoadTrack}: {
-  controls: RealtimeControls; enabled: boolean; activeDeck: DeckIndex;
-  track: TrackInfo | null; deckPlaying: boolean; onDeckChange: (deck: DeckIndex) => void;
-  onLoadTrack: () => void;
-}) {
-  const [kit, setKit] = useState<1 | 2 | 3>(3);
-  const [bpm, setBpm] = useState(136);
-  const [running, setRunning] = useState(false);
-  const [banks, setBanks] = useState(() => Array.from({length: 4}, () => INITIAL_PATTERN.map(row => [...row])));
+function Pads({controls, enabled, onSelect}: {controls: RealtimeControls; enabled: boolean; onSelect: (pad: PadIndex) => void}) {
+  const [kit, setKit] = useState<1 | 2 | 3>(1);
+  const [bpm, setBpm] = useState(132);
   const [bank, setBank] = useState(0);
+  const [banks, setBanks] = useState(() => Array.from({length: 4}, initialBank));
+  const [running, setRunning] = useState(false);
   const [recording, setRecording] = useState(false);
-  const [activeGroove, setActiveGroove] = useState<number | null>(null);
-  const pattern = banks[bank]!;
-  function setPattern(next: number[][]) { setBanks(old => old.map((rows, index) => index === bank ? next : rows)); }
-  const recordHit = useCallback((pad: PadIndex, at: number) => {
-    if (!recording || !running) return;
-    if (at < 0 || at >= 16 || !controls.setStep(pad, at, 1)) return;
-    setBanks(old => old.map((rows, b) => b !== bank ? rows : rows.map((row, p) =>
-      p !== pad ? row : row.map((v, i) => i === at ? 1 : v))));
-  }, [bank, controls, recording, running]);
   const [step, setStep] = useState(0);
+  const [expanded, setExpanded] = useState(false);
+  const pattern = banks[bank]!;
   useEffect(() => {
-    for (let pad = 0; pad < 8; ++pad) for (let at = 0; at < 16; ++at)
-      controls.setStep(pad as PadIndex, at, pattern[pad]?.[at] ?? 0);
-    controls.setTempo(bpm);
-    controls.setKit(kit);
-  }, [controls, enabled, bpm, kit, pattern]); // Reapply after RemoteIO is prepared or restarted.
+    controls.setKit(kit); controls.setTempo(bpm);
+    for (let p = 0; p < 8; p++) for (let at = 0; at < 16; at++) controls.setStep(p as PadIndex, at, pattern[p]?.[at] ?? 0);
+  }, [controls, enabled, pattern, kit, bpm]);
   useEffect(() => {
-    if (!enabled) { controls.setSequencer(false); setRunning(false); setStep(0); return; }
-    const timer = setInterval(() => { if (running) setStep(controls.currentStep); }, 65);
-    return () => clearInterval(timer);
+    if (!enabled) { setRunning(false); controls.setSequencer(false); return; }
+    if (!running) return;
+    const id = setInterval(() => setStep(controls.currentStep), 80);
+    return () => clearInterval(id);
   }, [controls, enabled, running]);
-  function selectKit(next: 1 | 2 | 3) {
-    if (controls.setKit(next)) setKit(next);
+  const record = useCallback((pad: PadIndex, at: number) => {
+    onSelect(pad);
+    if (!recording || !running || !controls.setStep(pad, at, 1)) return;
+    setBanks(old => old.map((rows, b) => b === bank ? rows.map((row, p) => p === pad ? row.map((v, i) => i === at ? 1 : v) : row) : rows));
+  }, [bank, controls, onSelect, recording, running]);
+  function groove(index: number) {
+    const preset = WOLF_GROOVES[index]; if (!preset) return;
+    setBanks(old => old.map((rows, at) => at === bank ? buildWolfPattern(index) : rows));
+    setKit(preset.kit); setBpm(preset.bpm);
   }
-  function changeBpm(delta: number) {
-    const next = Math.max(60, Math.min(200, bpm + delta));
-    if (controls.setTempo(next)) setBpm(next);
-  }
-  function toggleStep(pad: PadIndex, at: number) {
-    const next = pattern.map(row => [...row]);
-    next[pad]![at] = next[pad]![at] ? 0 : pad === 0 ? 1 : 0.7;
-    if (controls.setStep(pad, at, next[pad]![at]!)) setPattern(next);
-  }
-  function toggleSequence() {
-    const next = !running;
-    if (controls.setSequencer(next)) { setRunning(next); if (!next) setStep(0); }
-  }
+  return <ScrollView contentContainerStyle={s.page} nestedScrollEnabled showsVerticalScrollIndicator={false}>
+    <View style={s.rowBetween}><Text style={s.section}>PERFORMANCE</Text><View style={s.row}>
+      {['A','B','C','D'].map((name, i) => <Button key={name} text={name} active={bank === i} onPress={() => setBank(i)} />)}</View></View>
+    <View style={s.pads}>{LABELS[kit]!.map((label, p) => <PerformancePad key={p} index={p as PadIndex}
+      label={label} controls={controls} enabled={enabled} onSelect={record} />)}</View>
+    <View style={s.row}>
+      <Button text={running ? 'СТОП' : 'РИТМ'} active={running} disabled={!enabled} onPress={() => { if (controls.setSequencer(!running)) setRunning(!running); }} />
+      <Button text={recording ? 'REC ●' : 'REC'} color="#FF536B" active={recording} disabled={!enabled} onPress={() => setRecording(v => !v)} />
+      <Button text="−" disabled={!enabled} onPress={() => setBpm(v => Math.max(60, v - 1))} />
+      <Text style={s.bpm}>{bpm}</Text>
+      <Button text="+" disabled={!enabled} onPress={() => setBpm(v => Math.min(200, v + 1))} />
+    </View>
+    <View style={s.row}>{([1,2,3] as const).map(k => <Button key={k} text={k === 1 ? '303' : k === 2 ? '606' : '909'} active={kit === k} onPress={() => setKit(k)} />)}
+      <Button text={expanded ? 'СВЕРНУТЬ' : 'ШАГИ'} onPress={() => setExpanded(v => !v)} /></View>
+    {expanded && <ScrollView horizontal nestedScrollEnabled><View>{LANES.map(p => <View key={p} style={s.steps}>
+      <Text style={s.lane}>{LABELS[kit]![p]}</Text>{pattern[p]!.map((v, i) => <Pressable key={i} accessibilityRole="button"
+        accessibilityLabel={`${LABELS[kit]![p]} шаг ${i + 1}`} accessibilityState={{selected: v > 0}}
+        onPress={() => setBanks(old => old.map((rows, b) => b === bank ? rows.map((row, at) => at === p ? row.map((value, x) => x === i ? (value ? 0 : 0.7) : value) : row) : rows))}
+        style={[s.step, v > 0 && s.stepOn, running && i === step && s.stepCurrent]} />)}</View>)}</View></ScrollView>}
+    <Text style={s.section}>GROOVES</Text>
+    <View style={s.grooves}>{WOLF_GROOVES.map((preset, i) => <Pressable key={preset.id} onPress={() => groove(i)} style={s.groove}>
+      <Text style={s.grooveName}>{preset.title}</Text><Text style={s.hint}>{preset.bpm} BPM · {preset.style.toUpperCase()}</Text></Pressable>)}</View>
+  </ScrollView>;
+}
 
-  function applyGroove(index: number) {
-    const groove = WOLF_GROOVES[index];
-    if (!groove) return;
-    // Only the selected A/B/C/D bank is replaced; the other three stay editable.
-    // The real C++ sequencer picks up these velocities/kit/BPM through atomics.
-    setPattern(buildWolfPattern(index));
-    setKit(groove.kit);
-    setBpm(groove.bpm);
-    setActiveGroove(index);
+type Channel = {LOW: number; MID: number; HIGH: number; FILTER: number; GAIN: number};
+function Dial({name, deck, state, controls, enabled}: {name: keyof Channel; deck: Deck; state: SharedValue<Channel>; controls: RealtimeControls; enabled: boolean}) {
+  const min = name === 'GAIN' ? 0 : name === 'FILTER' ? -1 : -24;
+  const max = name === 'GAIN' ? 1.5 : name === 'FILTER' ? 1 : 6;
+  const origin = useSharedValue(0);
+  const [display, setDisplay] = useState(name === 'GAIN' ? '100%' : name === 'FILTER' ? 'OFF' : '0 dB');
+  function show(value: number) { setDisplay(name === 'GAIN' ? `${Math.round(value * 100)}%` : name === 'FILTER' ? Math.abs(value) < 0.02 ? 'OFF' : `${value < 0 ? 'LP' : 'HP'} ${Math.round(Math.abs(value) * 100)}` : `${value > 0 ? '+' : ''}${value.toFixed(0)} dB`); }
+  const gesture = Gesture.Pan().enabled(enabled).minDistance(0)
+    .onBegin(() => { origin.value = state.value[name]; })
+    .onUpdate(event => {
+      const value = Math.max(min, Math.min(max, origin.value - event.translationY * (max - min) / 180));
+      const next = {...state.value, [name]: value}; state.value = next;
+      if (name === 'GAIN') controls.setDeckGain(deck, value);
+      else if (name === 'FILTER') controls.deckFilter(deck, value);
+      else controls.setDeckEQ(deck, next.LOW, next.MID, next.HIGH);
+    }).onFinalize(() => { scheduleOnRN(show, state.value[name]); });
+  const rotation = useAnimatedStyle(() => ({transform: [{rotate: `${-135 + (state.value[name] - min) / (max - min) * 270}deg`}]}));
+  function reset() {
+    const value = name === 'GAIN' ? 1 : 0; const next = {...state.value, [name]: value}; state.value = next;
+    if (name === 'GAIN') controls.setDeckGain(deck, value); else if (name === 'FILTER') controls.deckFilter(deck, value); else controls.setDeckEQ(deck, next.LOW, next.MID, next.HIGH);
+    show(value);
   }
-  const kitName = kit === 1 ? '303 / ACID' : kit === 2 ? '606 / CLASSIC' : '909 / TECHNO';
-  function generateRhythm() {
-    const next = INITIAL_PATTERN.map((row, pad) => row.map((value, index) =>
-      pad === 0 ? value : value || (LANES.some(lane => lane === pad) &&
-        Math.random() < (index % 2 ? 0.12 : 0.23) ? 0.7 : 0)));
-    setPattern(next);
-    setActiveGroove(null);
+  return <View style={s.dialCell}><Text style={s.dialName}>{name}</Text><GestureDetector gesture={gesture}>
+    <View style={[s.dial, {borderColor: ACCENT[deck]}]} accessibilityLabel={`${name}, дека ${deck === 0 ? 'A' : 'B'}`}>
+      <Animated.View style={[s.dialRotor, rotation]}><View style={[s.dialTick, {backgroundColor: ACCENT[deck]}]} /></Animated.View>
+    </View></GestureDetector><Pressable disabled={!enabled} onPress={reset} accessibilityRole="button" accessibilityLabel={`Сброс ${name}`}><Text style={s.dialValue}>{display}</Text></Pressable></View>;
+}
+function ChannelStrip({deck, controls, enabled}: {deck: Deck; controls: RealtimeControls; enabled: boolean}) {
+  const state = useSharedValue<Channel>({LOW:0, MID:0, HIGH:0, FILTER:0, GAIN:1});
+  useEffect(() => { if (enabled) { const v = state.value; controls.setDeckEQ(deck,v.LOW,v.MID,v.HIGH); controls.setDeckGain(deck,v.GAIN); controls.deckFilter(deck,v.FILTER); } }, [controls, deck, enabled, state]);
+  return <View style={s.channel}><Text style={[s.channelName, {color: ACCENT[deck]}]}>DECK {deck === 0 ? 'A' : 'B'}</Text>
+    {(['FILTER','HIGH','MID','LOW','GAIN'] as const).map(name => <Dial key={name} name={name} deck={deck} controls={controls} state={state} enabled={enabled} />)}</View>;
+}
+function Mixer({controls, enabled, track, deck}: {controls: RealtimeControls; enabled: boolean; track: TrackInfo | null; deck: Deck}) {
+  const [rate, setRate] = useState<[number, number]>([1,1]);
+  const [loop, setLoop] = useState<[number, number]>([0,0]);
+  const sources = useRef<[TrackInfo | null, TrackInfo | null]>([null, null]);
+  useEffect(() => {
+    if (sources.current[deck] === track) return;
+    sources.current[deck] = track;
+    setRate([controls.deckRate0, controls.deckRate1]);
+    setLoop(old => old.map((v,i) => i === deck ? 0 : v) as [number,number]);
+  }, [controls, deck, track]);
+  function tempo(delta: number) { const next = Math.max(0.5, Math.min(1.5, rate[deck] + delta)); if (controls.deckRate(deck, next)) setRate(old => old.map((v,i) => i === deck ? next : v) as [number,number]); }
+  function loopBeats(beats: number) {
+    if (!track) return;
+    const bpm = deck === 0 ? controls.deckBpm0 : controls.deckBpm1; if (!bpm) return;
+    const at = deck === 0 ? controls.deckPosition0 : controls.deckPosition1;
+    const first = deck === 0 ? controls.deckFirstBeat0 : controls.deckFirstBeat1;
+    const span = Math.min(1, beats * 60 / bpm / track.duration);
+    const start = Math.max(0, Math.min(1 - span, (first + Math.floor((at * track.duration - first) * bpm / 60) * 60 / bpm) / track.duration));
+    const next = loop[deck] === beats ? 0 : beats;
+    if (controls.deckLoop(deck, next ? start : 0, next ? start + span : 1)) setLoop(old => old.map((v,i) => i === deck ? next : v) as [number,number]);
   }
-  return <View style={nexus.workspace}>
-    <View style={nexus.performanceLine}>
-      <Text style={nexus.performanceTitle}>01 / PERFORMANCE</Text>
-      <Text style={nexus.performanceMeta}>LOCAL AUDIO · LIVE</Text>
-    </View>
-    <View style={nexus.stripePicker}>
-      <Text style={nexus.stripePickerTitle}>LIVE STRIPE / WAVEFORM</Text>
-      <View style={nexus.stripePickerControls}>{([0, 1] as const).map(index =>
-        <Pressable key={index} accessibilityRole="button" accessibilityLabel={`Выбрать деку ${index === 0 ? 'A' : 'B'}`}
-          accessibilityState={{selected: activeDeck === index}} onPress={() => onDeckChange(index)}
-          style={[nexus.stripeDeckKey, activeDeck === index && nexus.stripeDeckKeyOn]}>
-          <Text style={[nexus.stripeDeckKeyText, activeDeck === index && nexus.stripeDeckKeyTextOn]}>
-            {index === 0 ? 'A' : 'B'}</Text>
-        </Pressable>)}</View>
-    </View>
-    {track ? <View style={nexus.trackStripe}>
-      <View style={nexus.trackStripeHeading}><Text numberOfLines={1} style={nexus.trackStripeTitle}>{track.title}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel={deckPlaying ? 'Пауза трека' : 'Играть трек'}
-          disabled={!enabled} onPress={() => controls.deckPlay(activeDeck, !deckPlaying)}
-          style={nexus.trackStripePlay}><Text style={nexus.trackStripePlayText}>{deckPlaying ? 'Ⅱ' : '▶'}</Text></Pressable></View>
-      <WaveStrip deck={activeDeck} controls={controls} track={track}
-        color={COLORS[activeDeck]} enabled={enabled} />
-      <Pressable accessibilityRole="button" onPress={onLoadTrack} style={nexus.stripeImport}>
-        <Text style={nexus.stripeImportText}>＋ ЗАМЕНИТЬ ТРЕК · ФАЙЛЫ IPHONE</Text></Pressable>
-    </View> : <View>
-      <GrooveStripe pattern={pattern} controls={controls} bpm={bpm} running={running} />
-      <Pressable accessibilityRole="button" onPress={onLoadTrack} style={nexus.stripeImport}>
-        <Text style={nexus.stripeImportText}>＋ ЗАГРУЗИТЬ ТРЕК В ДЕКУ {activeDeck === 0 ? 'A' : 'B'}</Text></Pressable>
-    </View>}
-    <View style={nexus.padsPanel}>
-      <View style={nexus.strip}><Text style={nexus.stripLeft}>01 / PLAY THE GRID</Text><Text style={nexus.stripRight}>8 VOICES · 4 BANKS</Text></View>
-      <View style={nexus.padsHeading}>
-        <Text style={nexus.padsTitle}>▦  ДРАМ-ПЭДЫ</Text>
-        <View style={nexus.bankRow}>{(['A','B','C','D'] as const).map((name, index) =>
-          <Pressable key={name} accessibilityRole="button" accessibilityLabel={`Банк ${name}`}
-            accessibilityState={{selected: bank === index}} onPress={() => setBank(index)}
-            style={[nexus.bankButton, bank === index && nexus.bankSelected]}>
-            <Text style={[nexus.bankText, bank === index && nexus.bankTextSelected]}>{name}</Text>
-          </Pressable>)}</View>
-      </View>
-      <View style={styles.padGrid}>{KIT_LABELS[kit].map((label, index) =>
-        <PerformancePad key={index} index={index as PadIndex} label={label} controls={controls}
-          enabled={enabled} onSelect={recordHit} />)}</View>
-    </View>
-    <View style={nexus.transportPanel}>
-      <Pressable accessibilityRole="button" accessibilityLabel={running ? 'Остановить ритм' : 'Запустить ритм'}
-        accessibilityState={{disabled: !enabled, selected: running}} disabled={!enabled} onPress={toggleSequence}
-        style={[nexus.transportSide, !enabled && styles.disabled]}>
-        <View style={[nexus.playRing, running && nexus.playRingOn]}><Text style={nexus.playIcon}>{running ? 'Ⅱ' : '▶'}</Text></View>
-        <Text style={nexus.transportLabel}>{running ? 'СТОП' : 'ПУСК'}</Text>
-      </Pressable>
-      <View style={nexus.signalPanel}>
-        <View style={nexus.signalHeader}><Text style={nexus.signalName}>● {kitName}</Text>
-          <Text style={nexus.signalTime}>{running ? `ШАГ ${String(step + 1).padStart(2, '0')}` : 'ОЖИДАНИЕ'}</Text></View>
-        <View style={nexus.signalScreen}>{Array.from({length: 16}, (_, index) =>
-          <View key={index} style={[nexus.signalBar, (pattern[0]?.[index] ?? 0) > 0 && nexus.signalActive,
-            running && index === step && nexus.signalCursor]} />)}</View>
-        <View style={nexus.signalFooter}><Text style={nexus.signalFootText}>16 STEPS · LIVE GRID</Text>
-          <Text style={nexus.signalStatus}>{running ? 'ВОСПРОИЗВЕДЕНИЕ' : 'ОСТАНОВЛЕНО'}</Text></View>
-      </View>
-      <Pressable accessibilityRole="button" accessibilityLabel="Запись нажатий драм-пэдов в секвенсор"
-        accessibilityState={{disabled: !enabled, selected: recording}} disabled={!enabled}
-        onPress={() => setRecording(v => !v)} style={[nexus.transportSide, !enabled && styles.disabled]}>
-        <View style={[nexus.recordRing, recording && nexus.recordRingOn]}><View style={nexus.recordCenter} /></View>
-        <Text style={nexus.transportLabel}>{recording ? 'ЗАПИСЬ ●' : 'ЗАПИСЬ'}</Text>
-      </Pressable>
-    </View>
-    <View style={nexus.wolfTop}>
-      <Text style={nexus.wolfTitle}>STRIPEWOLF / MUSIC PACKS</Text>
-      <Text style={nexus.wolfMeta}>9 GROOVES · 7 STYLES · EDITABLE</Text>
-    </View>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} nestedScrollEnabled
-      contentContainerStyle={nexus.wolfList} accessibilityLabel="Музыкальные паттерны Stripewolf">
-      {WOLF_GROOVES.map((groove, index) =>
-        <Pressable key={groove.id} accessibilityRole="button"
-          accessibilityLabel={`Создать ритм ${groove.title} в банке ${bank + 1}`}
-          accessibilityState={{selected: activeGroove === index}}
-          onPress={() => applyGroove(index)}
-          style={[nexus.wolfChip, activeGroove === index && nexus.wolfChipActive]}>
-          <Text style={nexus.wolfChipName}>{groove.title}</Text>
-          <Text style={nexus.wolfChipBpm}>{groove.bpm} BPM · {groove.kit === 1 ? '303' : groove.kit === 2 ? '606' : '909'}</Text>
-          <Text style={nexus.wolfChipHint}>{activeGroove === index ? 'В БАНКЕ · РЕДАКТИРУЙ' : 'ПРИМЕНИТЬ В БАНК'}</Text>
-        </Pressable>)}
-    </ScrollView>
-    <View style={nexus.settingsPanel}>
-      <View style={nexus.settingCell}><Text style={nexus.settingCaption}>СТИЛЬ</Text>
-        <View style={nexus.settingPicker}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Предыдущий стиль" style={nexus.arrowButton}
-            onPress={() => selectKit(((kit + 1) % 3 + 1) as 1 | 2 | 3)}><Text style={nexus.arrowText}>‹</Text></Pressable>
-          <Text style={nexus.styleValue}>{kitName}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Следующий стиль" style={nexus.arrowButton}
-            onPress={() => selectKit((kit % 3 + 1) as 1 | 2 | 3)}><Text style={nexus.arrowText}>›</Text></Pressable>
-        </View>
-      </View>
-      <View style={nexus.bpmCell}><Text style={nexus.bpmCaption}>BPM</Text>
-        <View style={nexus.bpmPicker}><Pressable accessibilityRole="button" accessibilityLabel="Темп минус один"
-          style={nexus.bpmArrow} onPress={() => changeBpm(-1)} disabled={!enabled}><Text style={nexus.bpmArrowText}>‹</Text></Pressable>
-          <Text style={nexus.bpmNumber}>{bpm}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Темп плюс один"
-            style={nexus.bpmArrow} onPress={() => changeBpm(1)} disabled={!enabled}><Text style={nexus.bpmArrowText}>›</Text></Pressable></View>
-      </View>
-      <View style={nexus.settingCell}><Text style={nexus.settingCaption}>СЦЕНА</Text>
-        <View style={nexus.settingPicker}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Предыдущая сцена" style={nexus.arrowButton}
-            onPress={() => setBank((bank + 3) % 4)}><Text style={nexus.arrowText}>‹</Text></Pressable>
-          <Text style={nexus.sceneValue}>BANK {(['A','B','C','D'] as const)[bank]}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Следующая сцена" style={nexus.arrowButton}
-            onPress={() => setBank((bank + 1) % 4)}><Text style={nexus.arrowText}>›</Text></Pressable>
-        </View>
-      </View>
-    </View>
-    <Pressable accessibilityRole="button" accessibilityLabel="Создать новый ритм" style={nexus.createRhythm}
-      onPress={generateRhythm}><Text style={nexus.createStar}>✦</Text>
-      <View style={nexus.createText}><Text style={nexus.createTitle}>СОЗДАТЬ РИТМ</Text><Text style={nexus.createDetail}>АВТОРИТМ · 16 ШАГОВ</Text></View>
-      <Text style={nexus.createArrow}>›</Text></Pressable>
-    <View style={nexus.sequencerPanel}>
-      <View style={nexus.sequenceTitleRow}><Text style={nexus.sequenceTitle}>02 / STEP SEQUENCER</Text>
-        <Text style={nexus.sequenceSub}>4 LANES · 16 STEPS</Text></View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={true} nestedScrollEnabled>
-        <View>{LANES.map(pad => <View style={nexus.stepsRow} key={pad}>
-          <Text style={nexus.stepsName}>{KIT_LABELS[kit][pad]}</Text>
-          {pattern[pad]?.map((value, at) =>
-            <Pressable key={at} accessibilityRole="button" accessibilityLabel={`${KIT_LABELS[kit][pad]} шаг ${at + 1}`}
-              accessibilityState={{selected: value > 0, disabled: !enabled}} disabled={!enabled}
-              onPress={() => toggleStep(pad, at)} style={[nexus.stepCell, value > 0 && nexus.stepActive,
-                running && step === at && nexus.stepCurrent]} />)}</View>)}</View>
-      </ScrollView>
-      <Text style={nexus.sequenceHint}>ЗАПИСЬ фиксирует нажатия на пэды в текущем банке при запущенном ритме.</Text>
-    </View>
-  </View>;
+  return <ScrollView contentContainerStyle={s.page} nestedScrollEnabled showsVerticalScrollIndicator={false}>
+    <View style={s.channels}><ChannelStrip deck={0} controls={controls} enabled={enabled} /><View style={s.channelDivider} /><ChannelStrip deck={1} controls={controls} enabled={enabled} /></View>
+    <Text style={s.section}>DECK {deck === 0 ? 'A' : 'B'} · TEMPO / LOOP</Text>
+    <View style={s.row}><Button text="−" onPress={() => tempo(-0.01)} disabled={!track || !enabled} /><Text style={s.bpm}>{((rate[deck]-1)*100).toFixed(0)}%</Text>
+      <Button text="+" onPress={() => tempo(0.01)} disabled={!track || !enabled} /><Button text="SYNC" onPress={() => { if (controls.deckSync(deck)) setRate([controls.deckRate0,controls.deckRate1]); }} disabled={!track || !enabled} /></View>
+    <View style={s.row}>{[1,2,4,8].map(beats => <Button key={beats} text={`${beats}`} active={loop[deck] === beats} disabled={!enabled || !track} onPress={() => loopBeats(beats)} />)}</View>
+    <MasterFader controls={controls} enabled={enabled} />
+  </ScrollView>;
+}
+function Crossfade({controls, enabled}: {controls: RealtimeControls; enabled: boolean}) {
+  const [width,setWidth] = useState(1); const position = useSharedValue(0.5);
+  const gesture = Gesture.Pan().enabled(enabled).minDistance(0).onBegin(e => { position.value=Math.max(0,Math.min(1,(e.x-14)/Math.max(1,width-28))); controls.crossfade(position.value); })
+    .onUpdate(e => { position.value=Math.max(0,Math.min(1,(e.x-14)/Math.max(1,width-28))); controls.crossfade(position.value); });
+  const thumb=useAnimatedStyle(() => ({transform:[{translateX:position.value*Math.max(0,width-28)}]}));
+  return <GestureDetector gesture={gesture}><View style={s.faderTouch} onLayout={e => setWidth(e.nativeEvent.layout.width)}>
+    <View style={s.faderRail}/><Animated.View style={[s.faderThumb,thumb]}/></View></GestureDetector>;
 }
 
 function Studio() {
-  const {controls, session, busy, error, toggleAudio} = useAudioSession();
-  const [mix, setMix] = useState(false);
-  const contentRef = useRef<ScrollView>(null);
-  // Both workspaces remain mounted to preserve live drum patterns and deck state.
-  // Reset scroll position after switching; the old page previously retained its
-  // offset, making the navigation appear broken on compact iPhone screens.
-  useEffect(() => { contentRef.current?.scrollTo({y: 0, animated: false}); }, [mix]);
-  const [tracks, setTracks] = useState<[TrackInfo | null, TrackInfo | null]>([null, null]);
-  const [loading, setLoading] = useState<DeckIndex | null>(null);
-  const loadingLock = useRef(false);
-  const [selected, setSelected] = useState<DeckIndex>(0);
-  const [playback, setPlayback] = useState({positions: [0, 0], playing: [false, false]});
-  const {width} = useWindowDimensions();
-  useEffect(() => {
-    const id = setInterval(() => setPlayback({positions: [controls.deckPosition0, controls.deckPosition1],
-      playing: [controls.deckPlaying0, controls.deckPlaying1]}), 200);
-    return () => clearInterval(id);
-  }, [controls]);
-  useEffect(() => { if (!session) setTracks([null, null]); }, [session]);
-  const [importError, setImportError] = useState<string | null>(null);
-  async function load(index: DeckIndex, preset?: number) {
-    if (loadingLock.current) return;
-    loadingLock.current = true;
-    setLoading(index); setImportError(null);
+  const {controls,session,busy,error,toggleAudio}=useAudioSession();
+  const [waveform,setWaveform]=useState<readonly number[]>(EMPTY);
+  const selectPad=useCallback((index:PadIndex) => { setPad(index); setWaveform(controls.padWaveform(index)); },[controls]);
+  const [tracks,setTracks]=useState<[TrackInfo|null,TrackInfo|null]>([null,null]);
+  const [selected,setSelected]=useState<Deck>(0); const [pad,setPad]=useState<PadIndex>(0);
+  const [loading,setLoading]=useState(false); const loadingLock=useRef(false);
+  const [importError,setImportError]=useState<string|null>(null);
+  const [page,setPage]=useState(0); const [width,setWidth]=useState(1); const pager=useRef<ScrollView>(null); const pageRef=useRef(0); pageRef.current=page;
+  const [playing,setPlaying]=useState<[boolean,boolean]>([false,false]);
+  useEffect(() => { const id=setInterval(() => { const a=controls.deckPlaying0,b=controls.deckPlaying1; setPlaying(old => old[0]===a && old[1]===b ? old : [a,b]); },150); return () => clearInterval(id); },[controls]);
+  useEffect(() => { if (!session) setTracks([null,null]); },[session]);
+  useEffect(() => { pager.current?.scrollTo({x:pageRef.current*width,animated:false}); },[width]);
+  async function load(preset?:number) {
+    if (loadingLock.current) return; loadingLock.current=true;setLoading(true);setImportError(null);
+    const deck=selected;
     try {
       if (!session && !(await toggleAudio())) return;
-      const track = preset === undefined ? await pickTrack(index) : await loadPreset(index, preset);
-      setTracks(previous => { const next = [...previous] as [TrackInfo | null, TrackInfo | null]; next[index] = track; return next; });
-    } catch (reason: unknown) {
-      const message = reason instanceof Error ? reason.message : 'Не удалось загрузить трек';
-      if (!message.includes('отменён')) setImportError(message);
-    } finally { loadingLock.current = false; setLoading(null); }
+      const track=preset===undefined ? await pickTrack(deck) : await loadPreset(deck,preset);
+      setTracks(old => old.map((v,i) => i===deck ? track : v) as [TrackInfo|null,TrackInfo|null]);
+    } catch(reason:unknown) { const message=reason instanceof Error ? reason.message : 'Ошибка импорта'; if (!message.includes('отменён')) setImportError(message); }
+    finally { loadingLock.current=false;setLoading(false); }
   }
-  return <SafeAreaView style={styles.safe} edges={['top', 'bottom', 'left', 'right']}><StatusBar barStyle="light-content" />
-    <ScrollView ref={contentRef} contentContainerStyle={[styles.content, {maxWidth: width > 800 ? 960 : 540}]} bounces={false}
-      keyboardShouldPersistTaps="handled">
-      <View style={styles.header}><View><Text style={styles.brand}>ARTSS DJS</Text><Text style={styles.sub}>NEXUS 35 · LIVE PERFORMANCE</Text></View>
-        <Pressable accessibilityRole="button" onPress={() => { void toggleAudio(); }} disabled={busy || loading !== null} style={[styles.power, session && styles.powerOn]}>
-          <Text style={styles.powerText}>{busy ? '…' : session ? '● AUDIO ON' : '▶ ЗАПУСТИТЬ ЗВУК'}</Text></Pressable></View>
-      <Text style={nexus.pageTitle}>{mix ? 'DECKS / MIX' : 'STUDIO / STRIPE + PADS'}</Text>
-      {!session && !busy && <Text style={nexus.audioHelp}>Для воспроизведения нажми «ЗАПУСТИТЬ ЗВУК» сверху.</Text>}
-      <View style={{display: mix ? 'none' : 'flex'}}><DrumMachine controls={controls} enabled={!!session && !busy}
-        activeDeck={selected} track={tracks[selected]} deckPlaying={playback.playing[selected] ?? false}
-        onDeckChange={setSelected} onLoadTrack={() => { void load(selected); }} /></View>
-      <View style={{display: mix ? 'flex' : 'none'}}>      <View style={styles.mixHeader}><Text style={styles.eyebrow}>02 / MIX STATION</Text><Text style={styles.mixNote}>ДВА КАНАЛА · ОДИН МИКС</Text></View>
-      <View style={styles.deckRow}>{([0, 1] as const).map(index => <Deck key={index} index={index} controls={controls} enabled={!!session && !busy} track={tracks[index]}
-        loading={loading === index} canLoad={!busy && loading === null} load={() => { void load(index); }} position={playback.positions[index] ?? 0} playing={playback.playing[index] ?? false} />)}</View>
-      <Crossfader controls={controls} enabled={!!session} />
-<View style={styles.libraryHead}><View><Text style={styles.eyebrow}>01 / MUSIC LIBRARY</Text><Text style={styles.sectionTitle}>Начни с трека</Text></View>
-        <View style={styles.target}><Text style={styles.targetLabel}>В ДЕКУ</Text>{([0, 1] as const).map(index => <Pressable key={index}
-          accessibilityRole="button" accessibilityState={{selected: selected === index}} onPress={() => setSelected(index)}
-          style={[styles.targetButton, selected === index && {backgroundColor: COLORS[index]}]}><Text style={[styles.targetText, selected === index && styles.targetTextOn]}>{index === 0 ? 'A' : 'B'}</Text></Pressable>)}</View></View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.presetScroll} contentContainerStyle={styles.presetList}>
-        {WOLF_GROOVES.map((preset, index) => <Pressable key={preset.id} accessibilityRole="button"
-          accessibilityLabel={`Загрузить оригинальный демолуп ${preset.title} в деку ${selected === 0 ? 'A' : 'B'}`}
-          disabled={loading !== null || busy} onPress={() => { void load(selected, index); }} style={[styles.preset, (loading !== null || busy) && styles.disabled]}>
-          <Text style={styles.presetIndex}>{String(index + 1).padStart(2, '0')} / DEMO</Text>
-          <Text numberOfLines={2} style={styles.presetName}>{preset.title}</Text><View style={styles.presetBottom}><Text style={styles.presetGenre}>{preset.style.toUpperCase()}</Text><Text style={styles.presetBpm}>{preset.bpm} BPM</Text></View>
-        </Pressable>)}</ScrollView>
-      <Pressable accessibilityRole="button" disabled={loading !== null || busy} onPress={() => { void load(selected); }} style={[styles.import, (loading !== null || busy) && styles.disabled]}>
-        <Text style={styles.importIcon}>＋</Text><View style={styles.importText}><Text style={styles.importTitle}>Загрузить свой трек</Text>
-          <Text style={styles.importHint}>Файлы iPhone · дека {selected === 0 ? 'A' : 'B'}</Text></View><Text style={styles.importArrow}>↗</Text></Pressable>
-      {error || importError ? <Text accessibilityRole="alert" style={styles.error}>{error ?? importError}</Text> : null}
-      <MasterEQ controls={controls} enabled={!!session && !busy} />
-      <MasterFader controls={controls} enabled={!!session && !busy} />
-      </View>
-      <Text style={styles.footer}>{session ? `${session.routes.join(' · ')}  ·  ${session.ioBufferMs.toFixed(1)} ms` : 'Включите звук для игры'}</Text>
-    </ScrollView><View style={nexus.bottomNav}>
-      <Pressable accessibilityRole="tab" accessibilityState={{selected: !mix}} onPress={() => setMix(false)}
-        style={[nexus.navButton, !mix && nexus.navSelected]}><Text style={[nexus.navIcon, !mix && nexus.navLabelSelected]}>▦</Text><Text style={[nexus.navLabel, !mix && nexus.navLabelSelected]}>STRIPE + ПЭДЫ</Text></Pressable>
-      <Pressable accessibilityRole="tab" accessibilityState={{selected: mix}} onPress={() => setMix(true)}
-        style={[nexus.navButton, mix && nexus.navSelected]}><Text style={[nexus.navIcon, mix && nexus.navLabelSelected]}>≋</Text><Text style={[nexus.navLabel, mix && nexus.navLabelSelected]}>ДЕКИ / MIX</Text></Pressable>
-    </View></SafeAreaView>;
+  const enabled=!!session&&!busy;
+  return <SafeAreaView style={s.safe} edges={['top','bottom','left','right']}>
+    <StatusBar barStyle="light-content"/><View style={s.header}><Text style={s.brand}>ARTSS <Text style={s.brandAccent}>DJS</Text></Text>
+      <Button text={busy ? '…' : session ? 'AUDIO ON' : 'ВКЛЮЧИТЬ ЗВУК'} active={!!session} disabled={busy||loading} onPress={() => { void toggleAudio(); }}/></View>
+    <View style={s.trackRow}>{([0,1] as const).map(deck => <Pressable key={deck} onPress={() => setSelected(deck)} style={[s.trackTitle,selected===deck&&{borderColor:ACCENT[deck]}]}>
+      <Text style={[s.deckBadge,{color:ACCENT[deck]}]}>{deck===0?'A':'B'}</Text><Text numberOfLines={1} style={s.trackName}>{tracks[deck]?.title??'Загрузить трек'}</Text></Pressable>)}</View>
+    <Stripe controls={controls} deck={selected} track={tracks[selected]} samples={waveform} pad={pad} enabled={enabled}/>
+    <View style={s.stripeCaption}><Text style={s.hint}>{tracks[selected] ? `DECK ${selected===0?'A':'B'} · ${(selected===0?controls.deckBpm0:controls.deckBpm1).toFixed(0)} BPM` : 'PAD PCM · Нажми пэд для волны'}</Text>
+      <Pressable disabled={loading||busy} onPress={() => { void load(); }}><Text style={s.importLabel}>{loading?'ЗАГРУЗКА…':'ИМПОРТ'}</Text></Pressable></View>
+    {(error||importError) ? <Text accessibilityRole="alert" style={s.error}>{error??importError}</Text>:null}
+    <View style={s.pocket} onLayout={e => setWidth(Math.max(1,e.nativeEvent.layout.width))}><ScrollView horizontal pagingEnabled directionalLockEnabled nestedScrollEnabled showsHorizontalScrollIndicator={false}
+      ref={pager} onMomentumScrollEnd={e => setPage(Math.max(0,Math.min(2,Math.round(e.nativeEvent.contentOffset.x/width))))}>
+      <View style={{width}}><Pads controls={controls} enabled={enabled} onSelect={selectPad}/></View>
+      <View style={{width}}><Mixer controls={controls} enabled={enabled} deck={selected} track={tracks[selected]}/></View>
+      <View style={{width}}><ScrollView contentContainerStyle={s.page} nestedScrollEnabled><Text style={s.section}>БИБЛИОТЕКА · DECK {selected===0?'A':'B'}</Text>
+        <Button text="ЗАГРУЗИТЬ СВОЙ ТРЕК" disabled={loading||busy} onPress={() => { void load(); }}/>
+        {loading&&<ActivityIndicator color={ACCENT[selected]}/>}
+        {WOLF_GROOVES.map((preset,i)=><Pressable key={preset.id} disabled={loading||busy} onPress={() => { void load(i); }} style={s.libraryCard}>
+          <Text style={s.libraryName}>{preset.title}</Text><Text style={s.hint}>{preset.bpm} BPM · {preset.style.toUpperCase()} · ORIGINAL DEMO</Text></Pressable>)}
+      </ScrollView></View>
+    </ScrollView></View>
+    <View style={s.tabRow}>{TABS.map((title,i)=><Pressable key={title} accessibilityRole="tab" accessibilityState={{selected:page===i}} onPress={() => { setPage(i);pager.current?.scrollTo({x:i*width,animated:true}); }} style={[s.tab,page===i&&s.tabActive]}>
+      <Text style={[s.tabText,page===i&&s.tabTextActive]}>{title}</Text></Pressable>)}</View>
+    <View style={s.bottom}><View style={s.transportRow}>{([0,1] as const).map(deck=><View key={deck} style={s.deckTransport}>
+      <Button text={`${deck===0?'A':'B'} CUE`} disabled={!enabled||!tracks[deck]} color={ACCENT[deck]} onPress={() => { controls.deckPlay(deck,false);controls.deckSeek(deck,0); }}/>
+      <Button text={playing[deck]?'Ⅱ':'▶'} disabled={!enabled||!tracks[deck]} color={ACCENT[deck]} active={playing[deck]} onPress={() => controls.deckPlay(deck,!playing[deck])}/></View>)}</View>
+      <Crossfade controls={controls} enabled={enabled}/></View>
+  </SafeAreaView>;
 }
-
-export default function App() {
-  return <GestureHandlerRootView style={{flex: 1}}><SafeAreaProvider><Studio /></SafeAreaProvider></GestureHandlerRootView>;
-}
-
-const styles = StyleSheet.create({
-  safe: {flex: 1, backgroundColor: '#050506'}, content: {padding: 14, paddingBottom: 34, width: '100%', alignSelf: 'center'},
-  header: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 13, gap: 8, paddingBottom: 13, borderBottomWidth: 1, borderColor: '#5B5642'},
-  brand: {fontSize: 27, fontWeight: '900', letterSpacing: -1, color: '#FFFFFF', marginTop: 4}, brandAccent: {color: '#42E8D1'},
-  sub: {fontSize: 10, letterSpacing: 2.8, color: '#42E8D1', fontWeight: '900'},
-  power: {paddingHorizontal: 12, height: 38, justifyContent: 'center', borderRadius: 19, backgroundColor: '#26303F'},
-  powerOn: {backgroundColor: '#1B564D'}, powerText: {fontSize: 9, fontWeight: '800', color: '#FFFFFF'},
-  eyebrow: {fontSize: 9, letterSpacing: 1.7, fontWeight: '900', color: '#8D9BAE'},
-  sectionTitle: {color: '#F7FAFF', fontSize: 23, fontWeight: '900', marginTop: 5, letterSpacing: -0.7},
-  libraryHead: {flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 14},
-  target: {flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 10, padding: 4, backgroundColor: '#1A2331'},
-  targetLabel: {fontSize: 8, fontWeight: '900', color: '#A3B1C3', marginHorizontal: 4},
-  targetButton: {height: 29, width: 29, borderRadius: 7, alignItems: 'center', justifyContent: 'center'},
-  targetText: {color: '#B4C4D5', fontWeight: '900', fontSize: 12}, targetTextOn: {color: '#071018'},
-  presetScroll: {marginHorizontal: -14}, presetList: {paddingHorizontal: 14, gap: 9},
-  preset: {width: 146, height: 122, borderRadius: 14, borderWidth: 1, borderColor: '#6A6250', backgroundColor: '#141B24', padding: 12, justifyContent: 'space-between'},
-  presetIndex: {color: '#42E8D1', fontSize: 9, fontWeight: '900', letterSpacing: 1.2},
-  presetName: {color: '#FFFFFF', fontSize: 14, fontWeight: '900', letterSpacing: -0.2},
-  presetBottom: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'},
-  presetGenre: {color: '#ABB9CB', fontSize: 8, fontWeight: '800'}, presetBpm: {color: '#42E8D1', fontSize: 9, fontWeight: '900'},
-  import: {height: 66, marginTop: 10, borderRadius: 12, borderWidth: 1, borderColor: '#496179', backgroundColor: '#141B24', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14},
-  importIcon: {color: '#42E8D1', fontSize: 29, marginRight: 12}, importText: {flex: 1},
-  importTitle: {color: '#FFFFFF', fontSize: 13, fontWeight: '900'}, importHint: {color: '#A5B4C6', fontSize: 10, marginTop: 4}, importArrow: {color: '#FFFFFF', fontSize: 20},
-  mixHeader: {flexDirection: 'row', justifyContent: 'space-between', marginTop: 27, marginBottom: 12},
-  mixNote: {color: '#8193A8', fontSize: 8, fontWeight: '900'},
-  deckRow: {flexDirection: 'row', gap: 8}, deck: {flex: 1, minWidth: 0, borderTopWidth: 4, borderRadius: 5, padding: 9, backgroundColor: '#211F1A', borderWidth: 1, borderColor: '#575148'},
-  deckHeading: {flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 26},
-  letter: {width: 23, height: 23, borderRadius: 5, alignItems: 'center', justifyContent: 'center'}, letterText: {fontSize: 13, fontWeight: '900', color: '#071018'},
-  deckLabel: {fontSize: 10, fontWeight: '900', color: '#F6F9FF', flex: 1}, status: {fontSize: 7, fontWeight: '700'},
-  load: {height: 62, justifyContent: 'center', marginTop: 8, padding: 9, backgroundColor: '#171C25', borderRadius: 8},
-  track: {fontSize: 11, fontWeight: '800', color: '#F7F8FA'}, loadHint: {fontSize: 8, color: '#9DAABA', marginTop: 4, letterSpacing: 0.4},
-  wave: {marginTop: 9, height: 104, borderRadius: 5, overflow: 'hidden', backgroundColor: '#050505'}, canvas: {flex: 1},
-  platterGroup: {alignItems: 'center', marginTop: 8}, platterLabel: {color: '#C5BEAD', fontSize: 8, fontWeight: '800', marginBottom: 4},
-  platter: {width: 104, height: 104}, platterCanvas: {width: 104, height: 104},
-  timeline: {flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5}, time: {color: '#B1BDCC', fontSize: 9, fontVariant: ['tabular-nums']},
-  transport: {flexDirection: 'row', gap: 7, marginTop: 6}, key: {flex: 1, minWidth: 0, minHeight: 44, justifyContent: 'center', alignItems: 'center', backgroundColor: '#1B2532', borderWidth: 1, borderColor: '#344653', borderRadius: 5},
-  keyText: {fontSize: 11, fontWeight: '800', color: '#E4ECF6'}, play: {flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 7},
-  playText: {fontSize: 19, fontWeight: '900', color: '#071018'}, caption: {fontSize: 8, fontWeight: '800', letterSpacing: 1.2, color: '#C5BEAD', marginTop: 16, marginBottom: 6},
-  tempo: {flexDirection: 'row', alignItems: 'center', gap: 4}, rate: {fontSize: 11, width: 38, textAlign: 'center', color: '#F6F9FF', fontWeight: '800'},
-  filterValue: {fontSize: 9, width: 54, textAlign: 'center', color: '#F6F9FF', fontWeight: '800'},
-  loopRow: {flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 7}, disabled: {opacity: 0.38},
-  mixer: {marginTop: 12, padding: 14, borderRadius: 12, backgroundColor: '#141B24'}, mixHeading: {flexDirection: 'row', justifyContent: 'space-between'},
-  mixLetter: {fontSize: 15, fontWeight: '900'}, mixTitle: {fontSize: 9, color: '#E7E2D5', fontWeight: '800', letterSpacing: 1.6},
-  faderTouch: {height: 54, justifyContent: 'center', marginTop: 8}, faderRail: {height: 5, marginHorizontal: 12, backgroundColor: '#696250', borderRadius: 3},
-  faderCanvas: {...StyleSheet.absoluteFillObject}, error: {color: '#FF8397', padding: 10, fontSize: 12},
-  eqPanel: {marginTop: 10, padding: 12, borderRadius: 12, backgroundColor: '#141B24'},
-  eqRow: {flexDirection: 'row', gap: 6, marginTop: 10}, eqBand: {flex: 1, minWidth: 0},
-  eqLabel: {color: '#E7E2D5', textAlign: 'center', fontSize: 9, fontWeight: '800', marginBottom: 6},
-  eqControls: {flexDirection: 'row', alignItems: 'center', gap: 2},
-  eqValue: {color: '#F6F9FF', fontSize: 9, fontWeight: '800', textAlign: 'center', minWidth: 32},
-  footer: {marginTop: 18, textAlign: 'center', color: '#7F91A5', fontSize: 10},
-  drumMachine: {marginTop: 18, padding: 12, borderRadius: 15, borderWidth: 1, borderColor: '#3B4149', backgroundColor: '#181B20'},
-  drumHeading: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12},
-  drumTitle: {color: '#42E8D1', fontWeight: '900', fontSize: 15},
-  kitRow: {flexDirection: 'row', gap: 8, marginBottom: 10},
-  kitButton: {flex: 1, minHeight: 40, borderRadius: 8, borderWidth: 1, borderColor: '#414852', alignItems: 'center', justifyContent: 'center'},
-  kitSelected: {backgroundColor: '#42E8D1', borderColor: '#42E8D1'},
-  kitText: {color: '#E8EDF2', fontWeight: '900'}, kitTextSelected: {color: '#121417'},
-  padGrid: {flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 7},
-  sequenceHeader: {marginTop: 16, marginBottom: 8, gap: 8},
-  sequenceTransport: {flexDirection: 'row', alignItems: 'center', gap: 5},
-  sequenceBpm: {color: '#42E8D1', minWidth: 72, textAlign: 'center', fontSize: 11, fontWeight: '900'},
-  stepsRow: {flexDirection: 'row', alignItems: 'center', gap: 2, marginBottom: 5},
-  stepsName: {width: 39, fontSize: 7, color: '#DEE4EB', fontWeight: '900'},
-  stepCell: {flex: 1, height: 26, minWidth: 8, borderRadius: 3, backgroundColor: '#2B3038', borderWidth: 1, borderColor: '#414852'},
-  stepActive: {backgroundColor: '#42E8D1', borderColor: '#FFE66A'}, stepCurrent: {borderColor: '#FF435B', borderWidth: 2},
-});
-
-
-const nexus = StyleSheet.create({
-  pageTitle: {color: '#42E8D1', fontSize: 11, fontWeight: '900', letterSpacing: 2.4, marginBottom: 13},
-  stripePicker: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8},
-  stripePickerTitle: {fontSize: 10, color: '#66E8D4', letterSpacing: 1.3, fontWeight: '900'},
-  stripePickerControls: {flexDirection: 'row', alignItems: 'center', gap: 5},
-  stripeDeckKey: {height: 34, width: 38, borderWidth: 1, borderColor: '#5F6864',
-    borderRadius: 5, justifyContent: 'center', alignItems: 'center'},
-  stripeDeckKeyOn: {backgroundColor: '#42E8D1', borderColor: '#42E8D1'},
-  stripeDeckKeyText: {fontWeight: '900', fontSize: 12, color: '#FFFFFF'},
-  stripeDeckKeyTextOn: {color: '#080808'},
-  trackStripe: {borderWidth: 1, borderColor: '#716551', borderRadius: 8,
-    paddingHorizontal: 9, paddingVertical: 7, backgroundColor: '#111311'},
-  trackStripeHeading: {flexDirection: 'row', alignItems: 'center', gap: 8},
-  trackStripeTitle: {flex: 1, color: '#F6F7F2', fontSize: 10, fontWeight: '800'},
-  trackStripePlay: {width: 46, minHeight: 38, backgroundColor: '#42E8D1',
-    borderRadius: 7, justifyContent: 'center', alignItems: 'center'},
-  trackStripePlayText: {color: '#080808', fontWeight: '900', fontSize: 17},
-  stripeImport: {marginTop: 5, minHeight: 36, borderWidth: 1, borderColor: '#635E52',
-    borderRadius: 7, alignItems: 'center', justifyContent: 'center'},
-  stripeImportText: {fontSize: 9, fontWeight: '900', color: '#42E8D1', letterSpacing: 0.6},
-  audioHelp: {color: '#E6D9BB', fontSize: 11, lineHeight: 17, padding: 9,
-    marginBottom: 12, borderRadius: 7, backgroundColor: '#332613'},
-  grooveStripe: {borderWidth: 1, borderColor: '#716551', backgroundColor: '#101312',
-    borderRadius: 9, padding: 10, gap: 5},
-  grooveStripeHeader: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'},
-  grooveStripeTitle: {fontSize: 11, fontWeight: '900', color: '#66E8D4', letterSpacing: 1.5},
-  grooveStripeMeta: {color: '#42E8D1', fontSize: 9, fontWeight: '900'},
-  grooveCanvas: {height: 86, backgroundColor: '#070B0A', borderRadius: 5, overflow: 'hidden'},
-  grooveStripeFooter: {flexDirection: 'row', justifyContent: 'space-between'},
-  grooveStripeFoot: {color: '#8BA6A2', fontSize: 8, letterSpacing: 0.3},
-
-  wolfTop: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, marginBottom: 8, gap: 8},
-  wolfTitle: {fontSize: 11, fontWeight: '900', color: '#42E8D1', letterSpacing: 1.4},
-  wolfMeta: {fontSize: 8, fontWeight: '800', color: '#B2B3AA', letterSpacing: 0.6},
-  wolfList: {gap: 8, paddingBottom: 12},
-  wolfChip: {width: 174, minHeight: 90, backgroundColor: '#1E1D1B', borderColor: '#4E4C43', borderWidth: 1, borderRadius: 11, padding: 10, justifyContent: 'space-between'},
-  wolfChipActive: {borderColor: '#42E8D1', backgroundColor: '#373019'},
-  wolfChipName: {fontSize: 11, fontWeight: '900', color: '#FAF8F1'},
-  wolfChipBpm: {fontSize: 10, fontWeight: '900', color: '#42E8D1'},
-  wolfChipHint: {fontSize: 8, fontWeight: '700', color: '#B9B5AA', letterSpacing: 0.6},
-  workspace: {gap: 12},
-  performanceLine: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 2},
-  performanceTitle: {color: '#42E8D1', fontWeight: '900', fontSize: 12, letterSpacing: 2.5},
-  performanceMeta: {color: '#B8B0A2', fontSize: 9, fontWeight: '900', letterSpacing: 1.2},
-  padsPanel: {borderColor: '#6A6458', borderWidth: 1, backgroundColor: '#11100E', paddingBottom: 10},
-  strip: {height: 34, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#242119', paddingHorizontal: 11},
-  stripLeft: {fontSize: 10, fontWeight: '900', color: '#42E8D1', letterSpacing: 1.4},
-  stripRight: {fontSize: 9, fontWeight: '900', color: '#C6BCA4', letterSpacing: 1.1},
-  padsHeading: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', paddingHorizontal: 10, paddingVertical: 13, gap: 10},
-  padsTitle: {color: '#F7F4EF', fontSize: 18, fontWeight: '900', letterSpacing: 0.5},
-  bankRow: {flexDirection: 'row', borderWidth: 1, borderColor: '#73736B', padding: 3, borderRadius: 9, gap: 3},
-  bankButton: {width: 34, height: 39, alignItems: 'center', justifyContent: 'center', backgroundColor: '#242321', borderWidth: 1, borderColor: '#5A594F', borderRadius: 3},
-  bankSelected: {backgroundColor: '#42E8D1', borderColor: '#42E8D1'},
-  bankText: {fontSize: 14, fontWeight: '900', color: '#F7F4EF'},
-  bankTextSelected: {color: '#060606'},
-  transportPanel: {minHeight: 154, borderWidth: 1, borderColor: '#68655D', backgroundColor: '#191817', borderRadius: 3, flexDirection: 'row'},
-  transportSide: {width: 78, minHeight: 154, alignItems: 'center', justifyContent: 'center', gap: 8},
-  transportLabel: {fontSize: 10, fontWeight: '900', color: '#FFFFFF', textAlign: 'center'},
-  playRing: {height: 67, width: 67, borderWidth: 3, borderColor: '#42E8D1', borderRadius: 40, backgroundColor: '#080808', alignItems: 'center', justifyContent: 'center'},
-  playRingOn: {backgroundColor: '#282312'},
-  playIcon: {fontSize: 29, color: '#C5FFF8'},
-  recordRing: {height: 67, width: 67, borderWidth: 3, borderColor: '#ED403F', borderRadius: 40, backgroundColor: '#110909', alignItems: 'center', justifyContent: 'center'},
-  recordRingOn: {backgroundColor: '#4D1618'},
-  recordCenter: {width: 32, height: 32, borderRadius: 20, backgroundColor: '#FC173C', borderWidth: 3, borderColor: '#FF6D6D'},
-  signalPanel: {flex: 1, minWidth: 0, padding: 7, borderLeftWidth: 1, borderRightWidth: 1, borderColor: '#5A554A', justifyContent: 'space-around'},
-  signalHeader: {flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 3},
-  signalName: {color: '#42E8D1', fontSize: 9, fontWeight: '900'},
-  signalTime: {color: '#E0DDE1', fontSize: 9, fontWeight: '800'},
-  signalScreen: {height: 63, backgroundColor: '#050505', borderRadius: 4, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 2, gap: 2},
-  signalBar: {flex: 1, height: 3, backgroundColor: '#56524B'},
-  signalActive: {backgroundColor: '#42E8D1', height: 4},
-  signalCursor: {height: 45, backgroundColor: '#F83558'},
-  signalFooter: {flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 3},
-  signalFootText: {fontSize: 8, color: '#AFA793', fontWeight: '800'},
-  signalStatus: {fontSize: 8, color: '#64E8D3', fontWeight: '900'},
-  settingsPanel: {flexDirection: 'row', borderWidth: 1, borderColor: '#666157', backgroundColor: '#171615', minHeight: 130, borderRadius: 3},
-  settingCell: {flex: 1, minWidth: 0, padding: 6, justifyContent: 'center', alignItems: 'center'},
-  settingCaption: {fontSize: 9, fontWeight: '900', letterSpacing: 1, color: '#B6AC9B', marginBottom: 15},
-  settingPicker: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 1},
-  arrowButton: {minWidth: 27, height: 44, justifyContent: 'center', alignItems: 'center'},
-  arrowText: {fontSize: 30, color: '#42E8D1'},
-  styleValue: {color: '#FFFFFF', fontSize: 9, fontWeight: '900', textAlign: 'center', flexShrink: 1},
-  sceneValue: {color: '#FFFFFF', fontSize: 10, fontWeight: '900', textAlign: 'center', flexShrink: 1},
-  bpmCell: {width: 116, padding: 5, backgroundColor: '#42E8D1', justifyContent: 'center', alignItems: 'center'},
-  bpmCaption: {color: '#0B0B0B', fontSize: 10, fontWeight: '900', letterSpacing: 2},
-  bpmPicker: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', width: '100%'},
-  bpmArrow: {width: 29, height: 44, alignItems: 'center', justifyContent: 'center'},
-  bpmArrowText: {color: '#000000', fontSize: 31},
-  bpmNumber: {fontSize: 32, fontWeight: '900', color: '#030303', fontVariant: ['tabular-nums']},
-  createRhythm: {backgroundColor: '#42E8D1', minHeight: 76, borderRadius: 14, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', gap: 13},
-  createStar: {fontSize: 30, color: '#151009'},
-  createText: {flex: 1},
-  createTitle: {fontSize: 18, fontWeight: '900', letterSpacing: 0.3, color: '#111111'},
-  createDetail: {fontSize: 9, color: '#151515', fontWeight: '700', marginTop: 4, letterSpacing: 1},
-  createArrow: {fontSize: 36, color: '#111111'},
-  sequencerPanel: {backgroundColor: '#181715', borderWidth: 1, borderColor: '#666057', padding: 10, borderRadius: 4, gap: 9},
-  sequenceTitleRow: {flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4},
-  sequenceTitle: {fontSize: 10, fontWeight: '900', color: '#42E8D1', letterSpacing: 1.3},
-  sequenceSub: {fontSize: 8, color: '#BBB2A0', fontWeight: '800'},
-  stepsRow: {flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 5},
-  stepsName: {fontSize: 9, fontWeight: '900', color: '#FFFFFF', width: 43},
-  stepCell: {width: 33, height: 36, borderRadius: 4, borderWidth: 1, borderColor: '#5C584C', backgroundColor: '#292825'},
-  stepActive: {backgroundColor: '#42E8D1', borderColor: '#FFE76E'},
-  stepCurrent: {borderColor: '#FF3857', borderWidth: 3},
-  sequenceHint: {color: '#AFA798', fontSize: 9, lineHeight: 14},
-  bottomNav: {flexDirection: 'row', backgroundColor: '#111111', borderTopWidth: 1, borderColor: '#5B594F', paddingHorizontal: 10, paddingVertical: 5, gap: 8},
-  navButton: {flex: 1, minHeight: 59, borderRadius: 10, alignItems: 'center', justifyContent: 'center', gap: 3},
-  navSelected: {backgroundColor: '#42E8D1'},
-  navIcon: {fontSize: 22, color: '#A6A6A6'},
-  navLabel: {fontSize: 10, fontWeight: '900', color: '#B7B3AB'},
-  navLabelSelected: {color: '#080808'},
+export default function App(){return <GestureHandlerRootView style={s.fill}><SafeAreaProvider><Studio/></SafeAreaProvider></GestureHandlerRootView>;}
+const s=StyleSheet.create({
+  fill:{flex:1},safe:{flex:1,backgroundColor:'#080B10'},header:{paddingHorizontal:16,paddingVertical:8,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},
+  brand:{color:'#F6F7FA',fontSize:19,fontWeight:'900',letterSpacing:1},brandAccent:{color:ACCENT[0]},
+  button:{minHeight:42,minWidth:38,paddingHorizontal:9,borderWidth:1,borderColor:'#34414D',borderRadius:8,alignItems:'center',justifyContent:'center',flexGrow:1},
+  buttonText:{color:'#D8E0E7',fontSize:10,fontWeight:'800'},disabled:{opacity:.35},row:{flexDirection:'row',gap:7,alignItems:'center',marginVertical:7},rowBetween:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',gap:8},
+  trackRow:{flexDirection:'row',gap:10,paddingHorizontal:14},trackTitle:{flex:1,flexDirection:'row',alignItems:'center',gap:7,borderBottomWidth:2,borderColor:'#202A36',paddingVertical:7},
+  deckBadge:{fontWeight:'900',fontSize:15},trackName:{flex:1,color:'#EDF3F7',fontSize:12,fontWeight:'600'},stripe:{height:70,marginHorizontal:14,backgroundColor:'#0B1119',borderRadius:6,overflow:'hidden'},
+  stripeCaption:{flexDirection:'row',justifyContent:'space-between',paddingHorizontal:16,paddingTop:5,paddingBottom:10},hint:{fontSize:9,color:'#8695A9',letterSpacing:.5},importLabel:{color:ACCENT[0],fontSize:10,fontWeight:'800'},
+  pocket:{flex:1,borderTopWidth:1,borderBottomWidth:1,borderColor:'#27313E',backgroundColor:'#10161F'},page:{padding:14,paddingBottom:24,gap:9},section:{color:'#9CAEC1',fontSize:10,fontWeight:'800',letterSpacing:1.5,marginVertical:5},
+  pads:{flexDirection:'row',flexWrap:'wrap',justifyContent:'space-between',rowGap:8},bpm:{color:'#FFF',fontSize:23,fontWeight:'700',textAlign:'center',minWidth:50,fontVariant:['tabular-nums']},
+  steps:{flexDirection:'row',gap:3,alignItems:'center',marginBottom:5},lane:{width:34,color:'#94A5B8',fontSize:8},step:{width:24,height:29,borderWidth:1,borderColor:'#34414D',borderRadius:4,backgroundColor:'#182230'},stepOn:{backgroundColor:'#278B9D'},stepCurrent:{borderColor:'#FFF'},
+  grooves:{flexDirection:'row',flexWrap:'wrap',gap:7},groove:{width:'48%',padding:11,borderRadius:8,borderWidth:1,borderColor:'#2B3949'},grooveName:{color:'#DCEAF2',fontSize:10,fontWeight:'800',marginBottom:5},
+  channels:{flexDirection:'row',justifyContent:'space-around'},channel:{flex:1,alignItems:'center'},channelName:{fontSize:13,fontWeight:'800',letterSpacing:1},channelDivider:{width:1,backgroundColor:'#2B3949',marginHorizontal:14},
+  dialCell:{alignItems:'center',marginVertical:8},dialName:{color:'#A7B4C5',fontSize:9,fontWeight:'700',letterSpacing:1,marginBottom:8},dial:{width:62,height:62,borderRadius:31,borderWidth:2,backgroundColor:'#1B2532'},dialRotor:{width:58,height:58,alignItems:'center'},dialTick:{width:3,height:15,borderRadius:2,marginTop:4},dialValue:{color:'#DCE7F0',fontSize:10,paddingTop:8,paddingHorizontal:10,minHeight:30},
+  libraryCard:{borderBottomWidth:1,borderColor:'#2A3746',paddingVertical:17,gap:7},libraryName:{color:'#EEF5F7',fontSize:15,fontWeight:'700'},
+  tabRow:{flexDirection:'row',paddingHorizontal:14,gap:12,backgroundColor:'#0D131B'},tab:{flex:1,alignItems:'center',paddingVertical:13,borderBottomWidth:2,borderColor:'transparent'},tabActive:{borderColor:ACCENT[0]},tabText:{color:'#74869A',fontSize:11,fontWeight:'800',letterSpacing:1},tabTextActive:{color:ACCENT[0]},
+  bottom:{paddingHorizontal:14,paddingTop:7,paddingBottom:3},transportRow:{flexDirection:'row',justifyContent:'space-between',gap:26},deckTransport:{flex:1,flexDirection:'row',gap:7},faderTouch:{height:45,justifyContent:'center'},faderRail:{height:3,marginHorizontal:14,backgroundColor:'#485463'},faderThumb:{position:'absolute',width:28,height:30,borderRadius:5,backgroundColor:'#DFEAF1',borderWidth:3,borderColor:'#647687'},error:{color:'#FF8A9A',fontSize:11,padding:9},
 });

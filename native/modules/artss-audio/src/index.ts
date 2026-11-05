@@ -38,11 +38,14 @@ export interface RealtimeControls {
   deckJog(deck: 0 | 1, speed: number, touching: boolean): boolean;
   deckLoop(deck: 0 | 1, start: number, end: number): boolean;
   crossfade(position: number): boolean;
+  setDeckEQ(deck: 0 | 1, low: number, mid: number, high: number): boolean;
+  setDeckGain(deck: 0 | 1, gain: number): boolean;
   setEQ(lowDb: number, midDb: number, highDb: number): boolean;
   setKit(kit: 1 | 2 | 3): boolean;
   setTempo(bpm: number): boolean;
   setStep(pad: PadIndex, step: number, velocity: number): boolean;
   setSequencer(playing: boolean): boolean;
+  padWaveform(pad: PadIndex): readonly number[];
   trigger(pad: PadIndex, velocity: number): boolean;
   setMaster(gain: number): boolean;
   allNotesOff(): boolean;

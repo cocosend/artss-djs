@@ -85,6 +85,19 @@ class RealtimeControls final : public jsi::HostObject {
             return count >= 1 && args[0].isNumber() && engine->crossfade(static_cast<float>(args[0].asNumber()));
           });
     }
+    if (name == "setDeckGain" || name == "setDeckEQ") {
+      return jsi::Function::createFromHostFunction(runtime, property, name == "setDeckEQ" ? 4 : 2,
+          [engine = engine_, name](jsi::Runtime&, const jsi::Value&, const jsi::Value* args, std::size_t count) -> jsi::Value {
+            const std::size_t needed = name == "setDeckEQ" ? 4 : 2;
+            if (count < needed) return false;
+            for (std::size_t i = 0; i < needed; ++i) if (!args[i].isNumber() || !std::isfinite(args[i].asNumber())) return false;
+            const double deck = args[0].asNumber();
+            if (deck < 0 || deck >= 2 || deck != std::floor(deck)) return false;
+            if (name == "setDeckGain") return engine->setDeckGain(static_cast<std::uint32_t>(deck), static_cast<float>(args[1].asNumber()));
+            return engine->setDeckEQ(static_cast<std::uint32_t>(deck), static_cast<float>(args[1].asNumber()),
+                                    static_cast<float>(args[2].asNumber()), static_cast<float>(args[3].asNumber()));
+          });
+    }
     if (name == "setEQ") {
       return jsi::Function::createFromHostFunction(runtime, property, 3,
           [engine = engine_](jsi::Runtime&, const jsi::Value&, const jsi::Value* args, std::size_t count) -> jsi::Value {
@@ -123,6 +136,18 @@ class RealtimeControls final : public jsi::HostObject {
     }
     if (name.size() == 9 && name.compare(0, 8, "position") == 0 && name[8] >= '0' && name[8] <= '7') {
       return engine_->progress(static_cast<std::uint32_t>(name[8] - '0'));
+    }
+    if (name == "padWaveform") {
+      return jsi::Function::createFromHostFunction(runtime, property, 1,
+          [engine = engine_](jsi::Runtime& rt, const jsi::Value&, const jsi::Value* args, std::size_t count) -> jsi::Value {
+            if (!count || !args[0].isNumber()) return jsi::Value::undefined();
+            const double pad = args[0].asNumber();
+            if (!std::isfinite(pad) || pad < 0 || pad >= artss::audio::kPadCount || pad != std::floor(pad)) return jsi::Value::undefined();
+            const auto& peaks = engine->waveforms()[static_cast<std::size_t>(pad)];
+            jsi::Array values(rt, peaks.size());
+            for (std::size_t i = 0; i < peaks.size(); ++i) values.setValueAtIndex(rt, i, peaks[i]);
+            return values;
+          });
     }
     if (name == "trigger") {
       return jsi::Function::createFromHostFunction(runtime, property, 2,

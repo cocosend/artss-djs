@@ -488,6 +488,39 @@ void deckFilterResponse() {
   for (float value : left) assert(std::isfinite(value) && std::abs(value) <= 0.960001F);
 }
 
+void transitionRegressions() {
+  // Full-range sweeps must remain stable below 44.1 kHz as well as on iPhone.
+  for (unsigned sr : {8000U, 16000U, 44100U, 96000U}) {
+    AudioEngine e; e.prepare(sr, makeBank(1024));
+    Sample track; track.stereo.resize(sr * 2);
+    for (unsigned i = 0; i < sr; ++i)
+      track.stereo[2*i] = track.stereo[2*i+1] = 0.7F * std::sin(6.283185307179586 * 700 * i / sr);
+    e.loadDeck(0, std::move(track), {}); e.activate(); e.deckPlay(0, true);
+    std::array<float, 64> l{}, r{};
+    for (int pass = 0; pass < 128; ++pass) {
+      assert(e.deckFilter(0, -1 + 2.0F * (pass % 33) / 32));
+      assert(e.setDeckEQ(0, pass % 2 ? -24 : 6, 0, 6));
+      render(e,l.data(),r.data(),64);
+      for (auto v : l) assert(std::isfinite(v) && std::abs(v) <= 0.960001F);
+    }
+    assert(!e.setDeckEQ(2,0,0,0)); assert(!e.setDeckEQ(0,NAN,0,0));
+    assert(!e.setDeckGain(0,INFINITY)); assert(!e.setDeckGain(0,-1));
+  }
+  // Correlated bass must not gain 3 dB at the crossfader midpoint.
+  AudioEngine e; e.prepare(48000, makeBank());
+  Sample dc; dc.stereo.assign(48000 * 2,0.6F);
+  e.loadDeck(0,dc,{}); e.loadDeck(1,std::move(dc),{});
+  e.activate(); e.deckPlay(0,true); e.deckPlay(1,true); e.crossfade(0);
+  std::array<float,8192> l{},r{}; render(e,l.data(),r.data(),l.size());
+  const float edge=l.back(); e.crossfade(0.5F); render(e,l.data(),r.data(),l.size());
+  assert(edge>0.05F && std::abs(l.back()/edge-1)<0.02F);
+  // Replacing B while output is stopped must preserve A and sequencer intent.
+  e.setSequencer(true); e.rejectCommands(); Sample replacement; replacement.stereo.assign(48000,0.2F);
+  e.loadDeck(1,std::move(replacement),{}); e.activate();
+  assert(e.deckPlaying(0));
+  render(e,l.data(),r.data(),512); assert(e.deckPosition(0)>0.3F);
+}
+
 int main() {
   for (const unsigned sampleRate : {44100U, 48000U, 96000U}) {
     Sample click;
@@ -545,6 +578,7 @@ int main() {
     }
   }
 
+  transitionRegressions();
   validationAndVoiceLifecycle();
   limiterRampAndStaleCommands();
   queuePressureAndWaveforms();

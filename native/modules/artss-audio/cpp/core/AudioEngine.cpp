@@ -3,6 +3,7 @@
 #include "BeatGrid.hpp"
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <stdexcept>
 
@@ -19,6 +20,7 @@ constexpr std::array<std::array<Drum, kPadCount>, 3> kFactoryKits{{
      Drum::OpenHat909, Drum::Tom909, Drum::Ride909, Drum::Acid303},
 }};
 static_assert(std::atomic<float>::is_always_lock_free);
+static_assert(std::atomic<std::uint64_t>::is_always_lock_free);
 }
 
 AudioEngine::AudioEngine() noexcept {
@@ -61,7 +63,16 @@ void AudioEngine::prepare(double sampleRate, SampleBank bank) {
   lowCoefficient_ = static_cast<float>(-std::expm1(-2.0 * 3.141592653589793 * 220.0 / sampleRate));
   highCoefficient_ = static_cast<float>(-std::expm1(-2.0 * 3.141592653589793 * 4000.0 / sampleRate));
   lowL_ = lowR_ = highLpL_ = highLpR_ = 0;
+  limiterHold_ = 0;
+  bassCoefficient_ = static_cast<float>(-std::expm1(-2.0 * 3.141592653589793 * 180.0 / sampleRate));
+  limiterHoldFrames_ = static_cast<std::uint32_t>(sampleRate * 0.01);
   for (auto& deck : decks_) {
+    deck.eqLowL = deck.eqLowR = deck.eqHighL = deck.eqHighR = deck.bassL = deck.bassR = 0;
+    deck.lowGain = std::pow(10.0F, deck.lowDb.load(std::memory_order_relaxed) / 20.0F);
+    deck.midGain = std::pow(10.0F, deck.midDb.load(std::memory_order_relaxed) / 20.0F);
+    deck.highGain = std::pow(10.0F, deck.highDb.load(std::memory_order_relaxed) / 20.0F);
+    deck.gainSmooth = deck.gain.load(std::memory_order_relaxed);
+    deck.frameCount.store(0, std::memory_order_release);
     deck.loaded.store(false, std::memory_order_release);
     deck.filterAmount.store(0, std::memory_order_relaxed);
     deck.filterCoefficient.store(0, std::memory_order_relaxed);
@@ -86,7 +97,7 @@ void AudioEngine::prepare(double sampleRate, SampleBank bank) {
   gainSlew_ = static_cast<float>(1.0 / (sampleRate * 0.005));
   jogSlew_ = static_cast<float>(4.0 / (sampleRate * 0.005));
   jogTimeoutFrames_ = static_cast<std::uint32_t>(sampleRate * 0.05);
-  limiterRelease_ = static_cast<float>(1.0 / (sampleRate * 0.05));
+  limiterRelease_ = static_cast<float>(-std::expm1(-1.0 / (sampleRate * 0.08)));
   for (std::size_t kit = 0; kit < kKitCount; ++kit) {
     for (std::size_t pad = 0; pad < kPadCount; ++pad) {
       const auto frames = kits_[kit][pad].frames();
@@ -128,6 +139,7 @@ void AudioEngine::deactivateAfterStop() noexcept {
   for (int i = 0; i < 512 && commands_.tryPop(stale); ++i) {}
   voices_ = {};
   limiter_ = 1;
+  limiterHold_ = 0;
   lowL_ = lowR_ = highLpL_ = highLpR_ = 0;
   peak_.store(0, std::memory_order_relaxed);
   for (auto& progress : progress_) progress.store(-1, std::memory_order_relaxed);
@@ -171,8 +183,8 @@ void AudioEngine::loadDeck(std::uint32_t index, Sample track, BeatGrid grid) {
   auto& deck = decks_[index];
   deck.loaded.store(false, std::memory_order_release);
   deck.track = std::move(track);
-  deck.filterAmount.store(0, std::memory_order_release);
-  deck.filterCoefficient.store(0, std::memory_order_release);
+  deck.frameCount.store(deck.track.frames(), std::memory_order_release);
+  deck.eqLowL = deck.eqLowR = deck.eqHighL = deck.eqHighR = deck.bassL = deck.bassR = 0;
   deck.filterAmountSmooth = deck.filterG = deck.filterLowL = deck.filterBandL = deck.filterLowR = deck.filterBandR = 0;
   deck.bpm.store(grid.bpm, std::memory_order_release);
   deck.firstBeat.store(grid.firstBeatSeconds, std::memory_order_release);
@@ -182,8 +194,7 @@ void AudioEngine::loadDeck(std::uint32_t index, Sample track, BeatGrid grid) {
   deck.jogRate.store(0, std::memory_order_release);
   deck.jogging.store(false, std::memory_order_release);
   deck.seek.store(-1, std::memory_order_release);
-  deck.loopStart.store(0, std::memory_order_release);
-  deck.loopEnd.store(1, std::memory_order_release);
+  deck.loopRange.store(0x3f80000000000000ULL, std::memory_order_release);
   deck.playing.store(false, std::memory_order_release);
   deck.envelope = 0;
   deck.actualRate = deck.lastL = deck.lastR = deck.seekTailL = deck.seekTailR = 0;
@@ -223,8 +234,9 @@ bool AudioEngine::deckRate(std::uint32_t index, float rate) noexcept {
 bool AudioEngine::deckFilter(std::uint32_t index, float amount) noexcept {
   if (index >= kDeckCount || !running() || !std::isfinite(amount) || amount < -1 || amount > 1)
     return false;
-  const double frequency = amount < 0 ? 18000.0 * std::pow(250.0 / 18000.0, -amount)
+  const double requestedFrequency = amount < 0 ? 18000.0 * std::pow(250.0 / 18000.0, -amount)
                                       : 30.0 * std::pow(4000.0 / 30.0, amount);
+  const double frequency = std::clamp(requestedFrequency, 10.0, sampleRate_ * 0.45);
   const float g = static_cast<float>(std::tan(3.141592653589793 * frequency / sampleRate_));
   decks_[index].filterCoefficient.store(g, std::memory_order_release);
   decks_[index].filterAmount.store(amount, std::memory_order_release);
@@ -243,13 +255,13 @@ bool AudioEngine::deckSync(std::uint32_t index) noexcept {
   const auto rate = source.rate.load(std::memory_order_acquire) * sourceBpm / targetBpm;
   if (sourceBpm <= 0 || targetBpm <= 0 || !std::isfinite(rate) || rate < 0.5F || rate > 2.0F)
     return false;
-  const double sourceSeconds = source.position.load(std::memory_order_acquire) * source.track.frames() / sampleRate_;
-  const double targetSeconds = target.position.load(std::memory_order_acquire) * target.track.frames() / sampleRate_;
+  const double sourceSeconds = source.position.load(std::memory_order_acquire) * source.frameCount.load(std::memory_order_acquire) / sampleRate_;
+  const double targetSeconds = target.position.load(std::memory_order_acquire) * target.frameCount.load(std::memory_order_acquire) / sampleRate_;
   const double sourceBeats = (sourceSeconds - source.firstBeat.load(std::memory_order_acquire)) * sourceBpm / 60.0;
   const double phase = sourceBeats - std::floor(sourceBeats);
   const double targetBeatSeconds = 60.0 / targetBpm;
   const double targetFirst = target.firstBeat.load(std::memory_order_acquire);
-  const double endSeconds = (target.track.frames() - 1) / sampleRate_;
+  const double endSeconds = (target.frameCount.load(std::memory_order_acquire) - 1) / sampleRate_;
   const double firstValidBeat = std::ceil(-targetFirst / targetBeatSeconds - phase);
   const double lastValidBeat = std::floor((endSeconds - targetFirst) / targetBeatSeconds - phase);
   if (firstValidBeat > lastValidBeat) return false;
@@ -257,7 +269,7 @@ bool AudioEngine::deckSync(std::uint32_t index) noexcept {
                                  firstValidBeat, lastValidBeat);
   const double aligned = targetFirst + (beat + phase) * targetBeatSeconds;
   target.rate.store(rate, std::memory_order_release);
-  target.seek.store(static_cast<float>(aligned * sampleRate_ / target.track.frames()),
+  target.seek.store(static_cast<float>(aligned * sampleRate_ / target.frameCount.load(std::memory_order_acquire)),
                     std::memory_order_release);
   return true;
 }
@@ -272,8 +284,9 @@ bool AudioEngine::deckJog(std::uint32_t index, float speed, bool touching) noexc
 }
 bool AudioEngine::deckLoop(std::uint32_t index, float start, float end) noexcept {
   if (index >= kDeckCount || !running() || !std::isfinite(start) || !std::isfinite(end) || start < 0 || end > 1 || start >= end) return false;
-  decks_[index].loopStart.store(start, std::memory_order_release);
-  decks_[index].loopEnd.store(end, std::memory_order_release);
+  const auto packed = static_cast<std::uint64_t>(std::bit_cast<std::uint32_t>(start)) |
+      (static_cast<std::uint64_t>(std::bit_cast<std::uint32_t>(end)) << 32);
+  decks_[index].loopRange.store(packed, std::memory_order_release);
   return true;
 }
 bool AudioEngine::crossfade(float position) noexcept {
@@ -289,11 +302,24 @@ bool AudioEngine::setEQ(float lowDb, float midDb, float highDb) noexcept {
   highDb_.store(highDb, std::memory_order_release);
   return true;
 }
+bool AudioEngine::setDeckEQ(std::uint32_t index, float low, float mid, float high) noexcept {
+  if (index >= kDeckCount || !std::isfinite(low) || !std::isfinite(mid) || !std::isfinite(high) ||
+      low < -24 || low > 6 || mid < -24 || mid > 6 || high < -24 || high > 6) return false;
+  decks_[index].lowDb.store(low, std::memory_order_relaxed);
+  decks_[index].midDb.store(mid, std::memory_order_relaxed);
+  decks_[index].highDb.store(high, std::memory_order_relaxed);
+  return true;
+}
+bool AudioEngine::setDeckGain(std::uint32_t index, float gain) noexcept {
+  if (index >= kDeckCount || !std::isfinite(gain) || gain < 0 || gain > 1.5F) return false;
+  decks_[index].gain.store(gain, std::memory_order_relaxed);
+  return true;
+}
 double AudioEngine::remainingTrackSeconds(std::uint32_t replacingDeck) const noexcept {
   if (replacingDeck >= kDeckCount || sampleRate_ <= 0) return 0;
   double seconds = 0;
   for (std::size_t index = 0; index < kDeckCount; ++index)
-    if (index != replacingDeck) seconds += decks_[index].track.frames() / sampleRate_;
+    if (index != replacingDeck) seconds += decks_[index].frameCount.load(std::memory_order_acquire) / sampleRate_;
   return seconds;
 }
 bool AudioEngine::setKit(std::uint32_t kit) noexcept {
@@ -318,7 +344,7 @@ float AudioEngine::deckPosition(std::uint32_t index) const noexcept {
   return index < kDeckCount ? decks_[index].position.load(std::memory_order_acquire) : 0;
 }
 double AudioEngine::deckDuration(std::uint32_t index, double sampleRate) const noexcept {
-  return index < kDeckCount && sampleRate > 0 ? decks_[index].track.frames() / sampleRate : 0;
+  return index < kDeckCount && sampleRate > 0 ? decks_[index].frameCount.load(std::memory_order_acquire) / sampleRate : 0;
 }
 bool AudioEngine::deckPlaying(std::uint32_t index) const noexcept {
   return index < kDeckCount && decks_[index].playing.load(std::memory_order_acquire);
@@ -372,6 +398,10 @@ float AudioEngine::progress(std::uint32_t pad) const noexcept {
 }
 
 void AudioEngine::startVoice(std::uint32_t pad, float velocity) noexcept {
+  // Retrigger a pad through a short release; do not stack dozens of identical
+  // bass/acid tails into the master limiter on fast repeated taps.
+  for (auto& voice : voices_) if (voice.sample && voice.pad == pad && voice.releaseRemaining == 0)
+    voice.releaseRemaining = kFadeFrames;
   auto* selected = &voices_[0];
   for (auto& voice : voices_) {
     if (!voice.sample && voice.tailRemaining == 0) { selected = &voice; break; }
@@ -419,6 +449,17 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
     filterAmounts[index] = decks_[index].filterAmount.load(std::memory_order_relaxed);
     filterCoefficients[index] = decks_[index].filterCoefficient.load(std::memory_order_relaxed);
     rates[index] = decks_[index].rate.load(std::memory_order_relaxed);
+  }
+  std::array<float, kDeckCount> deckLow{}, deckMid{}, deckHigh{}, deckGain{}, loopStarts{}, loopEnds{};
+  for (std::size_t index = 0; index < kDeckCount; ++index) {
+    const auto& deck = decks_[index];
+    deckLow[index] = std::pow(10.0F, deck.lowDb.load(std::memory_order_relaxed) / 20.0F);
+    deckMid[index] = std::pow(10.0F, deck.midDb.load(std::memory_order_relaxed) / 20.0F);
+    deckHigh[index] = std::pow(10.0F, deck.highDb.load(std::memory_order_relaxed) / 20.0F);
+    deckGain[index] = deck.gain.load(std::memory_order_relaxed);
+    const auto loop = deck.loopRange.load(std::memory_order_acquire);
+    loopStarts[index] = std::bit_cast<float>(static_cast<std::uint32_t>(loop));
+    loopEnds[index] = std::bit_cast<float>(static_cast<std::uint32_t>(loop >> 32));
   }
   float blockPeak = 0;
   for (std::uint32_t frame = 0; frame < frames; ++frame) {
@@ -515,31 +556,51 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
         const float g = deck.filterG;
         const float denominator = 1.0F / (1.0F + 1.41421356F * g + g * g);
         const auto filter = [g, denominator, amount, wet = std::abs(amount)](float input, float& low, float& band) noexcept {
-          const float high = (input - 1.41421356F * band - low) * denominator;
-          const float nextBand = g * high + band;
-          const float nextLow = g * nextBand + low;
-          band = nextBand + g * high;
-          low = nextLow + g * nextBand;
+          // Topology-preserving SVF: integrate the band state inside the
+          // denominator. The old high-pass recurrence omitted g*band and
+          // became unstable while sweeping, even with normalized input PCM.
+          const float nextBand = (band + g * (input - low)) * denominator;
+          const float nextLow = low + g * nextBand;
+          const float high = input - 1.41421356F * nextBand - nextLow;
+          band = 2 * nextBand - band;
+          low = 2 * nextLow - low;
           if (std::abs(band) < 1.e-20F) band = 0;
           if (std::abs(low) < 1.e-20F) low = 0;
           return input * (1 - wet) + (amount < 0 ? nextLow : high) * wet;
         };
         sampleL = filter(sampleL, deck.filterLowL, deck.filterBandL);
         sampleR = filter(sampleR, deck.filterLowR, deck.filterBandR);
-        l += sampleL * side * deck.envelope;
-        r += sampleR * side * deck.envelope;
+        deck.lowGain += std::clamp(deckLow[index] - deck.lowGain, -gainSlew_, gainSlew_);
+        deck.midGain += std::clamp(deckMid[index] - deck.midGain, -gainSlew_, gainSlew_);
+        deck.highGain += std::clamp(deckHigh[index] - deck.highGain, -gainSlew_, gainSlew_);
+        deck.gainSmooth += std::clamp(deckGain[index] - deck.gainSmooth, -gainSlew_, gainSlew_);
+        const auto channelEQ = [&](float input, float& low, float& high) noexcept {
+          low += lowCoefficient_ * (input - low);
+          high += highCoefficient_ * (input - high);
+          if (std::abs(low) < 1.e-20F) low = 0;
+          if (std::abs(high) < 1.e-20F) high = 0;
+          return (low * deck.lowGain + (high - low) * deck.midGain +
+                  (input - high) * deck.highGain) * deck.gainSmooth;
+        };
+        sampleL = channelEQ(sampleL, deck.eqLowL, deck.eqHighL);
+        sampleR = channelEQ(sampleR, deck.eqLowR, deck.eqHighR);
+        deck.bassL += bassCoefficient_ * (sampleL - deck.bassL);
+        deck.bassR += bassCoefficient_ * (sampleR - deck.bassR);
+        const float bassSide = index == 0 ? 1 - crossfade_ : crossfade_;
+        l += ((sampleL - deck.bassL) * side + deck.bassL * bassSide) * deck.envelope;
+        r += ((sampleR - deck.bassR) * side + deck.bassR * bassSide) * deck.envelope;
       }
       if (jogging) {
         deck.cursor = std::clamp(deck.cursor + deck.actualRate, 0.0, static_cast<double>(total - 1));
       } else if (playing) {
         deck.cursor = std::max(0.0, deck.cursor + deck.actualRate);
-        const auto loopEnd = std::max(1.0, static_cast<double>(deck.loopEnd.load(std::memory_order_relaxed)) * total);
+        const auto loopEnd = std::max(1.0, static_cast<double>(loopEnds[index]) * total);
         if (deck.cursor >= loopEnd) {
-          if (deck.loopStart.load(std::memory_order_relaxed) > 0 || deck.loopEnd.load(std::memory_order_relaxed) < 1) {
+          if (loopStarts[index] > 0 || loopEnds[index] < 1) {
             deck.seekTailL = deck.lastL;
             deck.seekTailR = deck.lastR;
             deck.seekFadeRemaining = kFadeFrames;
-            const double start = static_cast<double>(deck.loopStart.load(std::memory_order_relaxed)) * total;
+            const double start = static_cast<double>(loopStarts[index]) * total;
             // Retain fractional overshoot at every wrap; dropping it drifts the beat grid.
             const double span = loopEnd - start;
             deck.cursor = span > 0 ? start + std::fmod(deck.cursor - loopEnd, span) : start;
@@ -565,7 +626,11 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
     r *= master_ * kHeadroom;
     const float magnitude = std::max(std::abs(l), std::abs(r));
     const float required = magnitude > 0.96F ? 0.96F / magnitude : 1.0F;
-    limiter_ = required < limiter_ ? required : std::min(required, limiter_ + limiterRelease_);
+    // Hold peak attenuation through a bass cycle; sample-by-sample release
+    // previously amplitude-modulated the mix and created harsh harmonics.
+    if (required < limiter_) { limiter_ = required; limiterHold_ = limiterHoldFrames_; }
+    else if (limiterHold_) --limiterHold_;
+    else limiter_ += limiterRelease_ * (required - limiter_);
     left[frame] = l * limiter_;
     right[frame] = r * limiter_;
     blockPeak = std::max({blockPeak, std::abs(left[frame]), std::abs(right[frame])});

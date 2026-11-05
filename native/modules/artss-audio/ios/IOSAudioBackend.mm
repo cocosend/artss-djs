@@ -186,7 +186,8 @@ Sample synthPreset(std::uint32_t preset, double sampleRate) {
     const double freq = root * std::pow(2.0, note / 12.0);
     bassPhase = std::fmod(bassPhase + tau * freq / sampleRate, tau);
     const double noteAttack = std::min(1.0, eighthTime * 250.0);
-    const double bassEnv = noteAttack * std::exp(-eighthTime * (preset == 7 ? 6.0 : 9.0));
+    const double noteRelease = std::min(1.0, std::max(0.0, eighth - eighthTime) / 0.012);
+    const double bassEnv = noteAttack * noteRelease * std::exp(-eighthTime * (preset == 7 ? 6.0 : 9.0));
     const double bass = (std::sin(bassPhase) + 0.16 * std::sin(2.0 * bassPhase))
         * bassEnv * (acid303 ? 0.16 : 0.20);
 
@@ -200,7 +201,8 @@ Sample synthPreset(std::uint32_t preset, double sampleRate) {
     acidLow += alpha * (saw - acidLow);
     const double acid = acid303 ? acidLow * bassEnv * (preset == 3 ? 0.155 : 0.105) : 0.0;
     const double sub = sub808 ? std::sin(tau * root * 0.5 * t) *
-        std::exp(-beatTime * 7.0) * 0.073 : 0.0;
+        std::exp(-beatTime * 7.0) * std::min(1.0, beatTime / 0.005) *
+        std::min(1.0, (beat - beatTime) / 0.012) * 0.073 : 0.0;
     const double mix = kick + hat + snare + bass + acid + sub;
     const double ending = std::min({1.0, static_cast<double>(i) / 256.0,
         static_cast<double>(frames - i - 1) / 256.0});
@@ -229,11 +231,9 @@ struct IOSAudioBackend::Impl {
   std::string installDeck(std::uint32_t deck, Sample track, NSString* title) {
     if (!engine->running() || !unit) throw std::runtime_error("Включите звук перед загрузкой");
     const auto grid = analyzeBeatGrid(track, sampleRate);
-    const auto otherDeck = static_cast<std::uint32_t>(1 - deck);
-    const bool resumeOtherDeck = engine->deckPlaying(otherDeck);
     engine->rejectCommands();
     check(AudioOutputUnitStop(unit), "Stop output before track swap");
-    engine->deactivateAfterStop();
+    // RemoteIO is stopped, but retain the other deck, voices and sequencer clock.
     try { engine->loadDeck(deck, std::move(track), grid); }
     catch (...) {
       engine->activate();
@@ -249,7 +249,6 @@ struct IOSAudioBackend::Impl {
     engine->activate();
     try { check(AudioOutputUnitStart(unit), "Restart output after track swap"); }
     catch (...) { stopInternal(); throw; }
-    if (resumeOtherDeck) engine->deckPlay(otherDeck, true);
     return std::string(static_cast<const char*>(json.bytes), json.length);
   }
 

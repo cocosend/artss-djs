@@ -55,6 +55,8 @@ class AudioEngine final {
   bool deckLoop(std::uint32_t deck, float start, float end) noexcept;
   bool crossfade(float position) noexcept;
   bool setEQ(float lowDb, float midDb, float highDb) noexcept;
+  bool setDeckEQ(std::uint32_t deck, float lowDb, float midDb, float highDb) noexcept;
+  bool setDeckGain(std::uint32_t deck, float gain) noexcept;
   bool setKit(std::uint32_t kit) noexcept;
   bool setTempo(float bpm) noexcept;
   bool setStep(std::uint32_t pad, std::uint32_t step, float velocity) noexcept;
@@ -131,6 +133,7 @@ class AudioEngine final {
   std::array<std::atomic<float>, kPadCount> progress_{};
   float master_{0.75F};
   float limiter_{1};
+  std::uint32_t limiterHold_{0}, limiterHoldFrames_{480};
   float gainSlew_{1.0F / 240.0F}, limiterRelease_{1.0F / 2400.0F}, jogSlew_{4.0F / 240.0F};
   std::uint32_t jogTimeoutFrames_{2400};
   std::uint64_t voiceSerial_{0};
@@ -139,8 +142,12 @@ class AudioEngine final {
   struct Deck {
     Sample track;
     std::array<float, kWaveformBins> waveform{};
-    std::atomic<float> seek{-1}, rate{1}, jogRate{0}, loopStart{0}, loopEnd{1}, position{0};
-    std::atomic<std::uint32_t> jogRevision{0};
+    std::atomic<float> seek{-1}, rate{1}, jogRate{0}, position{0};
+    std::atomic<std::uint32_t> jogRevision{0}, frameCount{0};
+    std::atomic<std::uint64_t> loopRange{0x3f80000000000000ULL};
+    std::atomic<float> gain{1}, lowDb{0}, midDb{0}, highDb{0};
+    float gainSmooth{1}, lowGain{1}, midGain{1}, highGain{1};
+    float eqLowL{0}, eqLowR{0}, eqHighL{0}, eqHighR{0}, bassL{0}, bassR{0};
     std::atomic<bool> playing{false}, jogging{false}, loaded{false};
     std::atomic<float> bpm{0}, firstBeat{0};
     std::atomic<float> filterAmount{0}, filterCoefficient{0};
@@ -155,7 +162,7 @@ class AudioEngine final {
   std::atomic<float> lowDb_{0}, midDb_{0}, highDb_{0};
   float lowGain_{1}, midGain_{1}, highGain_{1};
   float lowL_{0}, lowR_{0}, highLpL_{0}, highLpR_{0};
-  float lowCoefficient_{0}, highCoefficient_{0};
+  float lowCoefficient_{0}, highCoefficient_{0}, bassCoefficient_{0};
   double sampleRate_{48000};
 };
 

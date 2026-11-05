@@ -41,7 +41,7 @@ const ICON_PATHS: Record<string, string> = {
 const TONES = ['#FF4569', '#69E5D8', '#FFFFFF', '#6DE4C8',
   '#DBE9F7', '#B4C4D6', '#FE5E92', '#69E5D8'] as const;
 
-export const PerformancePad = memo(function PerformancePad({index, label, controls, enabled, onSelect}: Props) {
+export const PerformancePad = memo(function PadView({index, label, controls, enabled, onSelect}: Props) {
   const pressed = useSharedValue(0);
   const failed = useSharedValue(0);
   const tone = TONES[index];
@@ -99,8 +99,8 @@ export const PerformancePad = memo(function PerformancePad({index, label, contro
 });
 
 const styles = StyleSheet.create({
-  pad: {width: '23.5%', minHeight: 112, borderRadius: 3, borderWidth: 1,
-    borderColor: '#344653', borderBottomWidth: 4, borderBottomColor: '#42E8D1',
+  pad: {width: '23.5%', minHeight: 100, borderRadius: 10, borderWidth: 1,
+    borderColor: '#344653', borderBottomWidth: 4, borderBottomColor: '#39D9EE',
     padding: 7, justifyContent: 'space-between', alignItems: 'center'},
   disabled: {opacity: 0.72},
   number: {color: '#B5BAD4', fontSize: 9, fontWeight: '800', alignSelf: 'flex-start'},
