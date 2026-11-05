@@ -545,6 +545,48 @@ void automatedMixTransitions() {
   assert(e.autoMixState()==0 && std::abs(e.crossfadePosition()-0.4F)<0.01F);
 }
 
+void cueTransportRegression() {
+  AudioEngine engine;
+  engine.prepare(48000, makeBank(8, 0));
+  Sample track;
+  track.stereo.assign(48000 * 2, 0.25F);
+  engine.loadDeck(0, track, {120, 0, 1});
+  engine.loadDeck(1, std::move(track), {120, 0, 1});
+  assert(!engine.deckSetCue(0) && !engine.deckCue(0)); // Session stopped.
+  engine.activate();
+  assert(!engine.deckSetCue(2) && !engine.deckCue(2));
+  assert(engine.deckCuePosition(0) == 0 && engine.deckCuePosition(1) == 0);
+  // A cue set immediately after a seek must capture the pending target.
+  assert(engine.deckSeek(0, 0.25F) && engine.deckSetCue(0));
+  assert(engine.deckSeek(1, 0.75F) && engine.deckSetCue(1));
+  assert(std::abs(engine.deckCuePosition(0) - 0.25F) < 0.00001F);
+  assert(std::abs(engine.deckCuePosition(1) - 0.75F) < 0.00001F);
+  std::array<float, 256> left{}, right{};
+  assert(engine.deckPlay(0, true));
+  render(engine, left.data(), right.data(), left.size());
+  assert(!engine.deckSetCue(0)); // Never move a cue while playing.
+  assert(engine.deckPosition(0) > 0.25F);
+  assert(engine.deckCue(0));
+  render(engine, left.data(), right.data(), left.size());
+  assert(!engine.deckPlaying(0));
+  assert(std::abs(engine.deckPosition(0) - 0.25F) < 0.0001F);
+  assert(engine.deckPlay(0, true));
+  render(engine, left.data(), right.data(), left.size());
+  assert(engine.deckPosition(0) > 0.25F);
+  assert(engine.deckCue(1));
+  render(engine, left.data(), right.data(), left.size());
+  assert(std::abs(engine.deckPosition(1) - 0.75F) < 0.0001F);
+  assert(std::abs(engine.deckCuePosition(0) - 0.25F) < 0.00001F);
+  for (float value : left) assert(std::isfinite(value) && std::abs(value) <= 0.960001F);
+  engine.rejectCommands();
+  engine.deactivateAfterStop();
+  Sample nextTrack;
+  nextTrack.stereo.assign(48000 * 2, 0.25F);
+  engine.loadDeck(0, std::move(nextTrack), {120, 0, 1});
+  assert(engine.deckCuePosition(0) == 0);
+  assert(std::abs(engine.deckCuePosition(1) - 0.75F) < 0.00001F);
+}
+
 int main() {
   for (const unsigned sampleRate : {44100U, 48000U, 96000U}) {
     Sample click;
@@ -602,6 +644,7 @@ int main() {
     }
   }
 
+  cueTransportRegression();
   automatedMixTransitions();
   transitionRegressions();
   validationAndVoiceLifecycle();

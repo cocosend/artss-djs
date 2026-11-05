@@ -47,6 +47,9 @@ class AudioEngine final {
   void loadDeck(std::uint32_t deck, Sample track);
   void loadDeck(std::uint32_t deck, Sample track, BeatGrid grid);
   bool deckPlay(std::uint32_t deck, bool play) noexcept;
+  bool deckSetCue(std::uint32_t deck) noexcept;
+  bool deckCue(std::uint32_t deck) noexcept;
+  float deckCuePosition(std::uint32_t deck) const noexcept;
   bool deckSeek(std::uint32_t deck, float normalized) noexcept;
   bool deckRate(std::uint32_t deck, float rate) noexcept;
   bool deckFilter(std::uint32_t deck, float amount) noexcept;
@@ -146,7 +149,7 @@ class AudioEngine final {
   struct Deck {
     Sample track;
     std::array<float, kWaveformBins> waveform{};
-    std::atomic<float> seek{-1}, rate{1}, jogRate{0}, position{0};
+    std::atomic<float> seek{-1}, cue{0}, rate{1}, jogRate{0}, position{0};
     std::atomic<std::uint32_t> jogRevision{0}, frameCount{0};
     std::atomic<std::uint64_t> loopRange{0x3f80000000000000ULL};
     std::atomic<float> gain{1}, lowDb{0}, midDb{0}, highDb{0};
