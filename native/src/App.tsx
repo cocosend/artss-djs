@@ -7,7 +7,7 @@ import {useDerivedValue, useFrameCallback, useSharedValue} from 'react-native-re
 import {loadPreset, pickTrack, type PadIndex, type RealtimeControls, type TrackInfo} from 'react-native-artss-audio';
 import {useAudioSession} from './audio/useAudioSession';
 import {PerformancePad} from './components/PerformancePad';
-import {WOLF_GROOVES, WOLF_STYLES, buildWolfPattern} from './audio/stripewolfGrooves';
+import {WOLF_GROOVES, buildWolfPattern} from './audio/stripewolfGrooves';
 
 type DeckIndex = 0 | 1;
 const COLORS = ['#F6D527', '#FF4569'] as const;
@@ -389,11 +389,11 @@ function Studio() {
           accessibilityRole="button" accessibilityState={{selected: selected === index}} onPress={() => setSelected(index)}
           style={[styles.targetButton, selected === index && {backgroundColor: COLORS[index]}]}><Text style={[styles.targetText, selected === index && styles.targetTextOn]}>{index === 0 ? 'A' : 'B'}</Text></Pressable>)}</View></View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.presetScroll} contentContainerStyle={styles.presetList}>
-        {WOLF_STYLES.map((preset, index) => <Pressable key={preset.name} accessibilityRole="button"
-          accessibilityLabel={`Загрузить демолуп ${preset.name} в деку ${selected === 0 ? 'A' : 'B'}`}
+        {WOLF_GROOVES.map((preset, index) => <Pressable key={preset.id} accessibilityRole="button"
+          accessibilityLabel={`Загрузить оригинальный демолуп ${preset.title} в деку ${selected === 0 ? 'A' : 'B'}`}
           disabled={loading !== null || busy} onPress={() => { void load(selected, index); }} style={[styles.preset, (loading !== null || busy) && styles.disabled]}>
           <Text style={styles.presetIndex}>{String(index + 1).padStart(2, '0')} / DEMO</Text>
-          <Text style={styles.presetName}>{preset.name}</Text><View style={styles.presetBottom}><Text style={styles.presetGenre}>{preset.genre}</Text><Text style={styles.presetBpm}>{preset.bpm} BPM</Text></View>
+          <Text numberOfLines={2} style={styles.presetName}>{preset.title}</Text><View style={styles.presetBottom}><Text style={styles.presetGenre}>{preset.style.toUpperCase()}</Text><Text style={styles.presetBpm}>{preset.bpm} BPM</Text></View>
         </Pressable>)}</ScrollView>
       <Pressable accessibilityRole="button" disabled={loading !== null || busy} onPress={() => { void load(selected); }} style={[styles.import, (loading !== null || busy) && styles.disabled]}>
         <Text style={styles.importIcon}>＋</Text><View style={styles.importText}><Text style={styles.importTitle}>Загрузить свой трек</Text>
@@ -435,7 +435,7 @@ const styles = StyleSheet.create({
   presetScroll: {marginHorizontal: -14}, presetList: {paddingHorizontal: 14, gap: 9},
   preset: {width: 146, height: 122, borderRadius: 14, borderWidth: 1, borderColor: '#6A6250', backgroundColor: '#201E19', padding: 12, justifyContent: 'space-between'},
   presetIndex: {color: '#F6D527', fontSize: 9, fontWeight: '900', letterSpacing: 1.2},
-  presetName: {color: '#FFFFFF', fontSize: 20, fontWeight: '900', letterSpacing: -0.5},
+  presetName: {color: '#FFFFFF', fontSize: 14, fontWeight: '900', letterSpacing: -0.2},
   presetBottom: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'},
   presetGenre: {color: '#ABB9CB', fontSize: 8, fontWeight: '800'}, presetBpm: {color: '#F6D527', fontSize: 9, fontWeight: '900'},
   import: {height: 66, marginTop: 10, borderRadius: 12, borderWidth: 1, borderColor: '#496179', backgroundColor: '#201E19', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14},
