@@ -37,6 +37,10 @@ export interface RealtimeControls {
   deckFilter(deck: 0 | 1, amount: number): boolean;
   deckJog(deck: 0 | 1, speed: number, touching: boolean): boolean;
   deckLoop(deck: 0 | 1, start: number, end: number): boolean;
+  readonly crossfadePosition: number;
+  readonly autoMixState: number;
+  startAutoMix(bars: number): boolean;
+  stopAutoMix(): boolean;
   crossfade(position: number): boolean;
   setDeckEQ(deck: 0 | 1, low: number, mid: number, high: number): boolean;
   setDeckGain(deck: 0 | 1, gain: number): boolean;
@@ -104,6 +108,11 @@ export interface TrackInfo {
 
 export async function pickTrack(deck: 0 | 1): Promise<TrackInfo> {
   return parseTrack(await NativeArtssAudio.pickTrack(deck));
+}
+
+export async function generateTrack(deck: 0 | 1, style: number): Promise<TrackInfo> {
+  if (!Number.isInteger(style) || style < 0 || style > 8) throw new Error('Неизвестный стиль');
+  return parseTrack(await NativeArtssAudio.loadPreset(deck, style + 9));
 }
 
 export async function loadPreset(deck: 0 | 1, preset: number): Promise<TrackInfo> {

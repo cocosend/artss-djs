@@ -119,7 +119,7 @@ Sample decode(NSURL* url, double sampleRate, double maxSeconds = 30) {
 }
 
 // Original procedural demo grooves. Built once on the lifecycle queue, never in RemoteIO.
-Sample synthPreset(std::uint32_t preset, double sampleRate) {
+Sample synthPreset(std::uint32_t preset, double sampleRate, std::uint32_t variation = 0) {
   // Eight bars of ORIGINAL offline-rendered music. Nothing in here runs on RemoteIO.
   // The earlier synth used inharmonic 6/9 kHz beat tones and an unfiltered saw,
   // producing aliasing and an abrasive sound. Replace them with filtered
@@ -130,7 +130,8 @@ Sample synthPreset(std::uint32_t preset, double sampleRate) {
   const auto frames = static_cast<std::size_t>(std::ceil(32.0 * beat * sampleRate));
   Sample result;
   result.stereo.resize(frames * 2);
-  const double root = 440.0 * std::pow(2.0, (kPresetRoots[preset] - 69) / 12.0);
+  const int transpose = variation ? static_cast<int>(variation % 5) - 2 : 0;
+  const double root = 440.0 * std::pow(2.0, (kPresetRoots[preset] + transpose - 69) / 12.0);
   constexpr int notes[9][4] = {{0, 3, -2, 5}, {0, 7, 5, 3}, {0, 7, 5, 3},
       {0, -2, 3, 7}, {0, 3, 7, 5}, {0, 0, 3, -2}, {0, 7, 3, 5},
       {0, -2, 5, 3}, {0, 5, 7, 3}};
@@ -148,7 +149,8 @@ Sample synthPreset(std::uint32_t preset, double sampleRate) {
     }
     return 0.0;
   };
-  std::uint32_t randomState = 0x5f3759dfU ^ (preset * 0x9e3779b9U);
+  std::uint32_t randomState = 0x5f3759dfU ^ (preset * 0x9e3779b9U) ^ (variation * 0x85ebca6bU);
+  if (!randomState) randomState = 1;
   double noiseLow = 0.0;
   double kickPhase = 0.0;
   double bassPhase = 0.0;
@@ -182,7 +184,7 @@ Sample synthPreset(std::uint32_t preset, double sampleRate) {
         bright * std::exp(-beatTime * 27.0) * 0.16 +
         std::sin(tau * 178.0 * beatTime) * std::exp(-beatTime * 24.0) * 0.072) : 0.0;
 
-    const int note = notes[preset][(beatNumber / 2) % 4];
+    const int note = notes[preset][(beatNumber / 2 + static_cast<int>(variation % 4)) % 4];
     const double freq = root * std::pow(2.0, note / 12.0);
     bassPhase = std::fmod(bassPhase + tau * freq / sampleRate, tau);
     const double noteAttack = std::min(1.0, eighthTime * 250.0);
@@ -225,6 +227,7 @@ struct IOSAudioBackend::Impl {
   id interruptionToken = nil, routeToken = nil, resetToken = nil;
   std::atomic<std::uint64_t> overruns{0}, maxRenderNanoseconds{0}, invalidBuffers{0};
   double sampleRate = 48000, nanosPerTick = 1;
+  std::uint32_t generatedPresetSerial = 0;
   bool sessionActive = false;
   std::string snapshot;
 
@@ -498,14 +501,17 @@ void IOSAudioBackend::pickTrack(std::uint32_t deck, Completion completion) {
 }
 
 void IOSAudioBackend::loadPreset(std::uint32_t deck, std::uint32_t preset, Completion completion) {
-  if (deck >= kDeckCount || preset >= kPresetNames.size()) { completion({}, "Invalid preset or deck"); return; }
+  if (deck >= kDeckCount || preset >= kPresetNames.size() * 2) { completion({}, "Invalid preset or deck"); return; }
   auto self = shared_from_this();
   dispatch_async(impl_->queue, ^{
     @autoreleasepool {
       try {
         if (!self->impl_->engine->running()) throw std::runtime_error("Включите звук перед загрузкой");
-        Sample track = synthPreset(preset, self->impl_->sampleRate);
-        NSString* title = [NSString stringWithFormat:@"%s · DEMO", kPresetNames[preset]];
+        const bool generated = preset >= kPresetNames.size();
+        const auto style = static_cast<std::uint32_t>(preset % kPresetNames.size());
+        const auto variation = generated ? ++self->impl_->generatedPresetSerial : 0;
+        Sample track = synthPreset(style, self->impl_->sampleRate, variation);
+        NSString* title = [NSString stringWithFormat:@"%s · %@", kPresetNames[style], generated ? @"GENERATED" : @"DEMO"];
         completion(self->impl_->installDeck(deck, std::move(track), title), {});
       } catch (const std::exception& error) {
         if (!self->impl_->engine->running()) self->impl_->stopInternal();

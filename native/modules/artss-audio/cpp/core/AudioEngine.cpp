@@ -127,6 +127,9 @@ void AudioEngine::activate() noexcept {
 
 void AudioEngine::rejectCommands() noexcept {
   active_.store(false, std::memory_order_release);
+  requestedCrossfade_.store(crossfadePosition_.load(std::memory_order_relaxed), std::memory_order_relaxed);
+  autoMixCommand_.store(-1, std::memory_order_release);
+  autoMixState_.store(0, std::memory_order_release);
 }
 
 void AudioEngine::deactivateAfterStop() noexcept {
@@ -217,6 +220,7 @@ bool AudioEngine::deckPlay(std::uint32_t index, bool play) noexcept {
   if (index >= kDeckCount || !running() || !decks_[index].loaded.load(std::memory_order_acquire)) return false;
   if (play && decks_[index].position.load(std::memory_order_acquire) >= 0.999F)
     decks_[index].seek.store(0, std::memory_order_release);
+  if (!play) stopAutoMix();
   decks_[index].playing.store(play, std::memory_order_release);
   return true;
 }
@@ -292,7 +296,24 @@ bool AudioEngine::deckLoop(std::uint32_t index, float start, float end) noexcept
 bool AudioEngine::crossfade(float position) noexcept {
   if (!running() || !std::isfinite(position) || position < 0 || position > 1) return false;
   requestedCrossfade_.store(position, std::memory_order_release);
+  autoMixCommand_.store(-1, std::memory_order_release);
+  autoMixState_.store(0, std::memory_order_release);
   return true;
+}
+bool AudioEngine::startAutoMix(std::uint32_t bars) noexcept {
+  if (!running() || bars < 1 || bars > 16 ||
+      !decks_[0].loaded.load(std::memory_order_acquire) || !decks_[1].loaded.load(std::memory_order_acquire)) return false;
+  const bool a = decks_[0].playing.load(std::memory_order_acquire);
+  const bool b = decks_[1].playing.load(std::memory_order_acquire);
+  const std::uint32_t source = a != b ? (a ? 0U : 1U) : (crossfadePosition_.load(std::memory_order_relaxed) > 0.5F ? 1U : 0U);
+  autoMixState_.store(1, std::memory_order_release);
+  autoMixCommand_.store(static_cast<int>(bars * 2 + source), std::memory_order_release);
+  return true;
+}
+void AudioEngine::stopAutoMix() noexcept {
+  requestedCrossfade_.store(crossfadePosition_.load(std::memory_order_relaxed), std::memory_order_release);
+  autoMixCommand_.store(-1, std::memory_order_release);
+  autoMixState_.store(0, std::memory_order_release);
 }
 bool AudioEngine::setEQ(float lowDb, float midDb, float highDb) noexcept {
   const auto valid = [](float db) noexcept { return std::isfinite(db) && db >= -12 && db <= 12; };
@@ -443,7 +464,56 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
   // per-sample mixer. Audio smoothing remains sample-rate independent.
   const bool sequenceOn = sequencerPlaying_.load(std::memory_order_relaxed);
   const double stepFrames = sampleRate_ * 15.0 / tempo_.load(std::memory_order_relaxed);
-  const float targetCrossfade = requestedCrossfade_.load(std::memory_order_relaxed);
+  float targetCrossfade = requestedCrossfade_.load(std::memory_order_relaxed);
+  int autoCommand = autoMixCommand_.exchange(0, std::memory_order_acq_rel);
+  // After a transition, wait until the playing track approaches its end, then
+  // bring the other deck back in. A manual fader move or pause cancels it.
+  if (!autoCommand && !autoMixActive_ && autoMixState_.load(std::memory_order_acquire) == 2) {
+    const auto& source = decks_[autoMixSource_];
+    if (!source.playing.load(std::memory_order_acquire)) autoMixState_.store(0, std::memory_order_release);
+    else {
+      const float detected = source.bpm.load(std::memory_order_relaxed);
+      const float bpm = detected >= 60 && detected <= 200 ? detected : tempo_.load(std::memory_order_relaxed);
+      const double remaining = (1.0 - source.position.load(std::memory_order_relaxed)) *
+        source.frameCount.load(std::memory_order_relaxed) / std::max(0.5F, source.rate.load(std::memory_order_relaxed));
+      const double fadeFrames = sampleRate_ * autoMixBars_ * 4.0 * 60.0 / bpm;
+      if (remaining <= fadeFrames) { autoCommand = static_cast<int>(autoMixBars_ * 2 + autoMixSource_); autoMixState_.store(1, std::memory_order_release); }
+    }
+  }
+  if (autoCommand < 0) autoMixActive_ = false;
+  else if (autoCommand >= 2) {
+    autoMixSource_ = static_cast<std::uint32_t>(autoCommand & 1);
+    autoMixBars_ = static_cast<std::uint32_t>(autoCommand / 2);
+    const auto target = 1U - autoMixSource_;
+    // Start both decks without altering playback pitch; existing BPM estimates
+    // determine fade duration only, and no unverified sync is imposed.
+    if (decks_[autoMixSource_].position.load(std::memory_order_relaxed) >= 0.999F)
+      decks_[autoMixSource_].seek.store(0, std::memory_order_release);
+    if (decks_[target].position.load(std::memory_order_relaxed) >= 0.999F)
+      decks_[target].seek.store(0, std::memory_order_release);
+    decks_[autoMixSource_].playing.store(true, std::memory_order_release);
+    decks_[target].playing.store(true, std::memory_order_release);
+    const float estimate = decks_[autoMixSource_].bpm.load(std::memory_order_relaxed);
+    const float bpm = estimate >= 60 && estimate <= 200 ? estimate : tempo_.load(std::memory_order_relaxed);
+    const auto sourceFrames = decks_[autoMixSource_].frameCount.load(std::memory_order_relaxed);
+    const float sourcePosition = decks_[autoMixSource_].position.load(std::memory_order_relaxed);
+    const double remaining = (sourcePosition >= 0.999F ? 1.0 : 1.0 - sourcePosition) * sourceFrames /
+      std::max(0.5F, decks_[autoMixSource_].rate.load(std::memory_order_relaxed));
+    const double intended = sampleRate_ * autoMixBars_ * 4.0 * 60.0 / bpm;
+    const auto targetFrames = decks_[target].frameCount.load(std::memory_order_relaxed);
+    const float targetPosition = decks_[target].position.load(std::memory_order_relaxed);
+    const double targetRate = std::max(0.5F, decks_[target].rate.load(std::memory_order_relaxed));
+    double targetRemaining = (targetPosition >= 0.999F ? 1.0 : 1.0 - targetPosition) * targetFrames / targetRate;
+    if (targetRemaining < intended && targetPosition > 0) {
+      decks_[target].seek.store(0, std::memory_order_release);
+      targetRemaining = targetFrames / targetRate;
+    }
+    autoMixTotal_ = static_cast<std::uint64_t>(std::max(1.0, std::min({intended, std::max(sampleRate_ * 0.1, remaining), std::max(1.0, targetRemaining)})));
+    autoMixFrame_ = 0;
+    autoMixStart_ = crossfade_;
+    autoMixTarget_ = target == 0 ? 0.f : 1.f;
+    autoMixActive_ = true;
+  }
   std::array<float, kDeckCount> filterAmounts{}, filterCoefficients{}, rates{};
   for (std::size_t index = 0; index < kDeckCount; ++index) {
     filterAmounts[index] = decks_[index].filterAmount.load(std::memory_order_relaxed);
@@ -504,6 +574,24 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
       voice.previousR = vr;
       l += vl;
       r += vr;
+    }
+    if (autoMixActive_) {
+      const float p = std::min(1.f, static_cast<float>(autoMixFrame_) / static_cast<float>(autoMixTotal_));
+      const float curve = p * p * (3.f - 2.f * p);
+      targetCrossfade = autoMixStart_ + (autoMixTarget_ - autoMixStart_) * curve;
+      if (++autoMixFrame_ >= autoMixTotal_) {
+        targetCrossfade = autoMixTarget_;
+        autoMixActive_ = false;
+        if (autoMixCommand_.load(std::memory_order_acquire) < 0) {
+          targetCrossfade = requestedCrossfade_.load(std::memory_order_relaxed);
+          autoMixState_.store(0, std::memory_order_release);
+        } else {
+          requestedCrossfade_.store(targetCrossfade, std::memory_order_relaxed);
+          decks_[autoMixSource_].playing.store(false, std::memory_order_release);
+          autoMixSource_ = 1U - autoMixSource_;
+          autoMixState_.store(2, std::memory_order_release);
+        }
+      }
     }
     crossfade_ += std::clamp(targetCrossfade - crossfade_, -gainSlew_, gainSlew_);
     const float gainA = std::sqrt(std::max(0.0F, 1 - crossfade_));
@@ -647,6 +735,7 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
   for (std::size_t pad = 0; pad < kPadCount; ++pad) progress_[pad].store(progress[pad], std::memory_order_relaxed);
   for (auto& deck : decks_) if (deck.track.frames())
     deck.position.store(static_cast<float>(deck.cursor / deck.track.frames()), std::memory_order_release);
+  crossfadePosition_.store(crossfade_, std::memory_order_relaxed);
   peak_.store(blockPeak, std::memory_order_relaxed);
   renderedFrames_.fetch_add(frames, std::memory_order_relaxed);
 }

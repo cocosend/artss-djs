@@ -54,6 +54,10 @@ class AudioEngine final {
   bool deckJog(std::uint32_t deck, float speed, bool touching) noexcept;
   bool deckLoop(std::uint32_t deck, float start, float end) noexcept;
   bool crossfade(float position) noexcept;
+  bool startAutoMix(std::uint32_t bars) noexcept;
+  void stopAutoMix() noexcept;
+  std::uint32_t autoMixState() const noexcept { return autoMixState_.load(std::memory_order_acquire); }
+  float crossfadePosition() const noexcept { return crossfadePosition_.load(std::memory_order_relaxed); }
   bool setEQ(float lowDb, float midDb, float highDb) noexcept;
   bool setDeckEQ(std::uint32_t deck, float lowDb, float midDb, float highDb) noexcept;
   bool setDeckGain(std::uint32_t deck, float gain) noexcept;
@@ -159,6 +163,14 @@ class AudioEngine final {
   std::array<Deck, kDeckCount> decks_{};
   std::atomic<float> requestedCrossfade_{0.5F};
   float crossfade_{0.5F};
+  std::atomic<float> crossfadePosition_{0.5F};
+  // Command: 0 idle, -1 cancel, positive (bars*2 + source deck).
+  std::atomic<int> autoMixCommand_{0};
+  std::atomic<std::uint32_t> autoMixState_{0};
+  bool autoMixActive_{false};
+  std::uint32_t autoMixSource_{0}, autoMixBars_{4};
+  std::uint64_t autoMixFrame_{0}, autoMixTotal_{1};
+  float autoMixStart_{0.5F}, autoMixTarget_{1};
   std::atomic<float> lowDb_{0}, midDb_{0}, highDb_{0};
   float lowGain_{1}, midGain_{1}, highGain_{1};
   float lowL_{0}, lowR_{0}, highLpL_{0}, highLpR_{0};

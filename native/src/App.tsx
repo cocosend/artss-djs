@@ -5,7 +5,7 @@ import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
 import {Canvas, LinearGradient, Path, Rect, Skia, vec} from '@shopify/react-native-skia';
 import Animated, {useAnimatedStyle, useDerivedValue, useFrameCallback, useSharedValue, type SharedValue} from 'react-native-reanimated';
 import {scheduleOnRN} from 'react-native-worklets';
-import {loadPreset, pickTrack, type PadIndex, type RealtimeControls, type TrackInfo} from 'react-native-artss-audio';
+import {generateTrack, loadPreset, pickTrack, type PadIndex, type RealtimeControls, type TrackInfo} from 'react-native-artss-audio';
 import {useAudioSession} from './audio/useAudioSession';
 import {PerformancePad} from './components/PerformancePad';
 import {MasterFader} from './components/MasterFader';
@@ -95,6 +95,21 @@ function Pads({controls, enabled, onSelect}: {controls: RealtimeControls; enable
     setBanks(old => old.map((rows, at) => at === bank ? buildWolfPattern(index) : rows));
     setKit(preset.kit); setBpm(preset.bpm);
   }
+  function createRhythm() {
+    if (!enabled) return;
+    const index = Math.floor(Math.random() * WOLF_GROOVES.length);
+    const preset = WOLF_GROOVES[index]!;
+    const next = buildWolfPattern(index).map(row => [...row]);
+    // Keep the kick and backbeat anchored; vary hats and short fills.
+    for (const at of [1,5,9,13]) if (Math.random() < 0.45) next[3]![at] = 0.18 + Math.random() * 0.17;
+    if (Math.random() < 0.6) next[5]![15] = 0.24 + Math.random() * 0.26;
+    if (Math.random() < 0.4) next[6]![14] = 0.3;
+    setBanks(old => old.map((rows, i) => i === bank ? next : rows));
+    setKit(preset.kit); setBpm(preset.bpm);
+    controls.setKit(preset.kit); controls.setTempo(preset.bpm);
+    for (let p=0; p<8; p++) for (let at=0; at<16; at++) controls.setStep(p as PadIndex,at,next[p]?.[at] ?? 0);
+    controls.setSequencer(true); setRunning(true);
+  }
   return <ScrollView contentContainerStyle={s.page} nestedScrollEnabled showsVerticalScrollIndicator={false}>
     <View style={s.rowBetween}><Text style={s.section}>PERFORMANCE</Text><View style={s.row}>
       {['A','B','C','D'].map((name, i) => <Button key={name} text={name} active={bank === i} onPress={() => setBank(i)} />)}</View></View>
@@ -107,6 +122,7 @@ function Pads({controls, enabled, onSelect}: {controls: RealtimeControls; enable
       <Text style={s.bpm}>{bpm}</Text>
       <Button text="+" disabled={!enabled} onPress={() => setBpm(v => Math.min(200, v + 1))} />
     </View>
+    <Button text="СОЗДАТЬ РИТМ" disabled={!enabled} onPress={createRhythm} />
     <View style={s.row}>{([1,2,3] as const).map(k => <Button key={k} text={k === 1 ? '303' : k === 2 ? '606' : '909'} active={kit === k} onPress={() => setKit(k)} />)}
       <Button text={expanded ? 'СВЕРНУТЬ' : 'ШАГИ'} onPress={() => setExpanded(v => !v)} /></View>
     {expanded && <ScrollView horizontal nestedScrollEnabled><View>{LANES.map(p => <View key={p} style={s.steps}>
@@ -184,9 +200,10 @@ function Mixer({controls, enabled, track, deck}: {controls: RealtimeControls; en
   </ScrollView>;
 }
 function Crossfade({controls, enabled}: {controls: RealtimeControls; enabled: boolean}) {
-  const [width,setWidth] = useState(1); const position = useSharedValue(0.5);
-  const gesture = Gesture.Pan().enabled(enabled).minDistance(0).onBegin(e => { position.value=Math.max(0,Math.min(1,(e.x-14)/Math.max(1,width-28))); controls.crossfade(position.value); })
-    .onUpdate(e => { position.value=Math.max(0,Math.min(1,(e.x-14)/Math.max(1,width-28))); controls.crossfade(position.value); });
+  const [width,setWidth] = useState(1); const position = useSharedValue(0.5); const dragging = useSharedValue(false);
+  useFrameCallback(() => { if (!dragging.value) position.value = controls.crossfadePosition; });
+  const gesture = Gesture.Pan().enabled(enabled).minDistance(0).onBegin(e => { dragging.value = true; position.value=Math.max(0,Math.min(1,(e.x-14)/Math.max(1,width-28))); controls.crossfade(position.value); })
+    .onUpdate(e => { position.value=Math.max(0,Math.min(1,(e.x-14)/Math.max(1,width-28))); controls.crossfade(position.value); }).onFinalize(() => { dragging.value = false; });
   const thumb=useAnimatedStyle(() => ({transform:[{translateX:position.value*Math.max(0,width-28)}]}));
   return <GestureDetector gesture={gesture}><View style={s.faderTouch} onLayout={e => setWidth(e.nativeEvent.layout.width)}>
     <View style={s.faderRail}/><Animated.View style={[s.faderThumb,thumb]}/></View></GestureDetector>;
@@ -202,16 +219,22 @@ function Studio() {
   const [importError,setImportError]=useState<string|null>(null);
   const [page,setPage]=useState(0); const [width,setWidth]=useState(1); const pager=useRef<ScrollView>(null); const pageRef=useRef(0); pageRef.current=page;
   const [playing,setPlaying]=useState<[boolean,boolean]>([false,false]);
-  useEffect(() => { const id=setInterval(() => { const a=controls.deckPlaying0,b=controls.deckPlaying1; setPlaying(old => old[0]===a && old[1]===b ? old : [a,b]); },150); return () => clearInterval(id); },[controls]);
+  const [autoMix,setAutoMix]=useState(false);
+  useEffect(() => { const id=setInterval(() => { const a=controls.deckPlaying0,b=controls.deckPlaying1; setPlaying(old => old[0]===a && old[1]===b ? old : [a,b]); setAutoMix(controls.autoMixState !== 0); },150); return () => clearInterval(id); },[controls]);
   useEffect(() => { if (!session) setTracks([null,null]); },[session]);
   useEffect(() => { pager.current?.scrollTo({x:pageRef.current*width,animated:false}); },[width]);
-  async function load(preset?:number) {
+  async function load(preset?:number, generated=false) {
     if (loadingLock.current) return; loadingLock.current=true;setLoading(true);setImportError(null);
     const deck=selected;
     try {
       if (!session && !(await toggleAudio())) return;
-      const track=preset===undefined ? await pickTrack(deck) : await loadPreset(deck,preset);
+      const track=preset===undefined ? await pickTrack(deck) : generated ? await generateTrack(deck,preset) : await loadPreset(deck,preset);
       setTracks(old => old.map((v,i) => i===deck ? track : v) as [TrackInfo|null,TrackInfo|null]);
+      if (generated) {
+        const otherPlaying = deck === 0 ? controls.deckPlaying1 : controls.deckPlaying0;
+        if (!otherPlaying) controls.crossfade(deck === 0 ? 0 : 1);
+        controls.deckPlay(deck,true);
+      }
     } catch(reason:unknown) { const message=reason instanceof Error ? reason.message : 'Ошибка импорта'; if (!message.includes('отменён')) setImportError(message); }
     finally { loadingLock.current=false;setLoading(false); }
   }
@@ -223,6 +246,8 @@ function Studio() {
       <Text style={[s.deckBadge,{color:ACCENT[deck]}]}>{deck===0?'A':'B'}</Text><Text numberOfLines={1} style={s.trackName}>{tracks[deck]?.title??'Загрузить трек'}</Text></Pressable>)}</View>
     <Stripe controls={controls} deck={selected} track={tracks[selected]} samples={waveform} pad={pad} enabled={enabled}/>
     <View style={s.stripeCaption}><Text style={s.hint}>{tracks[selected] ? `DECK ${selected===0?'A':'B'} · ${(selected===0?controls.deckBpm0:controls.deckBpm1).toFixed(0)} BPM` : 'PAD PCM · Нажми пэд для волны'}</Text>
+      <Pressable accessibilityRole="button" disabled={!enabled || !tracks[0] || !tracks[1]} onPress={() => { if (autoMix) controls.stopAutoMix(); else controls.startAutoMix(4); }}>
+        <Text style={[s.importLabel, (!enabled || !tracks[0] || !tracks[1]) && s.disabled]}>{autoMix ? 'СТОП МИКС' : 'AUTO MIX'}</Text></Pressable>
       <Pressable disabled={loading||busy} onPress={() => { void load(); }}><Text style={s.importLabel}>{loading?'ЗАГРУЗКА…':'ИМПОРТ'}</Text></Pressable></View>
     {(error||importError) ? <Text accessibilityRole="alert" style={s.error}>{error??importError}</Text>:null}
     <View style={s.pocket} onLayout={e => setWidth(Math.max(1,e.nativeEvent.layout.width))}><ScrollView horizontal pagingEnabled directionalLockEnabled nestedScrollEnabled showsHorizontalScrollIndicator={false}
@@ -231,6 +256,7 @@ function Studio() {
       <View style={{width}}><Mixer controls={controls} enabled={enabled} deck={selected} track={tracks[selected]}/></View>
       <View style={{width}}><ScrollView contentContainerStyle={s.page} nestedScrollEnabled><Text style={s.section}>БИБЛИОТЕКА · DECK {selected===0?'A':'B'}</Text>
         <Button text="ЗАГРУЗИТЬ СВОЙ ТРЕК" disabled={loading||busy} onPress={() => { void load(); }}/>
+        <Button text="СОЗДАТЬ ДЕМОТРЕК" disabled={loading||busy} onPress={() => { void load(Math.floor(Math.random()*WOLF_GROOVES.length),true); }}/>
         {loading&&<ActivityIndicator color={ACCENT[selected]}/>}
         {WOLF_GROOVES.map((preset,i)=><Pressable key={preset.id} disabled={loading||busy} onPress={() => { void load(i); }} style={s.libraryCard}>
           <Text style={s.libraryName}>{preset.title}</Text><Text style={s.hint}>{preset.bpm} BPM · {preset.style.toUpperCase()} · ORIGINAL DEMO</Text></Pressable>)}

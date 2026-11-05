@@ -79,6 +79,22 @@ class RealtimeControls final : public jsi::HostObject {
             return engine->deckJog(static_cast<std::uint32_t>(deck), static_cast<float>(speed), args[2].getBool());
           });
     }
+    if (name == "crossfadePosition") return engine_->crossfadePosition();
+    if (name == "autoMixState") return static_cast<double>(engine_->autoMixState());
+    if (name == "startAutoMix") {
+      return jsi::Function::createFromHostFunction(runtime, property, 1,
+          [engine = engine_](jsi::Runtime&, const jsi::Value&, const jsi::Value* args, std::size_t count) -> jsi::Value {
+            if (count < 1 || !args[0].isNumber()) return false;
+            const double bars = args[0].asNumber();
+            return std::isfinite(bars) && bars >= 1 && bars <= 16 && bars == std::floor(bars) && engine->startAutoMix(static_cast<std::uint32_t>(bars));
+          });
+    }
+    if (name == "stopAutoMix") {
+      return jsi::Function::createFromHostFunction(runtime, property, 0,
+          [engine = engine_](jsi::Runtime&, const jsi::Value&, const jsi::Value*, std::size_t) -> jsi::Value {
+            engine->stopAutoMix(); return true;
+          });
+    }
     if (name == "crossfade") {
       return jsi::Function::createFromHostFunction(runtime, property, 1,
           [engine = engine_](jsi::Runtime&, const jsi::Value&, const jsi::Value* args, std::size_t count) -> jsi::Value {
@@ -231,7 +247,7 @@ AsyncPromise<std::string> NativeArtssAudio::pickTrack(jsi::Runtime& runtime, dou
 AsyncPromise<std::string> NativeArtssAudio::loadPreset(jsi::Runtime& runtime, double deck, double preset) {
   AsyncPromise<std::string> promise(runtime, invoker_);
   if (!std::isfinite(deck) || deck < 0 || deck >= 2 || deck != std::floor(deck) ||
-      !std::isfinite(preset) || preset < 0 || preset >= 9 || preset != std::floor(preset)) {
+      !std::isfinite(preset) || preset < 0 || preset >= 18 || preset != std::floor(preset)) {
     promise.reject(Error{"Invalid preset or deck"});
     return promise;
   }

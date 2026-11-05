@@ -29,6 +29,9 @@ size_t renderDrum(Drum drum, float* output, size_t capacity,
   uint32_t state=0xAC1D909u ^ (static_cast<unsigned>(drum)*0x9e3779b9u) ^ (variation*0x85ebca6bu);
   if (!state) state=1;
   float phase=0.f, noiseLow=0.f, acidLow=0.f, high=0.f;
+  float clapLow=0.f, clapHigh=0.f;
+  const float clapLoAlpha=-std::expm1(-2*kPi*std::min(850.f,sampleRate*.2f)/sampleRate);
+  const float clapHiAlpha=-std::expm1(-2*kPi*std::min(5500.f,sampleRate*.42f)/sampleRate);
   const float noiseAlpha = -std::expm1(-2 * kPi * 350.f / sampleRate);
   const float toneOffset=(static_cast<int>(variation%5)-2)*.018f;
   for (size_t i=0;i<frames;++i) {
@@ -50,9 +53,17 @@ size_t renderDrum(Drum drum, float* output, size_t capacity,
         v=(high*(drum==Drum::Snare909?.65f:.48f)*std::exp(-t*19.f)+
           osc(drum==Drum::Snare909?181.f:232.f)*.32f*std::exp(-t*26.f)); break;
       case Drum::Clap909: {
-        const float burst=std::exp(-std::fmod(t,.012f)*230.f)*
-          (t<.042f?1.f:.55f*std::exp(-(t-.042f)*15.f));
-        v=high*burst*.72f; break;
+        // Band-limit the transient and use smooth, overlapping bursts.
+        // The previous fmod envelope restarted abruptly every 12 ms and
+        // injected clicks plus excessive high-frequency noise into every clap.
+        clapLow += clapLoAlpha * (n-clapLow);
+        clapHigh += clapHiAlpha * (n-clapHigh);
+        const auto burst = [](float x) noexcept {
+          return x <= 0 ? 0.f : (1.f-std::exp(-x*1500.f))*std::exp(-x*130.f);
+        };
+        const float env=.62f*burst(t)+.48f*burst(t-.011f)+.36f*burst(t-.022f)
+          + .30f*(1.f-std::exp(-t*350.f))*std::exp(-t*18.f);
+        v=(clapHigh-clapLow)*env*.48f; break;
       }
       case Drum::Hat606: case Drum::OpenHat909: case Drum::Shaker909:
         v=high*std::exp(-t*(drum==Drum::OpenHat909?8.f:drum==Drum::Shaker909?24.f:55.f))*.57f; break;

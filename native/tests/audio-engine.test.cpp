@@ -1,5 +1,6 @@
 #include "AudioEngine.hpp"
 #include "BeatGrid.hpp"
+#include "DrumSynth.hpp"
 
 #include <array>
 #include <atomic>
@@ -521,6 +522,29 @@ void transitionRegressions() {
   render(e,l.data(),r.data(),512); assert(e.deckPosition(0)>0.3F);
 }
 
+void automatedMixTransitions() {
+  std::array<float, 24960> clap{};
+  assert(artss::renderDrum(artss::Drum::Clap909,clap.data(),clap.size(),48000,7)>0);
+  float clapPeak=0;
+  for (float sample : clap) { assert(std::isfinite(sample)); clapPeak=std::max(clapPeak,std::abs(sample)); }
+  assert(clapPeak>0.01F && clapPeak<0.75F && clap.front()==0 && clap.back()==0);
+  AudioEngine e; e.prepare(8000,makeBank(1024));
+  e.activate(); assert(!e.startAutoMix(4)); e.rejectCommands(); e.deactivateAfterStop();
+  Sample a; a.stereo.assign(8000 * 6 * 2,0.4F);
+  Sample b = a; e.loadDeck(0,std::move(a),{120,0,1}); e.loadDeck(1,std::move(b),{120,0,1});
+  e.activate(); assert(e.crossfade(0)); assert(e.deckPlay(0,true));
+  std::array<float,256> l{},r{}; render(e,l.data(),r.data(),256);
+  assert(e.startAutoMix(1));
+  for (int i=0;i<70;++i) { render(e,l.data(),r.data(),256); for (float v:l) assert(std::isfinite(v) && std::abs(v)<=0.960001F); }
+  assert(e.autoMixState()==2 && !e.deckPlaying(0) && e.deckPlaying(1));
+  assert(e.crossfadePosition()>0.99F);
+  bool sawReturn=false;
+  for (int i=0;i<210;++i) { render(e,l.data(),r.data(),256); sawReturn |= e.deckPlaying(0) && e.crossfadePosition()<0.9F; }
+  assert(e.autoMixState()!=0 && sawReturn);
+  assert(e.crossfade(0.4F)); render(e,l.data(),r.data(),256);
+  assert(e.autoMixState()==0 && std::abs(e.crossfadePosition()-0.4F)<0.01F);
+}
+
 int main() {
   for (const unsigned sampleRate : {44100U, 48000U, 96000U}) {
     Sample click;
@@ -578,6 +602,7 @@ int main() {
     }
   }
 
+  automatedMixTransitions();
   transitionRegressions();
   validationAndVoiceLifecycle();
   limiterRampAndStaleCommands();

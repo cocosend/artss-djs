@@ -46,10 +46,10 @@ jobs:
         run: |
           mkdir -p build/package/Payload build/ipa
           cp -R build/ARTSS.xcarchive/Products/Applications/ARTSSNative.app build/package/Payload/
-          (cd build/package && zip -qry ../ipa/ARTSS-DJS-FIX37-UNSIGNED.ipa Payload)
+          (cd build/package && zip -qry ../ipa/ARTSS-DJS-FIX38-UNSIGNED.ipa Payload)
       - uses: actions/upload-artifact@v4
         with:
-          name: ARTSS-DJS-FIX37-UNSIGNED-${{ github.run_number }}
-          path: native/build/ipa/ARTSS-DJS-FIX37-UNSIGNED.ipa
+          name: ARTSS-DJS-FIX38-UNSIGNED-${{ github.run_number }}
+          path: native/build/ipa/ARTSS-DJS-FIX38-UNSIGNED.ipa
           if-no-files-found: error
           retention-days: 7
