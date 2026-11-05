@@ -192,9 +192,8 @@ function DrumMachine({controls, enabled}: {controls: RealtimeControls; enabled: 
   const [recording, setRecording] = useState(false);
   const pattern = banks[bank]!;
   function setPattern(next: number[][]) { setBanks(old => old.map((rows, index) => index === bank ? next : rows)); }
-  function recordHit(pad: PadIndex) {
+  function recordHit(pad: PadIndex, at: number) {
     if (!recording || !running) return;
-    const at = controls.currentStep;
     if (at < 0 || at >= 16 || !controls.setStep(pad, at, 1)) return;
     setBanks(old => old.map((rows, b) => b !== bank ? rows : rows.map((row, p) =>
       p !== pad ? row : row.map((v, i) => i === at ? 1 : v))));
