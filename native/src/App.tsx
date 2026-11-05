@@ -2,7 +2,7 @@ import {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {ActivityIndicator, Pressable, ScrollView, StatusBar, StyleSheet, Text, View} from 'react-native';
 import {Gesture, GestureDetector, GestureHandlerRootView} from 'react-native-gesture-handler';
 import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
-import {Canvas, LinearGradient, Path, Rect, Skia, vec} from '@shopify/react-native-skia';
+import {Canvas, Circle, LinearGradient, Path, Rect, Skia, vec} from '@shopify/react-native-skia';
 import Animated, {useAnimatedStyle, useDerivedValue, useFrameCallback, useSharedValue, type SharedValue} from 'react-native-reanimated';
 import {scheduleOnRN} from 'react-native-worklets';
 import {generateTrack, loadPreset, pickTrack, type PadIndex, type RealtimeControls, type TrackInfo} from 'react-native-artss-audio';
@@ -91,6 +91,80 @@ function StereoMeter({controls}: {controls: RealtimeControls}) {
     </View>
   </View>;
 }
+
+
+const JOG_TICKS = Array.from({length: 64}, (_, index) => {
+  const angle = 2 * Math.PI * index / 64;
+  return {x: 67 + 59 * Math.cos(angle), y: 67 + 59 * Math.sin(angle)};
+});
+
+const Jog = memo(function JogWheel({deck, controls, enabled, track}: {
+  deck: Deck; controls: RealtimeControls; enabled: boolean; track: TrackInfo | null;
+}) {
+  const angle = useSharedValue(0);
+  const previous = useSharedValue(0);
+  const touching = useSharedValue(false);
+  const inertia = useSharedValue(0);
+  const canScratch = enabled && !!track;
+
+  useFrameCallback(frame => {
+    if (!canScratch || touching.value) return;
+    const dt = Math.min(0.05, Math.max(0, (frame.timeSincePreviousFrame ?? 16.67) / 1000));
+    const playing = deck === 0 ? controls.deckPlaying0 : controls.deckPlaying1;
+    const rate = deck === 0 ? controls.deckRate0 : controls.deckRate1;
+    angle.value += (playing ? rate * 3.49 : 0) * dt + inertia.value * dt;
+    inertia.value *= Math.exp(-dt * 9);
+    if (Math.abs(inertia.value) < 0.002) inertia.value = 0;
+  });
+
+  const gesture = Gesture.Pan().enabled(canScratch).minDistance(0)
+    .onBegin(event => {
+      touching.value = true;
+      inertia.value = 0;
+      previous.value = Math.atan2(event.y - 67, event.x - 67);
+      controls.deckJog(deck, 0, true);
+    })
+    .onUpdate(event => {
+      const next = Math.atan2(event.y - 67, event.x - 67);
+      const delta = Math.atan2(Math.sin(next - previous.value), Math.cos(next - previous.value));
+      previous.value = next;
+      angle.value += delta;
+      controls.deckJog(deck, Math.max(-4, Math.min(4, delta * 32)), true);
+    })
+    .onFinalize(event => {
+      touching.value = false;
+      controls.deckJog(deck, 0, false);
+      // Inertial disc animation is UI-only; native DSP returns to regular playback.
+      inertia.value = Math.max(-9, Math.min(9, event.velocityX / 190));
+    });
+
+  const markerX = useDerivedValue(() => 67 + 41 * Math.sin(angle.value));
+  const markerY = useDerivedValue(() => 67 - 41 * Math.cos(angle.value));
+  return <View style={s.jogColumn}>
+    <GestureDetector gesture={gesture}>
+      <View style={s.jogHousing} accessibilityLabel={`Джог деки ${deck === 0 ? 'A' : 'B'}`}>
+        <Canvas style={s.fill}>
+          <Circle cx={67} cy={67} r={62}>
+            <LinearGradient start={vec(0,0)} end={vec(134,134)}
+              colors={['#C5D0DD','#4B6174','#D0D8E0','#202E3E','#8899AA']} />
+          </Circle>
+          <Circle cx={67} cy={67} r={55} color="#0C121B" />
+          {JOG_TICKS.map((point, index) =>
+            <Circle key={index} cx={point.x} cy={point.y} r={1.1} color="#111C26" />)}
+          <Circle cx={67} cy={67} r={49} color="#222E3D" />
+          <Circle cx={67} cy={67} r={46}>
+            <LinearGradient start={vec(0,8)} end={vec(127,129)}
+              colors={['#263B4A','#101926','#0B0E17','#324455']} />
+          </Circle>
+          <Circle cx={markerX} cy={markerY} r={5} color={ACCENT[deck]} />
+          <Circle cx={67} cy={67} r={10} color="#172536" />
+          <Circle cx={67} cy={67} r={5} color="#C2D3DF" />
+        </Canvas>
+      </View>
+    </GestureDetector>
+    <Text style={[s.jogCaption, {color: ACCENT[deck]}]}>DECK {deck === 0 ? 'A' : 'B'} · JOG</Text>
+  </View>;
+});
 
 function Pads({controls, enabled, onSelect}: {controls: RealtimeControls; enabled: boolean; onSelect: (pad: PadIndex) => void}) {
   const [kit, setKit] = useState<1 | 2 | 3>(1);
@@ -289,6 +363,10 @@ function Studio() {
       <Text style={[s.deckBadge,{color:ACCENT[deck]}]}>{deck===0?'A':'B'}</Text><Text numberOfLines={1} style={s.trackName}>{tracks[deck]?.title??'Загрузить трек'}</Text></Pressable>)}</View>
     <Stripe controls={controls} deck={selected} track={tracks[selected]} samples={waveform} pad={pad} enabled={enabled}/>
     <StereoMeter controls={controls} />
+    <View style={s.jogRow}>
+      <Jog deck={0} controls={controls} enabled={enabled} track={tracks[0]} />
+      <Jog deck={1} controls={controls} enabled={enabled} track={tracks[1]} />
+    </View>
     <View style={s.stripeCaption}><Text style={s.hint}>{tracks[selected] ? `DECK ${selected===0?'A':'B'} · ${(selected===0?controls.deckBpm0:controls.deckBpm1).toFixed(0)} BPM` : 'PAD PCM · Нажми пэд для волны'}</Text>
       <Pressable accessibilityRole="button" disabled={!enabled || !tracks[0] || !tracks[1]} onPress={() => { if (autoMix) controls.stopAutoMix(); else controls.startAutoMix(4); }}>
         <Text style={[s.importLabel, (!enabled || !tracks[0] || !tracks[1]) && s.disabled]}>{autoMix ? 'СТОП МИКС' : 'AUTO MIX'}</Text></Pressable>
@@ -320,6 +398,10 @@ const s=StyleSheet.create({
   brand:{color:'#F6F7FA',fontSize:19,fontWeight:'900',letterSpacing:1},brandAccent:{color:ACCENT[0]},
   button:{minHeight:42,minWidth:38,paddingHorizontal:9,borderWidth:1,borderColor:'#34414D',borderRadius:8,alignItems:'center',justifyContent:'center',flexGrow:1},
   buttonText:{color:'#D8E0E7',fontSize:10,fontWeight:'800'},disabled:{opacity:.35},row:{flexDirection:'row',gap:7,alignItems:'center',marginVertical:7},rowBetween:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',gap:8},
+  jogRow:{flexDirection:'row',justifyContent:'space-evenly',paddingHorizontal:10,paddingTop:3,paddingBottom:2},
+  jogColumn:{alignItems:'center'},
+  jogHousing:{width:134,height:134,borderRadius:67,overflow:'hidden',backgroundColor:'#0A0E15'},
+  jogCaption:{fontSize:9,fontWeight:'800',letterSpacing:1,marginTop:4},
   vuRow:{flexDirection:'row',alignItems:'center',paddingHorizontal:14,gap:8,paddingTop:4},
   vuCaption:{fontSize:9,color:'#7E8C9E',fontWeight:'700',width:30},
   vuCanvas:{height:17,flex:1,backgroundColor:'#151E29',borderRadius:3,overflow:'hidden'},
