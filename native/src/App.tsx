@@ -306,12 +306,17 @@ function ChannelStrip({deck, controls, enabled}: {deck: Deck; controls: Realtime
 function Mixer({controls, enabled, track, deck}: {controls: RealtimeControls; enabled: boolean; track: TrackInfo | null; deck: Deck}) {
   const [rate, setRate] = useState<[number, number]>([1,1]);
   const [loop, setLoop] = useState<[number, number]>([0,0]);
+  const [hotCues, setHotCues] = useState<[boolean[], boolean[]]>([
+    Array.from({length: 8}, () => false), Array.from({length: 8}, () => false),
+  ]);
   const sources = useRef<[TrackInfo | null, TrackInfo | null]>([null, null]);
   useEffect(() => {
     if (sources.current[deck] === track) return;
     sources.current[deck] = track;
     setRate([controls.deckRate0, controls.deckRate1]);
     setLoop(old => old.map((v,i) => i === deck ? 0 : v) as [number,number]);
+    setHotCues(old => old.map((row, i) =>
+      i === deck ? Array.from({length: 8}, () => false) : row) as [boolean[], boolean[]]);
   }, [controls, deck, track]);
   function tempo(delta: number) { const next = Math.max(0.5, Math.min(1.5, rate[deck] + delta)); if (controls.deckRate(deck, next)) setRate(old => old.map((v,i) => i === deck ? next : v) as [number,number]); }
   function loopBeats(beats: number) {
@@ -324,12 +329,43 @@ function Mixer({controls, enabled, track, deck}: {controls: RealtimeControls; en
     const next = loop[deck] === beats ? 0 : beats;
     if (controls.deckLoop(deck, next ? start : 0, next ? start + span : 1)) setLoop(old => old.map((v,i) => i === deck ? next : v) as [number,number]);
   }
+  function activateHotCue(slot: number) {
+    if (!enabled || !track) return;
+    if (controls.deckHotCuePosition(deck, slot) >= 0) {
+      controls.deckHotCue(deck, slot);
+    } else if (controls.deckSetHotCue(deck, slot)) {
+      setHotCues(old => old.map((row, index) =>
+        index === deck ? row.map((value, at) => at === slot ? true : value) : row) as [boolean[], boolean[]]);
+    }
+  }
+  function setHotCue(slot: number) {
+    if (!enabled || !track || !controls.deckSetHotCue(deck, slot)) return;
+    setHotCues(old => old.map((row, index) =>
+      index === deck ? row.map((value, at) => at === slot ? true : value) : row) as [boolean[], boolean[]]);
+  }
   return <ScrollView contentContainerStyle={s.page} nestedScrollEnabled showsVerticalScrollIndicator={false}>
     <View style={s.channels}><ChannelStrip deck={0} controls={controls} enabled={enabled} /><View style={s.channelDivider} /><ChannelStrip deck={1} controls={controls} enabled={enabled} /></View>
     <Text style={s.section}>DECK {deck === 0 ? 'A' : 'B'} · TEMPO / LOOP</Text>
     <View style={s.row}><Button text="−" onPress={() => tempo(-0.01)} disabled={!track || !enabled} /><Text style={s.bpm}>{((rate[deck]-1)*100).toFixed(0)}%</Text>
       <Button text="+" onPress={() => tempo(0.01)} disabled={!track || !enabled} /><Button text="SYNC" onPress={() => { if (controls.deckSync(deck)) setRate([controls.deckRate0,controls.deckRate1]); }} disabled={!track || !enabled} /></View>
     <View style={s.row}>{[1,2,4,8].map(beats => <Button key={beats} text={`${beats}`} active={loop[deck] === beats} disabled={!enabled || !track} onPress={() => loopBeats(beats)} />)}</View>
+    <Text style={s.section}>HOT CUES · DECK {deck === 0 ? 'A' : 'B'}</Text>
+    <View style={s.hotCueGrid}>{Array.from({length: 8}, (_, slot) =>
+      <Pressable key={slot} accessibilityRole="button"
+        accessibilityLabel={`Hot Cue ${slot + 1}, дека ${deck === 0 ? 'A' : 'B'}`}
+        accessibilityHint="Нажатие запускает точку; удержание сохраняет текущую позицию"
+        disabled={!enabled || !track}
+        onPress={() => activateHotCue(slot)}
+        onLongPress={() => setHotCue(slot)}
+        style={[s.hotCueButton, (hotCues[deck][slot] ?? false) && {borderColor: ACCENT[deck], backgroundColor:'#20313E'}]}>
+        <Text style={[s.hotCueLabel, (hotCues[deck][slot] ?? false) && {color: ACCENT[deck]}]}>
+          CUE {slot + 1}
+        </Text>
+      </Pressable>)}</View>
+    <Text style={s.section}>BEAT JUMP</Text>
+    <View style={s.row}>{([-16,-4,-1,1,4,16] as const).map(beats =>
+      <Button key={beats} text={beats > 0 ? `+${beats}` : `${beats}`}
+        disabled={!enabled || !track} onPress={() => { controls.deckBeatJump(deck, beats); }} />)}</View>
     <MasterFader controls={controls} enabled={enabled} />
   </ScrollView>;
 }
@@ -444,6 +480,10 @@ const s=StyleSheet.create({
   pocket:{flex:1,borderTopWidth:1,borderBottomWidth:1,borderColor:'#27313E',backgroundColor:'#10161F'},page:{padding:14,paddingBottom:24,gap:9},section:{color:'#9CAEC1',fontSize:10,fontWeight:'800',letterSpacing:1.5,marginVertical:5},
   pads:{flexDirection:'row',flexWrap:'wrap',justifyContent:'space-between',rowGap:8},bpm:{color:'#FFF',fontSize:23,fontWeight:'700',textAlign:'center',minWidth:50,fontVariant:['tabular-nums']},
   steps:{flexDirection:'row',gap:3,alignItems:'center',marginBottom:5},lane:{width:34,color:'#94A5B8',fontSize:8},step:{width:24,height:29,borderWidth:1,borderColor:'#34414D',borderRadius:4,backgroundColor:'#182230'},stepOn:{backgroundColor:'#278B9D'},stepCurrent:{borderColor:'#FFF'},
+  hotCueGrid:{flexDirection:'row',flexWrap:'wrap',gap:7,justifyContent:'space-between'},
+  hotCueButton:{width:'23%',minHeight:45,backgroundColor:'#18222F',borderRadius:8,
+    borderWidth:1,borderColor:'#394656',alignItems:'center',justifyContent:'center'},
+  hotCueLabel:{fontSize:11,fontWeight:'800',color:'#C1CDD9'},
   grooves:{flexDirection:'row',flexWrap:'wrap',gap:7},groove:{width:'48%',padding:11,borderRadius:8,borderWidth:1,borderColor:'#2B3949'},grooveName:{color:'#DCEAF2',fontSize:10,fontWeight:'800',marginBottom:5},
   channels:{flexDirection:'row',justifyContent:'space-around'},channel:{flex:1,alignItems:'center'},channelName:{fontSize:13,fontWeight:'800',letterSpacing:1},channelDivider:{width:1,backgroundColor:'#2B3949',marginHorizontal:14},
   channelFader:{alignItems:'center',paddingTop:10},

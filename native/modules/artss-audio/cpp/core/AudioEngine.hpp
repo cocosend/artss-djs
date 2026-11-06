@@ -13,6 +13,7 @@ constexpr std::size_t kPadCount = 8;
 constexpr std::size_t kVoiceCount = 48;
 constexpr std::size_t kWaveformBins = 96;
 constexpr std::size_t kDeckCount = 2;
+constexpr std::size_t kHotCueCount = 8;
 constexpr std::size_t kKitCount = 4; // original starter kit + 303/606/909
 constexpr std::size_t kSteps = 16;
 
@@ -50,6 +51,10 @@ class AudioEngine final {
   bool deckSetCue(std::uint32_t deck) noexcept;
   bool deckCue(std::uint32_t deck) noexcept;
   float deckCuePosition(std::uint32_t deck) const noexcept;
+  bool deckSetHotCue(std::uint32_t deck, std::uint32_t slot) noexcept;
+  bool deckHotCue(std::uint32_t deck, std::uint32_t slot) noexcept;
+  float deckHotCuePosition(std::uint32_t deck, std::uint32_t slot) const noexcept;
+  bool deckBeatJump(std::uint32_t deck, std::int32_t beats) noexcept;
   bool deckSeek(std::uint32_t deck, float normalized) noexcept;
   bool deckRate(std::uint32_t deck, float rate) noexcept;
   bool deckFilter(std::uint32_t deck, float amount) noexcept;
@@ -154,6 +159,7 @@ class AudioEngine final {
     Sample track;
     std::array<float, kWaveformBins> waveform{};
     std::atomic<float> seek{-1}, cue{0}, rate{1}, jogRate{0}, position{0};
+    std::array<std::atomic<float>, kHotCueCount> hotCues{};
     std::atomic<std::uint32_t> jogRevision{0}, frameCount{0};
     std::atomic<std::uint64_t> loopRange{0x3f80000000000000ULL};
     std::atomic<float> gain{1}, lowDb{0}, midDb{0}, highDb{0};
