@@ -387,7 +387,7 @@ function FxPanel({controls, enabled}: {controls: RealtimeControls; enabled: bool
   const [bus, setBus] = useState<FxBus>(0);
   const [fx, setFx] = useState<FxId>(0);
   const [values, setValues] = useState(FX_START);
-  const current = values[bus][fx];
+  const current: FxTriple = values[bus]?.[fx] ?? [0, 1200, 0.35];
   function write(index: 0 | 1 | 2, next: number) {
     if (!enabled) return;
     const fixed = [...current] as FxTriple;
