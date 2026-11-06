@@ -13,6 +13,8 @@ class RealtimeControls final : public jsi::HostObject {
     const auto name = property.utf8(runtime);
     if (name == "running") return engine_->running();
     if (name == "peak") return engine_->peak();
+    if (name == "meterRmsL") return engine_->meterRmsL();
+    if (name == "meterRmsR") return engine_->meterRmsR();
     if (name == "frames") return static_cast<double>(engine_->renderedFrames());
     if (name == "droppedCommands") return static_cast<double>(engine_->droppedCommands());
     if (name == "renderOverruns") return static_cast<double>(backend_->overruns());

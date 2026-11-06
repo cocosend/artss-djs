@@ -625,6 +625,33 @@ void selectableCrossfadeCurves() {
   }
 }
 
+void stereoRmsMeterRegression() {
+  AudioEngine engine;
+  engine.prepare(48000, makeBank(8, 0));
+  Sample signal;
+  signal.stereo.resize(48000 * 2);
+  for (std::size_t frame = 0; frame < 48000; ++frame) {
+    signal.stereo[2 * frame] = 0.5F;
+    signal.stereo[2 * frame + 1] = 0.1F;
+  }
+  engine.loadDeck(0, std::move(signal), {120, 0, 1});
+  engine.activate();
+  assert(engine.crossfade(0) && engine.deckPlay(0, true));
+  std::array<float, 2048> left{}, right{};
+  render(engine, left.data(), right.data(), left.size());
+  const float rmsL = engine.meterRmsL(), rmsR = engine.meterRmsR();
+  assert(std::isfinite(rmsL) && std::isfinite(rmsR));
+  assert(rmsL > 2.0F * rmsR && rmsR > 0.001F);
+  assert(rmsL <= 0.96F && rmsR <= 0.96F);
+  assert(engine.setMaster(0));
+  render(engine, left.data(), right.data(), left.size());
+  render(engine, left.data(), right.data(), left.size());
+  assert(engine.meterRmsL() < 0.00001F && engine.meterRmsR() < 0.00001F);
+  engine.rejectCommands();
+  engine.deactivateAfterStop();
+  assert(engine.meterRmsL() == 0 && engine.meterRmsR() == 0);
+}
+
 int main() {
   for (const unsigned sampleRate : {44100U, 48000U, 96000U}) {
     Sample click;
@@ -682,6 +709,7 @@ int main() {
     }
   }
 
+  stereoRmsMeterRegression();
   selectableCrossfadeCurves();
   cueTransportRegression();
   automatedMixTransitions();
