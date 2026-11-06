@@ -37,6 +37,10 @@ export interface RealtimeControls {
   deckPlay(deck: 0 | 1, play: boolean): boolean;
   deckSetCue(deck: 0 | 1): boolean;
   deckCue(deck: 0 | 1): boolean;
+  deckSetHotCue(deck: 0 | 1, slot: number): boolean;
+  deckHotCue(deck: 0 | 1, slot: number): boolean;
+  deckHotCuePosition(deck: 0 | 1, slot: number): number;
+  deckBeatJump(deck: 0 | 1, beats: number): boolean;
   deckSeek(deck: 0 | 1, position: number): boolean;
   deckRate(deck: 0 | 1, rate: number): boolean;
   deckSync(deck: 0 | 1): boolean;
