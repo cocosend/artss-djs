@@ -306,6 +306,8 @@ function ChannelStrip({deck, controls, enabled}: {deck: Deck; controls: Realtime
 function Mixer({controls, enabled, track, deck}: {controls: RealtimeControls; enabled: boolean; track: TrackInfo | null; deck: Deck}) {
   const [rate, setRate] = useState<[number, number]>([1,1]);
   const [loop, setLoop] = useState<[number, number]>([0,0]);
+  const [loopIn, setLoopIn] = useState<[number | null, number | null]>([null, null]);
+  const [manualLoop, setManualLoop] = useState<[boolean, boolean]>([false, false]);
   const [grid, setGrid] = useState({bpm: 0, firstBeat: 0});
   const [hotCues, setHotCues] = useState<[boolean[], boolean[]]>([
     Array.from({length: 8}, () => false), Array.from({length: 8}, () => false),
@@ -318,6 +320,8 @@ function Mixer({controls, enabled, track, deck}: {controls: RealtimeControls; en
     setGrid({bpm: deck === 0 ? controls.deckBpm0 : controls.deckBpm1,
       firstBeat: deck === 0 ? controls.deckFirstBeat0 : controls.deckFirstBeat1});
     setLoop(old => old.map((v,i) => i === deck ? 0 : v) as [number,number]);
+    setLoopIn(old => old.map((v,i) => i === deck ? null : v) as [number | null, number | null]);
+    setManualLoop(old => old.map((v,i) => i === deck ? false : v) as [boolean, boolean]);
     setHotCues(old => old.map((row, i) =>
       i === deck ? Array.from({length: 8}, () => false) : row) as [boolean[], boolean[]]);
   }, [controls, deck, track]);
@@ -330,7 +334,36 @@ function Mixer({controls, enabled, track, deck}: {controls: RealtimeControls; en
     const span = Math.min(1, beats * 60 / bpm / track.duration);
     const start = Math.max(0, Math.min(1 - span, (first + Math.floor((at * track.duration - first) * bpm / 60) * 60 / bpm) / track.duration));
     const next = loop[deck] === beats ? 0 : beats;
-    if (controls.deckLoop(deck, next ? start : 0, next ? start + span : 1)) setLoop(old => old.map((v,i) => i === deck ? next : v) as [number,number]);
+    if (controls.deckLoop(deck, next ? start : 0, next ? start + span : 1)) {
+      setLoop(old => old.map((v,i) => i === deck ? next : v) as [number,number]);
+      setManualLoop(old => old.map((v,i) => i === deck ? false : v) as [boolean,boolean]);
+    }
+  }
+  function manualLoopIn() {
+    if (!enabled || !track) return;
+    const pos = Math.max(0, Math.min(0.99999,
+      deck === 0 ? controls.deckPosition0 : controls.deckPosition1));
+    setLoopIn(old => old.map((v,i) => i === deck ? pos : v) as [number | null, number | null]);
+  }
+  function manualLoopOut() {
+    if (!enabled || !track) return;
+    const start = loopIn[deck];
+    if (start === null) return;
+    const end = Math.max(0, Math.min(0.99999,
+      deck === 0 ? controls.deckPosition0 : controls.deckPosition1));
+    const low = Math.min(start, end);
+    const high = Math.max(start, end);
+    if (high - low < Math.max(0.0001, 0.05 / track.duration)) return;
+    if (controls.deckLoop(deck, low, high)) {
+      setManualLoop(old => old.map((v,i) => i === deck ? true : v) as [boolean,boolean]);
+      setLoop(old => old.map((v,i) => i === deck ? 0 : v) as [number,number]);
+    }
+  }
+  function clearManualLoop() {
+    if (!controls.deckLoop(deck, 0, 1)) return;
+    setManualLoop(old => old.map((v,i) => i === deck ? false : v) as [boolean,boolean]);
+    setLoop(old => old.map((v,i) => i === deck ? 0 : v) as [number,number]);
+    setLoopIn(old => old.map((v,i) => i === deck ? null : v) as [number | null, number | null]);
   }
   function shiftGrid(bpmDelta: number, offsetDelta: number) {
     if (!enabled || !track) return;
@@ -362,6 +395,12 @@ function Mixer({controls, enabled, track, deck}: {controls: RealtimeControls; en
     <View style={s.row}><Button text="−" onPress={() => tempo(-0.01)} disabled={!track || !enabled} /><Text style={s.bpm}>{((rate[deck]-1)*100).toFixed(0)}%</Text>
       <Button text="+" onPress={() => tempo(0.01)} disabled={!track || !enabled} /><Button text="SYNC" onPress={() => { if (controls.deckSync(deck)) setRate([controls.deckRate0,controls.deckRate1]); }} disabled={!track || !enabled} /></View>
     <View style={s.row}>{[1,2,4,8].map(beats => <Button key={beats} text={`${beats}`} active={loop[deck] === beats} disabled={!enabled || !track} onPress={() => loopBeats(beats)} />)}</View>
+    <Text style={s.section}>MANUAL LOOP · DECK {deck === 0 ? 'A' : 'B'}</Text>
+    <View style={s.row}>
+      <Button text="IN" active={loopIn[deck] !== null} disabled={!enabled || !track} onPress={manualLoopIn} />
+      <Button text="OUT" active={manualLoop[deck]} disabled={!enabled || !track || loopIn[deck] === null} onPress={manualLoopOut} />
+      <Button text="EXIT" disabled={!enabled || !track} onPress={clearManualLoop} />
+    </View>
     <Text style={s.section}>BEAT GRID · MANUAL CORRECTION</Text>
     <View style={s.row}>
       <Button text="BPM −" disabled={!enabled || !track} onPress={() => shiftGrid(-1, 0)} />
