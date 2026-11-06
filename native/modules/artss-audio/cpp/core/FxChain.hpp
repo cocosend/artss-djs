@@ -57,6 +57,7 @@ class FxChain final {
     for (auto& c : allpassL_) c.reset();
     for (auto& c : allpassR_) c.reset();
     filterL_ = {}; filterR_ = {};
+    engaged_ = false;
     delayWrite_ = flangeWrite_ = rollWrite_ = rollStored_ = 0;
     rollStart_ = rollPos_ = rollLength_ = 0;
     rollBeat_ = std::numeric_limits<std::int64_t>::min();
@@ -144,11 +145,15 @@ class FxChain final {
     block_.bits = targetBits_.load(std::memory_order_relaxed);
     block_.hold = targetHold_.load(std::memory_order_relaxed);
     block_.roll = rollRequest_.load(std::memory_order_acquire);
+    if (mode || block_.delayMix > 0 || block_.reverbMix > 0 ||
+        block_.flangeMix > 0 || block_.crushMix > 0 || block_.roll)
+      engaged_ = true;
   }
 
   // Single audio owner: no alloc, syscall, lock, I/O or std::function.
   void process(float& l, float& r, double transportFrame, float bpm,
                double firstBeatFrame) noexcept {
+    if (!engaged_) return;
     filterG_ += coeff_ * (block_.g - filterG_);
     filterK_ += coeff_ * (block_.k - filterK_);
     lpMix_ += coeff_ * (block_.lp - lpMix_);
@@ -350,7 +355,7 @@ class FxChain final {
   std::size_t rollStart_{}, rollPos_{}, rollLength_{};
   std::int64_t rollBeat_{std::numeric_limits<std::int64_t>::min()};
   int rollCode_{};
-  bool rollActive_{};
+  bool rollActive_{}, engaged_{};
   float rollBlend_{}, sampleRate_{48000}, coeff_{0.001F};
   float lfoPhase_{}, delayTimeSmooth_{12000};
   float filterG_{0.1F}, filterK_{1};

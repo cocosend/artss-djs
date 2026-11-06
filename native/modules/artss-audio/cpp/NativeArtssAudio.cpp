@@ -159,6 +159,22 @@ class RealtimeControls final : public jsi::HostObject {
             return count >= 1 && args[0].isNumber() && engine->crossfade(static_cast<float>(args[0].asNumber()));
           });
     }
+    if (name == "setFx") {
+      return jsi::Function::createFromHostFunction(runtime, property, 5,
+          [engine = engine_](jsi::Runtime&, const jsi::Value&, const jsi::Value* args, std::size_t count) -> jsi::Value {
+            if (count < 5) return false;
+            for (std::size_t i = 0; i < 5; ++i)
+              if (!args[i].isNumber() || !std::isfinite(args[i].asNumber())) return false;
+            const double bus = args[0].asNumber(), effect = args[1].asNumber();
+            if (bus != std::floor(bus) || bus < 0 || bus > 2 ||
+                effect != std::floor(effect) || effect < 0 || effect > 5) return false;
+            return engine->setFx(static_cast<std::uint32_t>(bus),
+                                 static_cast<std::uint32_t>(effect),
+                                 static_cast<float>(args[2].asNumber()),
+                                 static_cast<float>(args[3].asNumber()),
+                                 static_cast<float>(args[4].asNumber()));
+          });
+    }
     if (name == "setDeckGain" || name == "setDeckEQ") {
       return jsi::Function::createFromHostFunction(runtime, property, name == "setDeckEQ" ? 4 : 2,
           [engine = engine_, name](jsi::Runtime&, const jsi::Value&, const jsi::Value* args, std::size_t count) -> jsi::Value {

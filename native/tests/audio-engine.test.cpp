@@ -849,6 +849,96 @@ void shortWaveformEmptyBinsRegression() {
   }
 }
 
+void nativeFxChainRegression() {
+  // These tests use the real engine and callback, not a separate test DSP.
+  // All delay and reverb storage is allocated by prepare() before activation.
+  AudioEngine engine;
+  engine.prepare(48000, makeBank(8, 0));
+  Sample impulse, reverse;
+  impulse.stereo.assign(48000 * 3 * 2, 0);
+  reverse.stereo.assign(48000 * 3 * 2, 0);
+  for (std::size_t i = 0; i < 48000 * 3; ++i) {
+    if (i == 256) {
+      impulse.stereo[2 * i] = 0.7F;
+      impulse.stereo[2 * i + 1] = -0.7F;
+      reverse.stereo[2 * i] = -0.4F;
+      reverse.stereo[2 * i + 1] = 0.4F;
+    }
+  }
+  engine.loadDeck(0, std::move(impulse), {120, 0, 1});
+  engine.loadDeck(1, std::move(reverse), {120, 0, 1});
+  assert(!engine.setFx(0, 0, 1, 1200, 0.6F));
+  engine.activate();
+  assert(!engine.setFx(3, 0, 1, 800, 0.5F));
+  assert(!engine.setFx(0, 6, 0, 0, 0));
+  assert(!engine.setFx(0, 0, 1, NAN, 0.2F));
+  assert(!engine.setFx(0, 0, 1, 500, 1.2F));
+  assert(!engine.setFx(0, 5, 6, 0, 0));
+  assert(!engine.setFx(0, 1, 1, 150, 0.99F));
+  assert(engine.setFx(0, 0, 1, 150, 1));
+  assert(engine.setFx(0, 1, 0.6F, 120.0F, 0.7F));
+  assert(engine.setFx(0, 2, 0.7F, 0.8F, 0.5F));
+  assert(engine.setFx(0, 3, 0.6F, 0.7F, 0.8F));
+  assert(engine.setFx(0, 4, 0.5F, 10, 4));
+  assert(engine.setFx(1, 0, 2, 2600, 0.7F));
+  assert(engine.setFx(1, 1, 0.4F, 240, 0.55F));
+  assert(engine.setFx(2, 0, 1, 750, 0.5F));
+  assert(engine.setFx(2, 2, 0.5F, 0.5F, 0.35F));
+  assert(engine.crossfade(0.5F));
+  assert(engine.deckPlay(0, true));
+  assert(engine.deckPlay(1, true));
+  std::array<float, 512> left{}, right{};
+  float lastL = 0;
+  for (int block = 0; block < 120; ++block) {
+    if (block == 20) {
+      assert(engine.setFx(0, 0, 2, 10000, 0.95F));
+      assert(engine.setFx(2, 0, 2, 50, 1));
+    }
+    if (block == 40) {
+      assert(engine.setFx(0, 5, 3, 0, 0));
+      assert(engine.setFx(2, 5, 2, 0, 0));
+    }
+    if (block == 90) {
+      assert(engine.setFx(0, 5, 0, 0, 0));
+      assert(engine.setFx(2, 5, 0, 0, 0));
+    }
+    render(engine, left.data(), right.data(), left.size());
+    for (std::size_t i = 0; i < left.size(); ++i) {
+      assert(std::isfinite(left[i]) && std::isfinite(right[i]));
+      assert(std::abs(left[i]) <= 0.960001F);
+      assert(std::abs(right[i]) <= 0.960001F);
+    }
+    lastL = left.back();
+  }
+  (void)lastL;
+  engine.rejectCommands();
+  engine.deactivateAfterStop();
+  assert(!engine.setFx(0, 0, 1, 800, 0.5F));
+}
+
+void fxSvfImpulseSweepRegression() {
+  // All extreme cutoff/resonance sweeps are impulse-stable and finite.
+  for (const double sampleRate : {44100.0, 48000.0, 96000.0}) {
+    FxChain chain(sampleRate);
+    assert(!chain.set(0, 1, 25000, 0.5F));
+    for (int mode : {1, 2}) {
+      chain.reset();
+      for (int sweep = 0; sweep < 6; ++sweep) {
+        const float cutoff = sweep % 2 ? 20.0F : 0.44F * static_cast<float>(sampleRate);
+        assert(chain.set(0, static_cast<float>(mode), cutoff, sweep % 2 ? 1.0F : 0.0F));
+        chain.beginBlock();
+        for (int i = 0; i < 1024; ++i) {
+          float l = (i == 0) ? 0.8F : 0.0F;
+          float r = (i == 0) ? -0.8F : 0.0F;
+          chain.process(l, r, i + 1024.0 * sweep, 120.0F, 0);
+          assert(std::isfinite(l) && std::isfinite(r));
+          assert(std::abs(l) < 5.0F && std::abs(r) < 5.0F);
+        }
+      }
+    }
+  }
+}
+
 int main() {
   for (const unsigned sampleRate : {44100U, 48000U, 96000U}) {
     Sample click;
@@ -908,6 +998,8 @@ int main() {
 
   stereoRmsMeterRegression();
   selectableCrossfadeCurves();
+  fxSvfImpulseSweepRegression();
+  nativeFxChainRegression();
   shortWaveformEmptyBinsRegression();
   multiresolutionWaveformRegression();
   manualBeatGridRegression();

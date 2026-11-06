@@ -1,10 +1,12 @@
 #pragma once
 
 #include "BoundedQueue.hpp"
+#include "FxChain.hpp"
 
 #include <array>
 #include <atomic>
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 namespace artss::audio {
@@ -71,6 +73,9 @@ class AudioEngine final {
   bool setEQ(float lowDb, float midDb, float highDb) noexcept;
   bool setDeckEQ(std::uint32_t deck, float lowDb, float midDb, float highDb) noexcept;
   bool setDeckGain(std::uint32_t deck, float gain) noexcept;
+  // 3 buses: A, B, Master. DSP values are published with lock-free atomics.
+  bool setFx(std::uint32_t bus, std::uint32_t effect,
+             float a, float b, float c) noexcept;
   bool setKit(std::uint32_t kit) noexcept;
   bool setTempo(float bpm) noexcept;
   bool setStep(std::uint32_t pad, std::uint32_t step, float velocity) noexcept;
@@ -175,6 +180,9 @@ class AudioEngine final {
     std::uint32_t seekFadeRemaining{0}, seenJogRevision{0}, jogIdleFrames{0};
   };
   std::array<Deck, kDeckCount> decks_{};
+  // Allocated in prepare() while RemoteIO is stopped. Pointers remain stable
+  // for the lifetime of the Engine; all delay-line memory belongs to FxChain.
+  std::array<std::unique_ptr<FxChain>, kDeckCount + 1> fxChains_{};
   // Curve IDs: 0 smooth (S-curve), 1 sharp (scratch cut), 2 dipless (existing).
   std::atomic<std::uint32_t> requestedCrossfadeCurve_{2};
   float curveGainA_{0.707106781F}, curveGainB_{0.707106781F};

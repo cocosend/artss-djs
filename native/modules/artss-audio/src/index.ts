@@ -56,6 +56,8 @@ export interface RealtimeControls {
   setCrossfadeCurve(curve: 0 | 1 | 2): boolean;
   setDeckEQ(deck: 0 | 1, low: number, mid: number, high: number): boolean;
   setDeckGain(deck: 0 | 1, gain: number): boolean;
+  setFx(bus: 0 | 1 | 2, effect: 0 | 1 | 2 | 3 | 4 | 5,
+        a: number, b: number, c: number): boolean;
   setEQ(lowDb: number, midDb: number, highDb: number): boolean;
   setKit(kit: 1 | 2 | 3): boolean;
   setTempo(bpm: number): boolean;

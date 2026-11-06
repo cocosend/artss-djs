@@ -105,3 +105,13 @@ Checked items are implemented in the native source; no physical-device latency/F
 - Metal vertex shader skips alpha==0 columns, avoiding phantom spikes at empty bins.
 - C++ regression covers 100-frame track at all 3 zooms, plus a 1-frame boundary case,
   exact zero byte fill and finite/normalized decoded values.
+
+## Cycle 12: real-time stereo FX chain
+
+- Three independent FxChain instances: deck A, deck B, master. No second audio engine.
+- FX instances preallocate bounded delay/reverb/flanger/4-beat Roll buffers in constructor, during prepare while RemoteIO stopped.
+- Audio callback snapshots controls once per block, filters cutoff and resonance per sample, processes stereo signals before deck mix/master limiter.
+- Ping-pong Delay, 4-comb 2-allpass stereo Reverb, 2-pole TPT LPF/HPF, stereo Flanger, bit-depth/sample-rate Bitcrusher and beat-grid quantized frozen Roll.
+- Roll uses preceding PCM ring without copying during callback, arms on the next musical beat boundary, and crossfades short seams.
+- Runtime regression covers impulse filter sweeps at 44.1/48/96 kHz, invalid params, dual-deck/master FX, roll, finite PCM and limiter output.
+- JSI / TypeScript method setFx(bus 0/1/2, effect 0..5, a,b,c) updates lock-free atomics.

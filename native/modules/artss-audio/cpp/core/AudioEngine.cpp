@@ -117,6 +117,10 @@ void AudioEngine::prepare(double sampleRate, SampleBank bank) {
       progress_[pad].store(-1, std::memory_order_relaxed);
     }
   }
+  for (auto& chain : fxChains_) {
+    if (!chain) chain = std::make_unique<FxChain>(sampleRate);
+    else chain->configure(sampleRate);
+  }
   prepared_ = true;
 }
 
@@ -146,6 +150,8 @@ void AudioEngine::deactivateAfterStop() noexcept {
   voices_ = {};
   limiter_ = 1;
   limiterHold_ = 0;
+  // Reset while the hardware callback is stopped; never clear FX rings in RT.
+  for (auto& chain : fxChains_) if (chain) chain->reset();
   lowL_ = lowR_ = highLpL_ = highLpR_ = 0;
   peak_.store(0, std::memory_order_relaxed);
   meterRmsL_.store(0, std::memory_order_relaxed);
@@ -426,6 +432,12 @@ void AudioEngine::stopAutoMix() noexcept {
   autoMixCommand_.store(-1, std::memory_order_release);
   autoMixState_.store(0, std::memory_order_release);
 }
+bool AudioEngine::setFx(std::uint32_t bus, std::uint32_t effect,
+                        float a, float b, float c) noexcept {
+  if (bus >= fxChains_.size() || !running()) return false;
+  return fxChains_[bus] && fxChains_[bus]->set(effect, a, b, c);
+}
+
 bool AudioEngine::setEQ(float lowDb, float midDb, float highDb) noexcept {
   const auto valid = [](float db) noexcept { return std::isfinite(db) && db >= -12 && db <= 12; };
   if (!valid(lowDb) || !valid(midDb) || !valid(highDb)) return false;
@@ -577,6 +589,9 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
   const double stepFrames = sampleRate_ * 15.0 / tempo_.load(std::memory_order_relaxed);
   float targetCrossfade = requestedCrossfade_.load(std::memory_order_relaxed);
   const auto curve = requestedCrossfadeCurve_.load(std::memory_order_relaxed);
+  const float masterBpm = tempo_.load(std::memory_order_relaxed);
+  const auto baseRenderFrame = renderedFrames_.load(std::memory_order_relaxed);
+  for (auto& chain : fxChains_) if (chain) chain->beginBlock();
   int autoCommand = autoMixCommand_.exchange(0, std::memory_order_acq_rel);
   // After a transition, wait until the playing track approaches its end, then
   // bring the other deck back in. A manual fader move or pause cancels it.
@@ -633,12 +648,16 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
     rates[index] = decks_[index].rate.load(std::memory_order_relaxed);
   }
   std::array<float, kDeckCount> deckLow{}, deckMid{}, deckHigh{}, deckGain{}, loopStarts{}, loopEnds{};
+  std::array<float, kDeckCount> fxBpm{}, fxFirstBeatFrames{};
   for (std::size_t index = 0; index < kDeckCount; ++index) {
     const auto& deck = decks_[index];
     deckLow[index] = std::pow(10.0F, deck.lowDb.load(std::memory_order_relaxed) / 20.0F);
     deckMid[index] = std::pow(10.0F, deck.midDb.load(std::memory_order_relaxed) / 20.0F);
     deckHigh[index] = std::pow(10.0F, deck.highDb.load(std::memory_order_relaxed) / 20.0F);
     deckGain[index] = deck.gain.load(std::memory_order_relaxed);
+    const float detectedBpm = deck.bpm.load(std::memory_order_relaxed);
+    fxBpm[index] = detectedBpm >= 60 && detectedBpm <= 200 ? detectedBpm : masterBpm;
+    fxFirstBeatFrames[index] = deck.firstBeat.load(std::memory_order_relaxed) * static_cast<float>(sampleRate_);
     const auto loop = deck.loopRange.load(std::memory_order_acquire);
     loopStarts[index] = std::bit_cast<float>(static_cast<std::uint32_t>(loop));
     loopEnds[index] = std::bit_cast<float>(static_cast<std::uint32_t>(loop >> 32));
@@ -763,11 +782,12 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
                           (deck.cursor >= total - 1 && deck.actualRate > 0);
       const bool audible = (jogging ? std::abs(targetRate) > 0.015F : playing) && !atEdge;
       deck.envelope += std::clamp((audible ? 1.0F : 0.0F) - deck.envelope, -gainSlew_, gainSlew_);
+      float fxInputL = 0.0F, fxInputR = 0.0F;
+      const float side = index == 0 ? gainA : gainB;
       if (deck.envelope > 0 && deck.cursor < total) {
         const auto first = static_cast<std::size_t>(deck.cursor);
         const auto next = std::min<std::size_t>(first + 1, total - 1);
         const float fraction = static_cast<float>(deck.cursor - first);
-        const float side = index == 0 ? gainA : gainB;
         float sampleL = deck.track.stereo[2 * first] * (1 - fraction) + deck.track.stereo[2 * next] * fraction;
         float sampleR = deck.track.stereo[2 * first + 1] * (1 - fraction) + deck.track.stereo[2 * next + 1] * fraction;
         if (deck.seekFadeRemaining > 0) {
@@ -813,12 +833,18 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
         };
         sampleL = channelEQ(sampleL, deck.eqLowL, deck.eqHighL);
         sampleR = channelEQ(sampleR, deck.eqLowR, deck.eqHighR);
-        deck.bassL += bassCoefficient_ * (sampleL - deck.bassL);
-        deck.bassR += bassCoefficient_ * (sampleR - deck.bassR);
-        const float bassSide = index == 0 ? curveBassA_ : curveBassB_;
-        l += ((sampleL - deck.bassL) * side + deck.bassL * bassSide) * deck.envelope;
-        r += ((sampleR - deck.bassR) * side + deck.bassR * bassSide) * deck.envelope;
+        fxInputL = sampleL * deck.envelope;
+        fxInputR = sampleR * deck.envelope;
       }
+      // Render reverb/delay tails even after the dry deck has paused.
+      // All FX state remains audio-thread-owned; there are no allocations.
+      fxChains_[index]->process(fxInputL, fxInputR, deck.cursor,
+                                fxBpm[index], fxFirstBeatFrames[index]);
+      deck.bassL += bassCoefficient_ * (fxInputL - deck.bassL);
+      deck.bassR += bassCoefficient_ * (fxInputR - deck.bassR);
+      const float bassSide = index == 0 ? curveBassA_ : curveBassB_;
+      l += ((fxInputL - deck.bassL) * side + deck.bassL * bassSide);
+      r += ((fxInputR - deck.bassR) * side + deck.bassR * bassSide);
       if (jogging) {
         deck.cursor = std::clamp(deck.cursor + deck.actualRate, 0.0, static_cast<double>(total - 1));
       } else if (playing) {
@@ -850,6 +876,8 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
     };
     l = equalize(l, lowL_, highLpL_);
     r = equalize(r, lowR_, highLpR_);
+    fxChains_[kDeckCount]->process(l, r, static_cast<double>(baseRenderFrame) + frame,
+                                    masterBpm, 0.0);
     master_ += std::clamp(targetMaster - master_, -gainSlew_, gainSlew_);
     l *= master_ * kHeadroom;
     r *= master_ * kHeadroom;
