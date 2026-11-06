@@ -1,5 +1,6 @@
 #include "AudioEngine.hpp"
 #include "BeatGrid.hpp"
+#include "WaveformCache.hpp"
 #include "DrumSynth.hpp"
 
 #include <array>
@@ -731,6 +732,64 @@ void manualBeatGridRegression() {
   assert(!engine.deckBeatJump(0, -65));
 }
 
+void multiresolutionWaveformRegression() {
+  static_assert(artss::audio::kWaveformCacheBytes == 24192);
+  static_assert(std::atomic<int>::is_always_lock_free);
+  using namespace artss::audio;
+  Sample stereo;
+  stereo.stereo.resize(48000 * 2);
+  for (std::size_t i = 0; i < 48000; ++i) {
+    stereo.stereo[2 * i] = 0.5F;
+    stereo.stereo[2 * i + 1] = -0.25F;
+  }
+  const auto cache = precomputeWaveform(stereo, 48000);
+  for (std::size_t level = 0; level < kWaveformWidths.size(); ++level) {
+    const auto width = kWaveformWidths[level];
+    const auto* bytes = cache.rgba8.data() + waveformLevelOffset(level);
+    const std::size_t firstL = 0;
+    const std::size_t firstR = width * 4;
+    const std::size_t last = (width - 1) * 4;
+    assert(bytes[firstL] > 180 && bytes[firstL] < 200);   // +0.5 signed PCM
+    assert(bytes[firstL + 1] == bytes[firstL]);
+    assert(bytes[firstL + 2] >= 126 && bytes[firstL + 2] <= 128);
+    assert(bytes[firstR] > 90 && bytes[firstR] < 100);     // -0.25 signed PCM
+    assert(bytes[firstR + 2] > 62 && bytes[firstR + 2] < 65);
+    assert(bytes[last + 3] == 255);
+    const auto spectrum = (2 * width) * 4;
+    assert(bytes[spectrum] > 0);
+  }
+  Sample silence;
+  silence.stereo.assign(2048 * 2, 0);
+  const auto quiet = precomputeWaveform(silence, 44100);
+  for (std::size_t level = 0; level < kWaveformWidths.size(); ++level) {
+    const auto* pixels = quiet.rgba8.data() + waveformLevelOffset(level);
+    assert(pixels[2] == 0);
+    assert(pixels[(2 * kWaveformWidths[level]) * 4] == 0);
+  }
+  bool bad = false;
+  try { (void)precomputeWaveform(silence, 0); }
+  catch (const std::invalid_argument&) { bad = true; }
+  assert(bad);
+  // Spectral energy is precomputed, not estimated by a display shader.
+  const auto spectrumOf = [](double frequency) {
+    Sample tone;
+    tone.stereo.resize(48000 * 2);
+    for (std::size_t i = 0; i < 48000; ++i) {
+      const float v = 0.6F * std::sin(6.283185307179586 * frequency * i / 48000);
+      tone.stereo[2 * i] = tone.stereo[2 * i + 1] = v;
+    }
+    auto result = precomputeWaveform(tone, 48000);
+    return std::array<std::uint8_t, 3>{
+      result.rgba8[2 * kWaveformWidths[0] * 4],
+      result.rgba8[2 * kWaveformWidths[0] * 4 + 1],
+      result.rgba8[2 * kWaveformWidths[0] * 4 + 2]};
+  };
+  const auto bass = spectrumOf(70);
+  const auto treble = spectrumOf(7000);
+  assert(bass[0] > bass[2]);
+  assert(treble[2] > treble[0]);
+}
+
 int main() {
   for (const unsigned sampleRate : {44100U, 48000U, 96000U}) {
     Sample click;
@@ -790,6 +849,7 @@ int main() {
 
   stereoRmsMeterRegression();
   selectableCrossfadeCurves();
+  multiresolutionWaveformRegression();
   manualBeatGridRegression();
   hotCueAndBeatJumpRegression();
   cueTransportRegression();

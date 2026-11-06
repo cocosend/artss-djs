@@ -19,6 +19,7 @@ constexpr std::array<std::array<Drum, kPadCount>, 3> kFactoryKits{{
     {Drum::Kick909, Drum::Snare909, Drum::Clap909, Drum::Hat606,
      Drum::OpenHat909, Drum::Tom909, Drum::Ride909, Drum::Acid303},
 }};
+static_assert(std::atomic<int>::is_always_lock_free, "autoMixCommand requires lock-free atomics");
 static_assert(std::atomic<float>::is_always_lock_free);
 static_assert(std::atomic<std::uint64_t>::is_always_lock_free);
 }
