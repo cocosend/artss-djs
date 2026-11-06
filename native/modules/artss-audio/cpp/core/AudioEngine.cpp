@@ -336,6 +336,20 @@ bool AudioEngine::deckFilter(std::uint32_t index, float amount) noexcept {
   decks_[index].filterAmount.store(amount, std::memory_order_release);
   return true;
 }
+bool AudioEngine::deckSetBeatGrid(std::uint32_t index, float bpm, float firstBeatSeconds) noexcept {
+  if (index >= kDeckCount || !running() || !std::isfinite(bpm) ||
+      bpm < 60.0F || bpm > 200.0F || !std::isfinite(firstBeatSeconds) ||
+      firstBeatSeconds < 0.0F) return false;
+  auto& deck = decks_[index];
+  if (!deck.loaded.load(std::memory_order_acquire)) return false;
+  const auto frames = deck.frameCount.load(std::memory_order_acquire);
+  if (!frames || static_cast<double>(firstBeatSeconds) >= frames / sampleRate_) return false;
+  deck.firstBeat.store(firstBeatSeconds, std::memory_order_release);
+  deck.bpm.store(bpm, std::memory_order_release);
+  stopAutoMix();
+  return true;
+}
+
 bool AudioEngine::deckSync(std::uint32_t index) noexcept {
   if (index >= kDeckCount || !running()) return false;
   auto& target = decks_[index];

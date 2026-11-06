@@ -59,6 +59,7 @@ class AudioEngine final {
   bool deckRate(std::uint32_t deck, float rate) noexcept;
   bool deckFilter(std::uint32_t deck, float amount) noexcept;
   bool deckSync(std::uint32_t deck) noexcept;
+  bool deckSetBeatGrid(std::uint32_t deck, float bpm, float firstBeatSeconds) noexcept;
   bool deckJog(std::uint32_t deck, float speed, bool touching) noexcept;
   bool deckLoop(std::uint32_t deck, float start, float end) noexcept;
   bool crossfade(float position) noexcept;

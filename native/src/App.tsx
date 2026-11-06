@@ -306,6 +306,7 @@ function ChannelStrip({deck, controls, enabled}: {deck: Deck; controls: Realtime
 function Mixer({controls, enabled, track, deck}: {controls: RealtimeControls; enabled: boolean; track: TrackInfo | null; deck: Deck}) {
   const [rate, setRate] = useState<[number, number]>([1,1]);
   const [loop, setLoop] = useState<[number, number]>([0,0]);
+  const [grid, setGrid] = useState({bpm: 0, firstBeat: 0});
   const [hotCues, setHotCues] = useState<[boolean[], boolean[]]>([
     Array.from({length: 8}, () => false), Array.from({length: 8}, () => false),
   ]);
@@ -314,6 +315,8 @@ function Mixer({controls, enabled, track, deck}: {controls: RealtimeControls; en
     if (sources.current[deck] === track) return;
     sources.current[deck] = track;
     setRate([controls.deckRate0, controls.deckRate1]);
+    setGrid({bpm: deck === 0 ? controls.deckBpm0 : controls.deckBpm1,
+      firstBeat: deck === 0 ? controls.deckFirstBeat0 : controls.deckFirstBeat1});
     setLoop(old => old.map((v,i) => i === deck ? 0 : v) as [number,number]);
     setHotCues(old => old.map((row, i) =>
       i === deck ? Array.from({length: 8}, () => false) : row) as [boolean[], boolean[]]);
@@ -328,6 +331,16 @@ function Mixer({controls, enabled, track, deck}: {controls: RealtimeControls; en
     const start = Math.max(0, Math.min(1 - span, (first + Math.floor((at * track.duration - first) * bpm / 60) * 60 / bpm) / track.duration));
     const next = loop[deck] === beats ? 0 : beats;
     if (controls.deckLoop(deck, next ? start : 0, next ? start + span : 1)) setLoop(old => old.map((v,i) => i === deck ? next : v) as [number,number]);
+  }
+  function shiftGrid(bpmDelta: number, offsetDelta: number) {
+    if (!enabled || !track) return;
+    const baseBpm = grid.bpm >= 60 ? grid.bpm : 128;
+    const nextBpm = Math.max(60, Math.min(200, Math.round((baseBpm + bpmDelta) * 10) / 10));
+    const nextFirst = Math.max(0, Math.min(track.duration - 0.001,
+      Math.round((grid.firstBeat + offsetDelta) * 1000) / 1000));
+    if (controls.deckSetBeatGrid(deck, nextBpm, nextFirst)) {
+      setGrid({bpm: nextBpm, firstBeat: nextFirst});
+    }
   }
   function activateHotCue(slot: number) {
     if (!enabled || !track) return;
@@ -349,6 +362,17 @@ function Mixer({controls, enabled, track, deck}: {controls: RealtimeControls; en
     <View style={s.row}><Button text="−" onPress={() => tempo(-0.01)} disabled={!track || !enabled} /><Text style={s.bpm}>{((rate[deck]-1)*100).toFixed(0)}%</Text>
       <Button text="+" onPress={() => tempo(0.01)} disabled={!track || !enabled} /><Button text="SYNC" onPress={() => { if (controls.deckSync(deck)) setRate([controls.deckRate0,controls.deckRate1]); }} disabled={!track || !enabled} /></View>
     <View style={s.row}>{[1,2,4,8].map(beats => <Button key={beats} text={`${beats}`} active={loop[deck] === beats} disabled={!enabled || !track} onPress={() => loopBeats(beats)} />)}</View>
+    <Text style={s.section}>BEAT GRID · MANUAL CORRECTION</Text>
+    <View style={s.row}>
+      <Button text="BPM −" disabled={!enabled || !track} onPress={() => shiftGrid(-1, 0)} />
+      <Text style={s.gridValue}>{grid.bpm.toFixed(1)}</Text>
+      <Button text="BPM +" disabled={!enabled || !track} onPress={() => shiftGrid(1, 0)} />
+    </View>
+    <View style={s.row}>
+      <Button text="GRID −10ms" disabled={!enabled || !track} onPress={() => shiftGrid(0, -0.01)} />
+      <Text style={s.gridValue}>{(grid.firstBeat * 1000).toFixed(0)} ms</Text>
+      <Button text="GRID +10ms" disabled={!enabled || !track} onPress={() => shiftGrid(0, 0.01)} />
+    </View>
     <Text style={s.section}>HOT CUES · DECK {deck === 0 ? 'A' : 'B'}</Text>
     <View style={s.hotCueGrid}>{Array.from({length: 8}, (_, slot) =>
       <Pressable key={slot} accessibilityRole="button"
@@ -480,6 +504,7 @@ const s=StyleSheet.create({
   pocket:{flex:1,borderTopWidth:1,borderBottomWidth:1,borderColor:'#27313E',backgroundColor:'#10161F'},page:{padding:14,paddingBottom:24,gap:9},section:{color:'#9CAEC1',fontSize:10,fontWeight:'800',letterSpacing:1.5,marginVertical:5},
   pads:{flexDirection:'row',flexWrap:'wrap',justifyContent:'space-between',rowGap:8},bpm:{color:'#FFF',fontSize:23,fontWeight:'700',textAlign:'center',minWidth:50,fontVariant:['tabular-nums']},
   steps:{flexDirection:'row',gap:3,alignItems:'center',marginBottom:5},lane:{width:34,color:'#94A5B8',fontSize:8},step:{width:24,height:29,borderWidth:1,borderColor:'#34414D',borderRadius:4,backgroundColor:'#182230'},stepOn:{backgroundColor:'#278B9D'},stepCurrent:{borderColor:'#FFF'},
+  gridValue:{color:'#E4F1F7',fontSize:12,fontWeight:'700',minWidth:76,textAlign:'center'},
   hotCueGrid:{flexDirection:'row',flexWrap:'wrap',gap:7,justifyContent:'space-between'},
   hotCueButton:{width:'23%',minHeight:45,backgroundColor:'#18222F',borderRadius:8,
     borderWidth:1,borderColor:'#394656',alignItems:'center',justifyContent:'center'},

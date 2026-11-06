@@ -703,6 +703,34 @@ void hotCueAndBeatJumpRegression() {
   assert(std::abs(engine.deckHotCuePosition(1, 0) - 0.75F) < 1.e-5F);
 }
 
+void manualBeatGridRegression() {
+  AudioEngine engine;
+  engine.prepare(8000, makeBank(16, 0));
+  Sample track;
+  track.stereo.assign(8000 * 8 * 2, 0.2F);
+  engine.loadDeck(0, std::move(track), {120, 0.25F, 1});
+  assert(!engine.deckSetBeatGrid(0, 128, 0.1F));
+  engine.activate();
+  assert(!engine.deckSetBeatGrid(2, 128, 0));
+  assert(!engine.deckSetBeatGrid(0, 0, 0));
+  assert(!engine.deckSetBeatGrid(0, 201, 0));
+  assert(!engine.deckSetBeatGrid(0, NAN, 0));
+  assert(!engine.deckSetBeatGrid(0, 128, INFINITY));
+  assert(!engine.deckSetBeatGrid(0, 128, -0.1F));
+  assert(!engine.deckSetBeatGrid(0, 128, 8.0F));
+  assert(engine.deckSetBeatGrid(0, 60, 0.1F));
+  assert(std::abs(engine.deckBpm(0) - 60.0F) < 0.0001F);
+  assert(std::abs(engine.deckFirstBeat(0) - 0.1F) < 0.0001F);
+  assert(engine.deckSeek(0, 0.25F));
+  assert(engine.deckBeatJump(0, 4));
+  std::array<float, 128> l{}, r{};
+  render(engine, l.data(), r.data(), l.size());
+  assert(engine.deckPosition(0) >= 0.749F && engine.deckPosition(0) < 0.751F);
+  assert(engine.deckSetBeatGrid(0, 128, 0.02F));
+  assert(engine.deckFirstBeat(0) > 0.019F && engine.deckBpm(0) == 128.0F);
+  assert(!engine.deckBeatJump(0, -65));
+}
+
 int main() {
   for (const unsigned sampleRate : {44100U, 48000U, 96000U}) {
     Sample click;
@@ -762,6 +790,7 @@ int main() {
 
   stereoRmsMeterRegression();
   selectableCrossfadeCurves();
+  manualBeatGridRegression();
   hotCueAndBeatJumpRegression();
   cueTransportRegression();
   automatedMixTransitions();
