@@ -11,7 +11,7 @@ Checked items are implemented in the native source; no physical-device latency/F
 - [ ] Full gain, master true-peak limiter and stereo VU meters (independent stereo RMS L/R meters now exist; true-peak limiting remains).
 - [ ] Peak/RMS/frequency-colored stereo scrolling waveform with zoom and beat-grid markers (peak overview exists).
 - [x] Editable beat-grid and BPM sync (auto BPM, native manual BPM and phase correction, and sync implemented; device test pending).
-- [ ] Eight hot cues per deck, automatic/manual loop and beat jump (8 hot cues and beat jump implemented; manual loop UX and full auto-loop parity pending).
+- [x] Eight hot cues per deck, beat loops, manual IN/OUT/EXIT loop and beat jump (implemented in native source; physical QA pending).
 - [ ] Per-deck/master reverb, delay, filter, flanger, bitcrusher and roll (filters exist).
 - [x] Native eight-pad sampler with PCM voices, kits and step sequencer.
 - [ ] Searchable library, playlists, track artwork and preview (file picker and demo presets exist).
@@ -71,3 +71,10 @@ Checked items are implemented in the native source; no physical-device latency/F
 - Native validated BPM and phase correction on each loaded deck; preserve auto analysis.
 - Mixer offers +/- 1 BPM and +/- 10 ms first-beat alignment.
 - Beat-jump and sync immediately use edited tempo; regression validates invalid values and precision.
+
+## Cycle 8: manual loop controls
+
+- Add manual IN, OUT and EXIT to each deck in Mixer; preserve existing beat loop buttons.
+- Keep independent loop start/active state for A/B; track reload clears only that deck.
+- Reject zero-length and sub-50ms manual loops in UI; C++ validates normalized loop boundaries.
+- Existing native tests cover loop range checks, wrap persistence and sample bounds.
