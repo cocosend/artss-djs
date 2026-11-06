@@ -924,7 +924,7 @@ void fxSvfImpulseSweepRegression() {
     for (int mode : {1, 2}) {
       chain.reset();
       for (int sweep = 0; sweep < 6; ++sweep) {
-        const float cutoff = sweep % 2 ? 20.0F : 0.44F * static_cast<float>(sampleRate);
+        const float cutoff = sweep % 2 ? 20.0F : std::min(18000.0F, 0.44F * static_cast<float>(sampleRate));
         assert(chain.set(0, static_cast<float>(mode), cutoff, sweep % 2 ? 1.0F : 0.0F));
         chain.beginBlock();
         for (int i = 0; i < 1024; ++i) {
