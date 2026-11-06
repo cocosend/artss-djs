@@ -354,6 +354,107 @@ function ChannelStrip({deck, controls, enabled}: {deck: Deck; controls: Realtime
     {(['FILTER','HIGH','MID','LOW'] as const).map(name => <Dial key={name} name={name} deck={deck} controls={controls} state={state} enabled={enabled} />)}
     <ChannelFader deck={deck} controls={controls} enabled={enabled} state={state} /></View>;
 }
+
+type FxBus = 0 | 1 | 2;
+type FxId = 0 | 1 | 2 | 3 | 4 | 5;
+type FxTriple = [number, number, number];
+const FX_NAMES = ['SVF FILTER','PING-PONG','REVERB','FLANGER','BITCRUSH','ROLL'] as const;
+const FX_LABELS = [
+  ['MODE','CUTOFF Hz','RESONANCE'],
+  ['MIX','TIME ms','FEEDBACK'],
+  ['MIX','ROOM','DAMPING'],
+  ['MIX','SPEED Hz','DEPTH'],
+  ['MIX','BITS','HOLD'],
+  ['BEATS','—','—'],
+] as const;
+const FX_MIN = [
+  [0,20,0],[0,50,0],[0,0,0],[0,0.05,0],[0,4,1],[0,0,0],
+] as const;
+const FX_MAX = [
+  [2,18000,1],[1,1500,0.85],[1,1,1],[1,5,1],[1,16,32],[5,0,0],
+] as const;
+const FX_STEP = [
+  [1,200,0.05],[0.1,25,0.05],[0.1,0.05,0.05],
+  [0.1,0.1,0.1],[0.1,1,1],[1,0,0],
+] as const;
+const FX_START = (): FxTriple[][] => Array.from({length:3}, () => [
+  [0,1200,0.35],[0,375,0.45],[0,0.65,0.4],
+  [0,0.5,0.5],[0,10,3],[0,0,0],
+]);
+
+function FxPanel({controls, enabled}: {controls: RealtimeControls; enabled: boolean}) {
+  const [open, setOpen] = useState(false);
+  const [bus, setBus] = useState<FxBus>(0);
+  const [fx, setFx] = useState<FxId>(0);
+  const [values, setValues] = useState(FX_START);
+  const current = values[bus][fx];
+  function write(index: 0 | 1 | 2, next: number) {
+    if (!enabled) return;
+    const fixed = [...current] as FxTriple;
+    const min = FX_MIN[fx][index], max = FX_MAX[fx][index];
+    fixed[index] = Math.min(max, Math.max(min, Math.round(next * 1000) / 1000));
+    if (!controls.setFx(bus, fx, fixed[0], fixed[1], fixed[2])) return;
+    setValues(old => old.map((groups, b) => b === bus
+      ? groups.map((triple, e) => e === fx ? fixed : triple)
+      : groups));
+  }
+  const enabledFlag = current[0] > 0;
+  const parameter = (index: 0 | 1 | 2) => {
+    const step = FX_STEP[fx][index];
+    if (step === 0) return null;
+    const value = current[index];
+    const name = FX_LABELS[fx][index];
+    const display = fx === 5 && index === 0
+      ? ['OFF','1/4','1/2','1','2','4'][Math.round(value)]
+      : fx === 0 && index === 0
+        ? ['OFF','LPF','HPF'][Math.round(value)]
+        : value.toFixed(step < 1 ? 2 : 0);
+    return <View key={name} style={s.fxParameter}>
+      <Text style={s.fxParamTitle}>{name}</Text>
+      <View style={s.fxParamButtons}>
+        <Pressable accessibilityRole="button" disabled={!enabled || value <= FX_MIN[fx][index]}
+          onPress={() => write(index, value - step)}>
+          <Text style={s.fxStep}>−</Text>
+        </Pressable>
+        <Text style={s.fxParamValue}>{display}</Text>
+        <Pressable accessibilityRole="button" disabled={!enabled || value >= FX_MAX[fx][index]}
+          onPress={() => write(index, value + step)}>
+          <Text style={s.fxStep}>+</Text>
+        </Pressable>
+      </View>
+    </View>;
+  };
+  return <View style={s.fxContainer}>
+    <Pressable accessibilityRole="button" onPress={() => setOpen(v => !v)} style={s.fxHeader}>
+      <Text style={s.fxTitle}>ARTSS FX · A / B / MASTER</Text>
+      <Text style={s.fxTitle}>{open ? '−' : '+'}</Text>
+    </Pressable>
+    {open && <>
+      <View style={s.row}>{(['DECK A','DECK B','MASTER'] as const).map((label,index) =>
+        <Button key={label} text={label} active={bus === index}
+          color={ACCENT[index === 2 ? 0 : index]}
+          disabled={!enabled}
+          onPress={() => setBus(index as FxBus)} />)}</View>
+      <View style={s.fxChoices}>{FX_NAMES.map((label,index) =>
+        <Pressable key={label} accessibilityRole="button" disabled={!enabled}
+          onPress={() => setFx(index as FxId)}
+          style={[s.fxChoice,fx === index && s.fxChoiceActive]}>
+          <Text style={[s.fxChoiceText,fx === index && s.fxChoiceTextActive]}>
+            {label}
+          </Text>
+        </Pressable>)}</View>
+      <View style={s.fxParameters}>
+        {parameter(0)}{parameter(1)}{parameter(2)}
+      </View>
+      {fx !== 0 && fx !== 5
+        ? <Button text={enabledFlag ? 'BYPASS FX' : 'ENABLE FX'}
+            active={enabledFlag} disabled={!enabled}
+            onPress={() => write(0, enabledFlag ? 0 : 0.5)} />
+        : null}
+    </>}
+  </View>;
+}
+
 function Mixer({controls, enabled, track, deck}: {controls: RealtimeControls; enabled: boolean; track: TrackInfo | null; deck: Deck}) {
   const [rate, setRate] = useState<[number, number]>([1,1]);
   const [loop, setLoop] = useState<[number, number]>([0,0]);
@@ -480,6 +581,7 @@ function Mixer({controls, enabled, track, deck}: {controls: RealtimeControls; en
     <View style={s.row}>{([-16,-4,-1,1,4,16] as const).map(beats =>
       <Button key={beats} text={beats > 0 ? `+${beats}` : `${beats}`}
         disabled={!enabled || !track} onPress={() => { controls.deckBeatJump(deck, beats); }} />)}</View>
+    <FxPanel controls={controls} enabled={enabled} />
     <MasterFader controls={controls} enabled={enabled} />
   </ScrollView>;
 }
@@ -596,6 +698,20 @@ const s=StyleSheet.create({
   pocket:{flex:1,borderTopWidth:1,borderBottomWidth:1,borderColor:'#27313E',backgroundColor:'#10161F'},page:{padding:14,paddingBottom:24,gap:9},section:{color:'#9CAEC1',fontSize:10,fontWeight:'800',letterSpacing:1.5,marginVertical:5},
   pads:{flexDirection:'row',flexWrap:'wrap',justifyContent:'space-between',rowGap:8},bpm:{color:'#FFF',fontSize:23,fontWeight:'700',textAlign:'center',minWidth:50,fontVariant:['tabular-nums']},
   steps:{flexDirection:'row',gap:3,alignItems:'center',marginBottom:5},lane:{width:34,color:'#94A5B8',fontSize:8},step:{width:24,height:29,borderWidth:1,borderColor:'#34414D',borderRadius:4,backgroundColor:'#182230'},stepOn:{backgroundColor:'#278B9D'},stepCurrent:{borderColor:'#FFF'},
+  fxContainer:{borderWidth:1,borderColor:'#263C4A',borderRadius:10,padding:10,backgroundColor:'#0D1823',marginTop:6},
+  fxHeader:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingVertical:7},
+  fxTitle:{fontSize:11,fontWeight:'900',color:'#3EDCEE',letterSpacing:0.6},
+  fxChoices:{flexDirection:'row',flexWrap:'wrap',gap:6,marginVertical:7},
+  fxChoice:{width:'31%',minHeight:37,justifyContent:'center',alignItems:'center',borderWidth:1,borderRadius:7,borderColor:'#344455',padding:4},
+  fxChoiceActive:{borderColor:'#3EDCEE',backgroundColor:'#15303B'},
+  fxChoiceText:{fontSize:9,fontWeight:'800',color:'#8598AA'},
+  fxChoiceTextActive:{color:'#E5FCFF'},
+  fxParameters:{gap:5,marginVertical:7},
+  fxParameter:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingVertical:5},
+  fxParamTitle:{fontSize:10,color:'#9DB3C3',fontWeight:'700'},
+  fxParamButtons:{flexDirection:'row',alignItems:'center',gap:15},
+  fxStep:{color:'#3EDCEE',fontSize:18,fontWeight:'900',minWidth:24,textAlign:'center'},
+  fxParamValue:{minWidth:65,color:'#EAF7FA',fontSize:12,fontWeight:'800',textAlign:'center'},
   gridValue:{color:'#E4F1F7',fontSize:12,fontWeight:'700',minWidth:76,textAlign:'center'},
   hotCueGrid:{flexDirection:'row',flexWrap:'wrap',gap:7,justifyContent:'space-between'},
   hotCueButton:{width:'23%',minHeight:45,backgroundColor:'#18222F',borderRadius:8,

@@ -115,3 +115,10 @@ Checked items are implemented in the native source; no physical-device latency/F
 - Roll uses preceding PCM ring without copying during callback, arms on the next musical beat boundary, and crossfades short seams.
 - Runtime regression covers impulse filter sweeps at 44.1/48/96 kHz, invalid params, dual-deck/master FX, roll, finite PCM and limiter output.
 - JSI / TypeScript method setFx(bus 0/1/2, effect 0..5, a,b,c) updates lock-free atomics.
+
+## Cycle 12 UI — FX panel
+
+- Collapsible ARTSS FX controls in Mixer, independently targeting Deck A, Deck B or Master.
+- Six effects expose their real C++ parameters through validated setFx() with ranges.
+- Quantized Roll beat selection and LPF/HPF mode toggles; wet-effect bypass is atomic.
+- All heavy DSP remains native; UI contains only controls, no Web Audio or React processing.
