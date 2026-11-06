@@ -87,7 +87,7 @@ inline WaveformCache precomputeWaveform(const Sample& track, double sampleRate) 
   const double tau = 6.28318530717958647692;
   const double lowFactor = -std::expm1(-tau * 220.0 / sampleRate);
   const double highFactor = -std::expm1(-tau * 3600.0 / sampleRate);
-  double lowPass = 0.0, highPass = 0.0;
+  double lowPassL = 0.0, lowPassR = 0.0, highPassL = 0.0, highPassR = 0.0;
 
   for (std::size_t i = 0; i < frames; ++i) {
     const float l = track.stereo[2 * i], r = track.stereo[2 * i + 1];
@@ -95,10 +95,18 @@ inline WaveformCache precomputeWaveform(const Sample& track, double sampleRate) 
         std::abs(l) > 1.0F || std::abs(r) > 1.0F)
       throw std::invalid_argument("Waveform PCM must be finite and normalized");
 
-    const double mono = 0.5 * (static_cast<double>(l) + r);
-    lowPass += lowFactor * (mono - lowPass);
-    highPass += highFactor * (mono - highPass);
-    const double bass = lowPass, mids = highPass - lowPass, treble = mono - highPass;
+    // Split both channels independently. A mono average would erase
+    // antiphase bass/treble even though both stereo channels are audible.
+    lowPassL += lowFactor * (static_cast<double>(l) - lowPassL);
+    lowPassR += lowFactor * (static_cast<double>(r) - lowPassR);
+    highPassL += highFactor * (static_cast<double>(l) - highPassL);
+    highPassR += highFactor * (static_cast<double>(r) - highPassR);
+    const double bass = 0.5 * (lowPassL * lowPassL + lowPassR * lowPassR);
+    const double midL = highPassL - lowPassL, midR = highPassR - lowPassR;
+    const double mids = 0.5 * (midL * midL + midR * midR);
+    const double highL = static_cast<double>(l) - highPassL;
+    const double highR = static_cast<double>(r) - highPassR;
+    const double treble = 0.5 * (highL * highL + highR * highR);
 
     const auto capture = [i, frames, l, r, bass, mids, treble](auto& bins) noexcept {
       const auto index = static_cast<std::size_t>(
@@ -110,9 +118,9 @@ inline WaveformCache precomputeWaveform(const Sample& track, double sampleRate) 
       a.maxR = std::max(a.maxR, r);
       a.squaresL += static_cast<double>(l) * l;
       a.squaresR += static_cast<double>(r) * r;
-      a.bass += bass * bass;
-      a.mids += mids * mids;
-      a.treble += treble * treble;
+      a.bass += bass;
+      a.mids += mids;
+      a.treble += treble;
       ++a.count;
     };
     capture(overview);

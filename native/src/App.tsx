@@ -1,9 +1,10 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {ActivityIndicator, Pressable, ScrollView, StatusBar, StyleSheet, Text, View} from 'react-native';
+import {ActivityIndicator, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View,
+  requireNativeComponent, type StyleProp, type ViewStyle} from 'react-native';
 import {Gesture, GestureDetector, GestureHandlerRootView} from 'react-native-gesture-handler';
 import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
 import {Canvas, Circle, LinearGradient, Path, Rect, Skia, vec} from '@shopify/react-native-skia';
-import Animated, {useAnimatedStyle, useDerivedValue, useFrameCallback, useSharedValue, type SharedValue} from 'react-native-reanimated';
+import Animated, {useAnimatedProps, useAnimatedStyle, useDerivedValue, useFrameCallback, useSharedValue, type SharedValue} from 'react-native-reanimated';
 import {scheduleOnRN} from 'react-native-worklets';
 import {generateTrack, loadPreset, pickTrack, type PadIndex, type RealtimeControls, type TrackInfo} from 'react-native-artss-audio';
 import {useAudioSession} from './audio/useAudioSession';
@@ -30,14 +31,34 @@ function Button({text, onPress, onLongPress, active = false, disabled = false, c
     <Text style={[s.buttonText, active && {color}]}>{text}</Text></Pressable>;
 }
 
-// One real PCM overview only. GPU geometry is rebuilt only when the source or width changes.
+type MetalWaveformProps = {
+  cache: string; zoom: number; duration: number;
+  position?: number; visibleStart?: number; bpm?: number; firstBeat?: number;
+  style?: StyleProp<ViewStyle>;
+};
+const MetalWaveform = Platform.OS === 'ios'
+  ? Animated.createAnimatedComponent(requireNativeComponent<MetalWaveformProps>('ARTSSWaveformMetal'))
+  : null;
+
+// Native Metal texture is uploaded only when the PCM track changes. The display
+// link renders the three precomputed RGBA8 rows, grid and moving playhead.
 const Stripe = memo(function StripeView({controls, deck, track, samples, pad, enabled}: {
   controls: RealtimeControls; deck: Deck; track: TrackInfo | null; samples: readonly number[];
   pad: PadIndex; enabled: boolean;
 }) {
   const [width, setWidth] = useState(1);
+  const [zoom, setZoom] = useState<0 | 1 | 2>(0);
   const progress = useSharedValue(0);
   const dragging = useSharedValue(false);
+  const gestureStart = useSharedValue(0);
+  const visibleSpan = zoom === 0 ? 1 : zoom === 1 ? 0.25 : 0.0625;
+  const metalProps = useAnimatedProps(() => ({
+    position: progress.value,
+    visibleStart: dragging.value ? gestureStart.value
+      : Math.max(0, Math.min(1 - visibleSpan, progress.value - visibleSpan / 2)),
+    bpm: deck === 0 ? controls.deckBpm0 : controls.deckBpm1,
+    firstBeat: deck === 0 ? controls.deckFirstBeat0 : controls.deckFirstBeat1,
+  }));
   useFrameCallback(() => {
     if (dragging.value) return;
     progress.value = track ? (deck === 0 ? controls.deckPosition0 : controls.deckPosition1)
@@ -55,16 +76,46 @@ const Stripe = memo(function StripeView({controls, deck, track, samples, pad, en
     return result;
   }, [samples, track, width]);
   const seek = Gesture.Pan().enabled(enabled && !!track).minDistance(0)
-    .onBegin(event => { dragging.value = true; progress.value = Math.max(0, Math.min(0.9999, event.x / width)); controls.deckSeek(deck, progress.value); })
-    .onUpdate(event => { progress.value = Math.max(0, Math.min(0.9999, event.x / width)); controls.deckSeek(deck, progress.value); })
+    .onBegin(event => {
+      dragging.value = true;
+      gestureStart.value = Math.max(0, Math.min(1 - visibleSpan, progress.value - visibleSpan / 2));
+      progress.value = Math.max(0, Math.min(0.9999,
+        gestureStart.value + (event.x / width) * visibleSpan));
+      controls.deckSeek(deck, progress.value);
+    })
+    .onUpdate(event => {
+      progress.value = Math.max(0, Math.min(0.9999,
+        gestureStart.value + (event.x / width) * visibleSpan));
+      controls.deckSeek(deck, progress.value);
+    })
     .onFinalize(() => { dragging.value = false; });
-  return <GestureDetector gesture={seek}><View style={s.stripe} onLayout={e => setWidth(Math.max(1, e.nativeEvent.layout.width))}>
-    <Canvas style={s.fill} accessible={false}>
-      <Path path={path} style="stroke" strokeWidth={Math.max(1, width / 180)}>
-        <LinearGradient start={vec(0, 0)} end={vec(width, 0)} colors={['#32D9EF','#677EFF','#BB74F2','#F9CD56','#FF8655']} />
-      </Path><Rect x={x} y={3} width={2} height={64} color="#FFFFFF" />
-    </Canvas>
-  </View></GestureDetector>;
+  return <View>
+    <GestureDetector gesture={seek}>
+      <View style={s.stripe} onLayout={e => setWidth(Math.max(1, e.nativeEvent.layout.width))}>
+        {track?.waveformCache && MetalWaveform
+          ? <MetalWaveform cache={track.waveformCache} zoom={zoom} duration={track.duration}
+              animatedProps={metalProps} style={s.fill} />
+          : <Canvas style={s.fill} accessible={false}>
+              <Path path={path} style="stroke" strokeWidth={Math.max(1, width / 180)}>
+                <LinearGradient start={vec(0, 0)} end={vec(width, 0)}
+                  colors={['#32D9EF','#677EFF','#BB74F2','#F9CD56','#FF8655']} />
+              </Path>
+              <Rect x={x} y={3} width={2} height={64} color="#FFFFFF" />
+            </Canvas>}
+      </View>
+    </GestureDetector>
+    {track && <View style={s.waveZoomControls}>
+      <Pressable accessibilityRole="button" disabled={zoom === 0}
+        onPress={() => setZoom(z => (z - 1) as 0 | 1 | 2)}>
+        <Text style={s.waveZoomText}>− ZOOM</Text>
+      </Pressable>
+      <Text style={s.waveZoomText}>{zoom === 0 ? 'OVERVIEW' : zoom === 1 ? 'MID 4×' : 'DETAIL 16×'}</Text>
+      <Pressable accessibilityRole="button" disabled={zoom === 2}
+        onPress={() => setZoom(z => (z + 1) as 0 | 1 | 2)}>
+        <Text style={s.waveZoomText}>+ ZOOM</Text>
+      </Pressable>
+    </View>}
+  </View>;
 });
 
 
@@ -537,6 +588,8 @@ const s=StyleSheet.create({
   vuRow:{flexDirection:'row',alignItems:'center',paddingHorizontal:14,gap:8,paddingTop:4},
   vuCaption:{fontSize:9,color:'#7E8C9E',fontWeight:'700',width:30},
   vuCanvas:{height:17,flex:1,backgroundColor:'#151E29',borderRadius:3,overflow:'hidden'},
+  waveZoomControls:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',paddingHorizontal:18,paddingTop:3},
+  waveZoomText:{fontSize:9,fontWeight:'800',letterSpacing:0.5,color:'#80BCCA'},
   trackRow:{flexDirection:'row',gap:10,paddingHorizontal:14},trackTitle:{flex:1,flexDirection:'row',alignItems:'center',gap:7,borderBottomWidth:2,borderColor:'#202A36',paddingVertical:7},
   deckBadge:{fontWeight:'900',fontSize:15},trackName:{flex:1,color:'#EDF3F7',fontSize:12,fontWeight:'600'},stripe:{height:70,marginHorizontal:14,backgroundColor:'#0B1119',borderRadius:6,overflow:'hidden'},
   stripeCaption:{flexDirection:'row',justifyContent:'space-between',paddingHorizontal:16,paddingTop:5,paddingBottom:10},hint:{fontSize:9,color:'#8695A9',letterSpacing:.5},importLabel:{color:ACCENT[0],fontSize:10,fontWeight:'800'},

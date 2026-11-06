@@ -15,7 +15,7 @@ Pod::Spec.new do |s|
 
   s.source_files = "{ios,cpp}/**/*.{h,hpp,mm,cpp}"
   s.private_header_files = "{ios,cpp}/**/*.{h,hpp}"
-  s.frameworks = "AudioToolbox", "AVFAudio", "AVFoundation", "UIKit", "UniformTypeIdentifiers"
+  s.frameworks = "AudioToolbox", "AVFAudio", "AVFoundation", "UIKit", "UniformTypeIdentifiers", "Metal", "MetalKit", "QuartzCore"
   s.resource_bundles = { "ARTSSAudioResources" => ["assets/*.wav"] }
   s.pod_target_xcconfig = {
     "CLANG_CXX_LANGUAGE_STANDARD" => "c++20",

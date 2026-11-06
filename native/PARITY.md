@@ -88,3 +88,13 @@ Checked items are implemented in the native source; no physical-device latency/F
 - Texture rows: stereo signed min/max and RMS (L/R), plus low/mid/high spectral RMS.
 - Cache is transferred in track metadata as base64; this work does not allocate inside the render callback.
 - Native tests cover output sizes, bounds, stereo channels, silence, bass/treble discrimination and invalid PCM.
+
+## Cycle 10: Metal waveform view
+
+- iOS MTKView uploads all three PCM waveform resolutions as three RGBA8 textures via replaceRegion (on track changes only).
+- Metal vertex/fragment stages render L/R min/max with RMS brightness and low/mid/high spectral color.
+- GPU beat-grid markers (including every fourth beat) and moving playhead use native BPM and position state.
+- React Native receives the immutable 24,192-byte packed cache in metadata and forwards it once; worklets update native position and grid props.
+- Three zoom scales: overview, 4x and 16x with a position-following scroll window and gesture scrubbing.
+- Android and missing-cache paths retain the existing Skia stripe fallback.
+- All new Metal allocations and shader compilation are on the native UI thread, not the audio callback.

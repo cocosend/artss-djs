@@ -788,6 +788,15 @@ void multiresolutionWaveformRegression() {
   const auto treble = spectrumOf(7000);
   assert(bass[0] > bass[2]);
   assert(treble[2] > treble[0]);
+  Sample antiphase;
+  antiphase.stereo.resize(48000 * 2);
+  for (std::size_t i = 0; i < 48000; ++i) {
+    const float v = 0.6F * std::sin(6.283185307179586 * 70.0 * i / 48000);
+    antiphase.stereo[2 * i] = v;
+    antiphase.stereo[2 * i + 1] = -v;
+  }
+  const auto phaseCache = precomputeWaveform(antiphase, 48000);
+  assert(phaseCache.rgba8[2 * kWaveformWidths[0] * 4] > 0);
 }
 
 int main() {
