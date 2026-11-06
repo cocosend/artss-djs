@@ -72,6 +72,18 @@ class RealtimeControls final : public jsi::HostObject {
                    engine->deckSync(static_cast<std::uint32_t>(deck));
           });
     }
+    if (name == "deckSetBeatGrid") {
+      return jsi::Function::createFromHostFunction(runtime, property, 3,
+          [engine = engine_](jsi::Runtime&, const jsi::Value&, const jsi::Value* args, std::size_t count) -> jsi::Value {
+            if (count < 3 || !args[0].isNumber() || !args[1].isNumber() || !args[2].isNumber()) return false;
+            const double deck = args[0].asNumber();
+            const double bpm = args[1].asNumber(), firstBeat = args[2].asNumber();
+            return std::isfinite(deck) && deck == std::floor(deck) && deck >= 0 && deck < 2 &&
+                   std::isfinite(bpm) && std::isfinite(firstBeat) &&
+                   engine->deckSetBeatGrid(static_cast<std::uint32_t>(deck),
+                                           static_cast<float>(bpm), static_cast<float>(firstBeat));
+          });
+    }
     if (name == "deckFilter") {
       return jsi::Function::createFromHostFunction(runtime, property, 2,
           [engine = engine_](jsi::Runtime&, const jsi::Value&, const jsi::Value* args, std::size_t count) -> jsi::Value {
