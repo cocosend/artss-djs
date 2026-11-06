@@ -1,0 +1,94 @@
+name: ARTSS DJS M100 Pre-release
+on:
+  push:
+    branches: [release/artss-djs-chapter-100]
+    paths:
+      - .github/workflows/m100-prerelease.yml
+      - native/RELEASE_100.md
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: artss-m100-publish
+  cancel-in-progress: false
+
+jobs:
+  publish-m100:
+    name: Publish validated unsigned M100 IPA
+    if: github.ref == 'refs/heads/release/artss-djs-chapter-100'
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for same-SHA native and DSP/UI checks
+        id: verified
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 120); do
+            response=$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/runs" -f head_sha="$COMMIT_SHA" -f per_page=100)
+            native=$(jq -c '[.workflow_runs[] | select(.name == "Native iOS")] | sort_by(.created_at) | last // {}' <<<"$response")
+            quality=$(jq -c '[.workflow_runs[] | select(.name == "ARTSS 33 - Native Drum DSP and iOS WebKit QA")] | sort_by(.created_at) | last // {}' <<<"$response")
+            native_state=$(jq -r '.conclusion // ""' <<<"$native")
+            quality_state=$(jq -r '.conclusion // ""' <<<"$quality")
+            echo "Attempt $attempt: native=${native_state:-pending}, quality=${quality_state:-pending}"
+            for state in "$native_state" "$quality_state"; do
+              if [[ "$state" == failure || "$state" == cancelled || "$state" == timed_out || "$state" == action_required ]]; then
+                echo "::error::Required CI failed: $state"
+                exit 1
+              fi
+            done
+            if [[ "$native_state" == success && "$quality_state" == success ]]; then
+              run_id=$(jq -r '.id' <<<"$native")
+              [[ "$run_id" =~ ^[0-9]+$ ]]
+              echo "native_run_id=$run_id" >> "$GITHUB_OUTPUT"
+              echo "commit_sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "::error::CI did not finish on this exact SHA"
+          exit 1
+      - name: Download and validate M100 unsigned IPA
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NATIVE_RUN_ID: ${{ steps.verified.outputs.native_run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/m100" dist
+          gh run download "$NATIVE_RUN_ID" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/m100"
+          mapfile -t files < <(find "$RUNNER_TEMP/m100" -type f -name '*.ipa')
+          if [[ "${#files[@]}" -ne 1 ]]; then
+            echo "::error::Expected exactly one unsigned IPA from the verified run"
+            exit 1
+          fi
+          cp "${files[0]}" dist/ARTSS-DJS-M100-NEW-BEGINNING-UNSIGNED.ipa
+          unzip -t dist/ARTSS-DJS-M100-NEW-BEGINNING-UNSIGNED.ipa > /dev/null
+          unzip -Z1 dist/ARTSS-DJS-M100-NEW-BEGINNING-UNSIGNED.ipa | grep -q '^Payload/ARTSSNative.app/'
+          sha256sum dist/ARTSS-DJS-M100-NEW-BEGINNING-UNSIGNED.ipa | tee dist/ARTSS-DJS-M100-SHA256.txt
+      - name: Publish M100 GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT_SHA: ${{ steps.verified.outputs.commit_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=m100-new-beginning
+          ipa=dist/ARTSS-DJS-M100-NEW-BEGINNING-UNSIGNED.ipa
+          digest=dist/ARTSS-DJS-M100-SHA256.txt
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$tag" "$ipa" "$digest" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$tag" "$ipa" "$digest" \
+              --repo "$GITHUB_REPOSITORY" --target "$COMMIT_SHA" \
+              --title 'ARTSS DJS · CHAPTER 100 — THE NEW BEGINNING (10%)' \
+              --notes-file native/RELEASE_100.md --prerelease
+          fi
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url --jq '.url' >> "$GITHUB_STEP_SUMMARY"

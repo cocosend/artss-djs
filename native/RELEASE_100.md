@@ -38,6 +38,10 @@
 
 Дальше — аппаратная проверка на iPhone (xrun, FPS, latency), MIDI, запись, pitch-preserving time-stretch, обнаружение тональности и harmonic mixing, надёжная библиотека, безопасная подпись и выпуск. Приоритет: **качество звука → realtime safety → latency → UX → публикация**.
 
+## Публикация M100
+
+После зелёного CI **Native iOS** и **ARTSS 33** на одном SHA workflow автоматически создаёт GitHub **Pre-release** с проверенной unsigned IPA и SHA-256. Постоянная ссылка: [m100-new-beginning](https://github.com/cocosend/artss-djs/releases/tag/m100-new-beginning) (до завершения CI может отсутствовать). Это не Apple-signed и не App Store release.
+
 ## Установка контрольной IPA
 
 1. Открыть успешный [Native iOS workflow](https://github.com/cocosend/artss-djs/actions/workflows/ios-native.yml) для **CHAPTER 100**.
