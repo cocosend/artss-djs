@@ -56,8 +56,16 @@ vertex Varyings waveform_vertex(uint vertexId [[vertex_id]],
   const uint channel = vertexId / (p.columns * 6u);
   const uint column = (vertexId / 6u) % p.columns;
   const uint corner = vertexId % 6u;
-  const float2 minMax = texture.read(uint2(column, channel)).rg * 2.0f - 1.0f;
-  const float rms = texture.read(uint2(column, channel)).b;
+  const float4 pcm = texture.read(uint2(column, channel));
+  if (pcm.a < 0.5f) {
+    // A zero-count cache column is empty, not a sample with value -1.
+    Varyings empty;
+    empty.position = float4(2.0f, 2.0f, 0.0f, 1.0f);
+    empty.color = float4(0.0f);
+    return empty;
+  }
+  const float2 minMax = pcm.rg * 2.0f - 1.0f;
+  const float rms = pcm.b;
   const float3 spectrum = texture.read(uint2(column, 2)).rgb;
   const float sum = spectrum.x + spectrum.y + spectrum.z;
   float3 rgb = sum > 0.0001f

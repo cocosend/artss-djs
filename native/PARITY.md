@@ -98,3 +98,10 @@ Checked items are implemented in the native source; no physical-device latency/F
 - Three zoom scales: overview, 4x and 16x with a position-following scroll window and gesture scrubbing.
 - Android and missing-cache paths retain the existing Skia stripe fallback.
 - All new Metal allocations and shader compilation are on the native UI thread, not the audio callback.
+
+## Cycle 11: short-track / empty-bin safety
+
+- `encodeLevel()` tests count==0 before any RMS division; empty L/R/spectrum RGBA8 texels are **fully zero**.
+- Metal vertex shader skips alpha==0 columns, avoiding phantom spikes at empty bins.
+- C++ regression covers 100-frame track at all 3 zooms, plus a 1-frame boundary case,
+  exact zero byte fill and finite/normalized decoded values.
