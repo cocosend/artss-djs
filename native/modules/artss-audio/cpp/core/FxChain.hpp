@@ -40,6 +40,7 @@ class FxChain final {
         sampleRate > kMaxSampleRate)
       throw std::invalid_argument("Invalid FX sample rate");
     sampleRate_ = static_cast<float>(sampleRate);
+    uiSampleRate_.store(sampleRate_, std::memory_order_release);
     coeff_ = static_cast<float>(1.0 - std::exp(-1.0 / (sampleRate * 0.012)));
     for (auto& c : combL_) c.configure(sampleRate);
     for (auto& c : combR_) c.configure(sampleRate);
@@ -80,12 +81,15 @@ class FxChain final {
   // 5 Roll(index 0 off, 1 quarter, 2 half, 3 one, 4 two, 5 four beats; 0,0)
   bool set(std::uint32_t effect, float a, float b, float c) noexcept {
     if (!std::isfinite(a) || !std::isfinite(b) || !std::isfinite(c)) return false;
+    // A preempted JSI call may overlap a hardware-rate reconfiguration.
+    // Only the audio/lifecycle owner reads the non-atomic sampleRate_.
+    const float controlRate = uiSampleRate_.load(std::memory_order_acquire);
     switch (effect) {
       case 0: {
         if (a < 0 || a > 2 || a != std::floor(a) || b < 20 ||
-            b > std::min(20000.0F, sampleRate_ * 0.45F) || c < 0 || c > 1)
+            b > std::min(20000.0F, controlRate * 0.45F) || c < 0 || c > 1)
           return false;
-        const float g = std::tan(3.14159265358979323846F * b / sampleRate_);
+        const float g = std::tan(3.14159265358979323846F * b / controlRate);
         if (!std::isfinite(g)) return false;
         targetG_.store(g, std::memory_order_relaxed);
         targetK_.store(2.0F - 1.8F * c, std::memory_order_relaxed);
@@ -94,7 +98,7 @@ class FxChain final {
       }
       case 1:
         if (a < 0 || a > 1 || b < 50 || b > 1500 || c < 0 || c > 0.85F) return false;
-        targetDelayTime_.store(b * 0.001F * sampleRate_, std::memory_order_relaxed);
+        targetDelayTime_.store(b * 0.001F * controlRate, std::memory_order_relaxed);
         targetDelayFb_.store(c, std::memory_order_relaxed);
         targetDelayMix_.store(a, std::memory_order_release);
         return true;
@@ -357,6 +361,7 @@ class FxChain final {
   int rollCode_{};
   bool rollActive_{}, engaged_{};
   float rollBlend_{}, sampleRate_{48000}, coeff_{0.001F};
+  std::atomic<float> uiSampleRate_{48000};
   float lfoPhase_{}, delayTimeSmooth_{12000};
   float filterG_{0.1F}, filterK_{1};
   float lpMix_{}, hpMix_{}, delayMix_{}, reverbMix_{}, flangeMix_{}, crushMix_{};
