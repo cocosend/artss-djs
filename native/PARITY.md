@@ -78,3 +78,13 @@ Checked items are implemented in the native source; no physical-device latency/F
 - Keep independent loop start/active state for A/B; track reload clears only that deck.
 - Reject zero-length and sub-50ms manual loops in UI; C++ validates normalized loop boundaries.
 - Existing native tests cover loop range checks, wrap persistence and sample bounds.
+
+## Cycle 9: RGBA8 multiresolution waveform cache (native offline stage)
+
+- Verified stopAutoMix() already uses autoMixCommand_ release/acq_rel handoff; audio-thread-only bool is race-free.
+- Compile-time assertion requires lock-free atomic<int> on the target toolchain.
+- PCM is scanned once on the iOS lifecycle/decoder queue *before* audio is stopped for deck replacement.
+- Fixed 24,192-byte uint8 RGBA8 cache: 96/384/1536 columns, 3 texture rows each.
+- Texture rows: stereo signed min/max and RMS (L/R), plus low/mid/high spectral RMS.
+- Cache is transferred in track metadata as base64; this work does not allocate inside the render callback.
+- Native tests cover output sizes, bounds, stereo channels, silence, bass/treble discrimination and invalid PCM.
