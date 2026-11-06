@@ -84,6 +84,7 @@ void AudioEngine::prepare(double sampleRate, SampleBank bank) {
     deck.cursor = 0;
     deck.position.store(0, std::memory_order_relaxed);
     deck.cue.store(0, std::memory_order_relaxed);
+    for (auto& hotCue : deck.hotCues) hotCue.store(-1, std::memory_order_relaxed);
     deck.rate.store(1, std::memory_order_relaxed);
     deck.playing.store(false, std::memory_order_relaxed);
     deck.jogging.store(false, std::memory_order_relaxed);
@@ -197,6 +198,7 @@ void AudioEngine::loadDeck(std::uint32_t index, Sample track, BeatGrid grid) {
   deck.cursor = 0;
   deck.position.store(0, std::memory_order_release);
   deck.cue.store(0, std::memory_order_release);
+  for (auto& hotCue : deck.hotCues) hotCue.store(-1, std::memory_order_release);
   deck.rate.store(1, std::memory_order_release);
   deck.jogRate.store(0, std::memory_order_release);
   deck.jogging.store(false, std::memory_order_release);
@@ -251,6 +253,57 @@ bool AudioEngine::deckCue(std::uint32_t index) noexcept {
 
 float AudioEngine::deckCuePosition(std::uint32_t index) const noexcept {
   return index < kDeckCount ? decks_[index].cue.load(std::memory_order_acquire) : 0;
+}
+
+// Hot cues are independent atomic position mailboxes; rendering only consumes
+// the existing seek mailbox, so there are no allocations or locks in RemoteIO.
+bool AudioEngine::deckSetHotCue(std::uint32_t index, std::uint32_t slot) noexcept {
+  if (index >= kDeckCount || slot >= kHotCueCount || !running()) return false;
+  auto& deck = decks_[index];
+  if (!deck.loaded.load(std::memory_order_acquire)) return false;
+  const float pending = deck.seek.load(std::memory_order_acquire);
+  const float current = pending >= 0 ? pending : deck.position.load(std::memory_order_acquire);
+  deck.hotCues[slot].store(std::clamp(current, 0.0F, 1.0F), std::memory_order_release);
+  return true;
+}
+
+bool AudioEngine::deckHotCue(std::uint32_t index, std::uint32_t slot) noexcept {
+  if (index >= kDeckCount || slot >= kHotCueCount || !running()) return false;
+  auto& deck = decks_[index];
+  if (!deck.loaded.load(std::memory_order_acquire)) return false;
+  const float point = deck.hotCues[slot].load(std::memory_order_acquire);
+  if (point < 0) return false;
+  stopAutoMix();
+  deck.jogging.store(false, std::memory_order_release);
+  deck.jogRate.store(0, std::memory_order_release);
+  deck.jogRevision.fetch_add(1, std::memory_order_release);
+  deck.seek.store(point, std::memory_order_release);
+  deck.playing.store(true, std::memory_order_release);
+  return true;
+}
+
+float AudioEngine::deckHotCuePosition(std::uint32_t index, std::uint32_t slot) const noexcept {
+  if (index >= kDeckCount || slot >= kHotCueCount) return -1.0F;
+  return decks_[index].hotCues[slot].load(std::memory_order_acquire);
+}
+
+bool AudioEngine::deckBeatJump(std::uint32_t index, std::int32_t beats) noexcept {
+  if (index >= kDeckCount || beats == 0 || beats < -64 || beats > 64 || !running()) return false;
+  auto& deck = decks_[index];
+  if (!deck.loaded.load(std::memory_order_acquire)) return false;
+  const auto frames = deck.frameCount.load(std::memory_order_acquire);
+  const float bpm = deck.bpm.load(std::memory_order_acquire);
+  if (!frames || !std::isfinite(bpm) || bpm < 30.0F || bpm > 200.0F) return false;
+  // Pending seeks win over the last published playhead, including back-to-back
+  // beat jumps within the same hardware render block.
+  const float pending = deck.seek.load(std::memory_order_acquire);
+  const double start = pending >= 0.0F ? pending : deck.position.load(std::memory_order_acquire);
+  const double offset = static_cast<double>(beats) * 60.0 * sampleRate_ /
+                        (static_cast<double>(bpm) * frames);
+  const double end = static_cast<double>(frames - 1) / frames;
+  deck.seek.store(static_cast<float>(std::clamp(start + offset, 0.0, end)),
+                  std::memory_order_release);
+  return true;
 }
 
 bool AudioEngine::deckPlay(std::uint32_t index, bool play) noexcept {

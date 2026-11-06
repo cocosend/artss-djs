@@ -40,6 +40,29 @@ class RealtimeControls final : public jsi::HostObject {
             return name == "deckCue" ? engine->deckCue(index) : engine->deckSetCue(index);
           });
     }
+    if (name == "deckSetHotCue" || name == "deckHotCue" || name == "deckHotCuePosition" ||
+        name == "deckBeatJump") {
+      return jsi::Function::createFromHostFunction(runtime, property, 2,
+          [engine = engine_, name](jsi::Runtime&, const jsi::Value&, const jsi::Value* args, std::size_t count) -> jsi::Value {
+            if (count < 2 || !args[0].isNumber() || !args[1].isNumber())
+              return name == "deckHotCuePosition" ? jsi::Value(-1.0) : jsi::Value(false);
+            const double deck = args[0].asNumber(), value = args[1].asNumber();
+            if (!std::isfinite(deck) || deck != std::floor(deck) || deck < 0 || deck >= 2 ||
+                !std::isfinite(value) || value != std::floor(value))
+              return name == "deckHotCuePosition" ? jsi::Value(-1.0) : jsi::Value(false);
+            const auto index = static_cast<std::uint32_t>(deck);
+            if (name == "deckBeatJump") {
+              if (value < -64 || value > 64 || value == 0) return false;
+              return engine->deckBeatJump(index, static_cast<std::int32_t>(value));
+            }
+            if (value < 0 || value >= artss::audio::kHotCueCount)
+              return name == "deckHotCuePosition" ? jsi::Value(-1.0) : jsi::Value(false);
+            const auto slot = static_cast<std::uint32_t>(value);
+            if (name == "deckSetHotCue") return engine->deckSetHotCue(index, slot);
+            if (name == "deckHotCue") return engine->deckHotCue(index, slot);
+            return engine->deckHotCuePosition(index, slot);
+          });
+    }
     if (name == "deckSync") {
       return jsi::Function::createFromHostFunction(runtime, property, 1,
           [engine = engine_](jsi::Runtime&, const jsi::Value&, const jsi::Value* args, std::size_t count) -> jsi::Value {

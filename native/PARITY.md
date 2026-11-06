@@ -11,7 +11,7 @@ Checked items are implemented in the native source; no physical-device latency/F
 - [ ] Full gain, master true-peak limiter and stereo VU meters (independent stereo RMS L/R meters now exist; true-peak limiting remains).
 - [ ] Peak/RMS/frequency-colored stereo scrolling waveform with zoom and beat-grid markers (peak overview exists).
 - [ ] Fully editable beat grid and robust BPM sync (automatic detection and sync exist).
-- [ ] Eight hot cues per deck, automatic/manual loop and beat jump (basic loop and one transport cue exist).
+- [ ] Eight hot cues per deck, automatic/manual loop and beat jump (8 hot cues and beat jump implemented; manual loop UX and full auto-loop parity pending).
 - [ ] Per-deck/master reverb, delay, filter, flanger, bitcrusher and roll (filters exist).
 - [x] Native eight-pad sampler with PCM voices, kits and step sequencer.
 - [ ] Searchable library, playlists, track artwork and preview (file picker and demo presets exist).
@@ -57,3 +57,11 @@ Checked items are implemented in the native source; no physical-device latency/F
 - Reuse existing C++ `setDeckGain` atomic and sample-rate-independent gain smoothing.
 - Reanimated UI worklet performs frame updates without traversing React or audio-thread allocations.
 - Dedicated reset-to-unity control per deck; separate state per channel.
+
+## Cycle 6: eight hot cues and beat jump
+
+- Eight atomic hot-cue positions per deck, -1 for empty; reset only when replacing that deck.
+- Tap assigned cue to trigger playback, tap unassigned to save, long press to overwrite.
+- Native beat jump in musical beats (-16/-4/-1/+1/+4/+16) using track BPM and frame count.
+- Pending seek priority supports repeated jump presses without losing increments before render.
+- Independent UI per deck, bounded JSI validation and deterministic C++ regression tests.
