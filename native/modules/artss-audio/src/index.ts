@@ -44,6 +44,7 @@ export interface RealtimeControls {
   deckSeek(deck: 0 | 1, position: number): boolean;
   deckRate(deck: 0 | 1, rate: number): boolean;
   deckSync(deck: 0 | 1): boolean;
+  deckSetBeatGrid(deck: 0 | 1, bpm: number, firstBeatSeconds: number): boolean;
   deckFilter(deck: 0 | 1, amount: number): boolean;
   deckJog(deck: 0 | 1, speed: number, touching: boolean): boolean;
   deckLoop(deck: 0 | 1, start: number, end: number): boolean;

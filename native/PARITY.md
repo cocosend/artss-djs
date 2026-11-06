@@ -10,7 +10,7 @@ Checked items are implemented in the native source; no physical-device latency/F
 - [ ] 3-band EQ with true isolation modes (per-deck EQ exists).
 - [ ] Full gain, master true-peak limiter and stereo VU meters (independent stereo RMS L/R meters now exist; true-peak limiting remains).
 - [ ] Peak/RMS/frequency-colored stereo scrolling waveform with zoom and beat-grid markers (peak overview exists).
-- [ ] Fully editable beat grid and robust BPM sync (automatic detection and sync exist).
+- [x] Editable beat-grid and BPM sync (auto BPM, native manual BPM and phase correction, and sync implemented; device test pending).
 - [ ] Eight hot cues per deck, automatic/manual loop and beat jump (8 hot cues and beat jump implemented; manual loop UX and full auto-loop parity pending).
 - [ ] Per-deck/master reverb, delay, filter, flanger, bitcrusher and roll (filters exist).
 - [x] Native eight-pad sampler with PCM voices, kits and step sequencer.
@@ -65,3 +65,9 @@ Checked items are implemented in the native source; no physical-device latency/F
 - Native beat jump in musical beats (-16/-4/-1/+1/+4/+16) using track BPM and frame count.
 - Pending seek priority supports repeated jump presses without losing increments before render.
 - Independent UI per deck, bounded JSI validation and deterministic C++ regression tests.
+
+## Cycle 7: manual BPM / beat grid
+
+- Native validated BPM and phase correction on each loaded deck; preserve auto analysis.
+- Mixer offers +/- 1 BPM and +/- 10 ms first-beat alignment.
+- Beat-jump and sync immediately use edited tempo; regression validates invalid values and precision.
