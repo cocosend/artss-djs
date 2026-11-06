@@ -13,7 +13,7 @@ permissions:
 
 concurrency:
   group: artss-m100-publish
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   publish-m100:
@@ -27,7 +27,8 @@ jobs:
         id: verified
         env:
           GH_TOKEN: ${{ github.token }}
-          COMMIT_SHA: ${{ github.sha }}
+          # Audited M100 source snapshot; later workflow-only commits never relabel a binary.
+          COMMIT_SHA: 8efffc0aaf638b25d5940f68382276011aa387b4
         shell: bash
         run: |
           set -euo pipefail
