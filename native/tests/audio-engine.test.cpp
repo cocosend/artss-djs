@@ -799,6 +799,56 @@ void multiresolutionWaveformRegression() {
   assert(phaseCache.rgba8[2 * kWaveformWidths[0] * 4] > 0);
 }
 
+void shortWaveformEmptyBinsRegression() {
+  using namespace artss::audio;
+  Sample veryShort;
+  veryShort.stereo.resize(100 * 2);
+  for (std::size_t frame = 0; frame < 100; ++frame) {
+    veryShort.stereo[2 * frame] = (frame & 1U) ? 0.25F : -0.25F;
+    veryShort.stereo[2 * frame + 1] = (frame & 1U) ? -0.5F : 0.5F;
+  }
+  const auto result = precomputeWaveform(veryShort, 48000);
+  for (std::size_t level = 0; level < kWaveformWidths.size(); ++level) {
+    const auto width = kWaveformWidths[level];
+    const auto* pixels = result.rgba8.data() + waveformLevelOffset(level);
+    std::array<bool, 1536> populated{};
+    for (std::size_t frame = 0; frame < 100; ++frame)
+      populated[frame * width / 100] = true;
+
+    std::size_t emptyCount = 0;
+    for (std::size_t col = 0; col < width; ++col) {
+      for (std::size_t row = 0; row < kWaveformRows; ++row) {
+        const auto* rgba = pixels + (row * width + col) * kWaveformChannels;
+        if (!populated[col]) {
+          ++emptyCount;
+          for (std::size_t channel = 0; channel < 4; ++channel)
+            assert(rgba[channel] == 0);
+        } else {
+          assert(rgba[3] == 255);
+          for (std::size_t channel = 0; channel < 3; ++channel) {
+            const float decoded = static_cast<float>(rgba[channel]) / 255.0F;
+            assert(std::isfinite(decoded) && decoded >= 0.0F && decoded <= 1.0F);
+          }
+          if (row < 2) assert(rgba[0] <= rgba[1]);
+        }
+      }
+    }
+    if (width > 100) assert(emptyCount > 0);
+  }
+  // A one-frame file exercises the strongest empty-bin ratio (1535/1536).
+  Sample one;
+  one.stereo = {0.2F, -0.2F};
+  const auto single = precomputeWaveform(one, 48000);
+  for (std::size_t level = 0; level < kWaveformWidths.size(); ++level) {
+    const auto width = kWaveformWidths[level];
+    const auto* pixels = single.rgba8.data() + waveformLevelOffset(level);
+    for (std::size_t col = 1; col < width; ++col)
+      for (std::size_t row = 0; row < kWaveformRows; ++row)
+        for (std::size_t channel = 0; channel < kWaveformChannels; ++channel)
+          assert(pixels[(row * width + col) * 4 + channel] == 0);
+  }
+}
+
 int main() {
   for (const unsigned sampleRate : {44100U, 48000U, 96000U}) {
     Sample click;
@@ -858,6 +908,7 @@ int main() {
 
   stereoRmsMeterRegression();
   selectableCrossfadeCurves();
+  shortWaveformEmptyBinsRegression();
   multiresolutionWaveformRegression();
   manualBeatGridRegression();
   hotCueAndBeatJumpRegression();

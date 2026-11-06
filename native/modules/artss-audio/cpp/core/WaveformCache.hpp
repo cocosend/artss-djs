@@ -51,12 +51,22 @@ void encodeLevel(const std::array<Accumulator, N>& stats,
   auto* pixels = cache.rgba8.data() + offset;
   for (std::size_t i = 0; i < N; ++i) {
     const auto& bin = stats[i];
-    const auto count = std::max<std::uint32_t>(1, bin.count);
+    if (bin.count == 0) {
+      // Zero every channel, including alpha: the Metal vertex shader skips
+      // empty columns instead of treating (0,0) as a full-negative peak.
+      for (std::size_t row = 0; row < kWaveformRows; ++row) {
+        auto* texel = pixels + (row * N + i) * kWaveformChannels;
+        for (std::size_t component = 0; component < kWaveformChannels; ++component)
+          texel[component] = 0;
+      }
+      continue;
+    }
+    const auto count = bin.count;
     const auto channel = [&](std::size_t row, float minimum, float maximum,
                              double squares) noexcept {
       auto* texel = pixels + (row * N + i) * kWaveformChannels;
-      texel[0] = signedPcm(bin.count ? minimum : 0.0F);
-      texel[1] = signedPcm(bin.count ? maximum : 0.0F);
+      texel[0] = signedPcm(minimum);
+      texel[1] = signedPcm(maximum);
       texel[2] = normalized(static_cast<float>(std::sqrt(squares / count)));
       texel[3] = 255;
     };
