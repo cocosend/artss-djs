@@ -13,6 +13,8 @@ class RealtimeControls final : public jsi::HostObject {
     const auto name = property.utf8(runtime);
     if (name == "running") return engine_->running();
     if (name == "peak") return engine_->peak();
+    if (name == "meterRmsL") return engine_->meterRmsL();
+    if (name == "meterRmsR") return engine_->meterRmsR();
     if (name == "frames") return static_cast<double>(engine_->renderedFrames());
     if (name == "droppedCommands") return static_cast<double>(engine_->droppedCommands());
     if (name == "renderOverruns") return static_cast<double>(backend_->overruns());
@@ -20,12 +22,47 @@ class RealtimeControls final : public jsi::HostObject {
     if (name == "invalidBuffers") return static_cast<double>(backend_->invalidBuffers());
     if (name == "deckPosition0") return engine_->deckPosition(0);
     if (name == "deckPosition1") return engine_->deckPosition(1);
+    if (name == "deckCuePosition0") return engine_->deckCuePosition(0);
+    if (name == "deckCuePosition1") return engine_->deckCuePosition(1);
     if (name == "deckBpm0") return engine_->deckBpm(0);
     if (name == "deckBpm1") return engine_->deckBpm(1);
     if (name == "deckRate0") return engine_->deckPlaybackRate(0);
     if (name == "deckRate1") return engine_->deckPlaybackRate(1);
     if (name == "deckFirstBeat0") return engine_->deckFirstBeat(0);
     if (name == "deckFirstBeat1") return engine_->deckFirstBeat(1);
+    if (name == "deckCue" || name == "deckSetCue") {
+      return jsi::Function::createFromHostFunction(runtime, property, 1,
+          [engine = engine_, name](jsi::Runtime&, const jsi::Value&, const jsi::Value* args, std::size_t count) -> jsi::Value {
+            if (count < 1 || !args[0].isNumber()) return false;
+            const double deck = args[0].asNumber();
+            if (!std::isfinite(deck) || deck != std::floor(deck) || deck < 0 || deck >= 2) return false;
+            const auto index = static_cast<std::uint32_t>(deck);
+            return name == "deckCue" ? engine->deckCue(index) : engine->deckSetCue(index);
+          });
+    }
+    if (name == "deckSetHotCue" || name == "deckHotCue" || name == "deckHotCuePosition" ||
+        name == "deckBeatJump") {
+      return jsi::Function::createFromHostFunction(runtime, property, 2,
+          [engine = engine_, name](jsi::Runtime&, const jsi::Value&, const jsi::Value* args, std::size_t count) -> jsi::Value {
+            if (count < 2 || !args[0].isNumber() || !args[1].isNumber())
+              return name == "deckHotCuePosition" ? jsi::Value(-1.0) : jsi::Value(false);
+            const double deck = args[0].asNumber(), value = args[1].asNumber();
+            if (!std::isfinite(deck) || deck != std::floor(deck) || deck < 0 || deck >= 2 ||
+                !std::isfinite(value) || value != std::floor(value))
+              return name == "deckHotCuePosition" ? jsi::Value(-1.0) : jsi::Value(false);
+            const auto index = static_cast<std::uint32_t>(deck);
+            if (name == "deckBeatJump") {
+              if (value < -64 || value > 64 || value == 0) return false;
+              return engine->deckBeatJump(index, static_cast<std::int32_t>(value));
+            }
+            if (value < 0 || value >= artss::audio::kHotCueCount)
+              return name == "deckHotCuePosition" ? jsi::Value(-1.0) : jsi::Value(false);
+            const auto slot = static_cast<std::uint32_t>(value);
+            if (name == "deckSetHotCue") return engine->deckSetHotCue(index, slot);
+            if (name == "deckHotCue") return engine->deckHotCue(index, slot);
+            return engine->deckHotCuePosition(index, slot);
+          });
+    }
     if (name == "deckSync") {
       return jsi::Function::createFromHostFunction(runtime, property, 1,
           [engine = engine_](jsi::Runtime&, const jsi::Value&, const jsi::Value* args, std::size_t count) -> jsi::Value {
@@ -33,6 +70,18 @@ class RealtimeControls final : public jsi::HostObject {
             const double deck = args[0].asNumber();
             return std::isfinite(deck) && deck == std::floor(deck) && deck >= 0 && deck < 2 &&
                    engine->deckSync(static_cast<std::uint32_t>(deck));
+          });
+    }
+    if (name == "deckSetBeatGrid") {
+      return jsi::Function::createFromHostFunction(runtime, property, 3,
+          [engine = engine_](jsi::Runtime&, const jsi::Value&, const jsi::Value* args, std::size_t count) -> jsi::Value {
+            if (count < 3 || !args[0].isNumber() || !args[1].isNumber() || !args[2].isNumber()) return false;
+            const double deck = args[0].asNumber();
+            const double bpm = args[1].asNumber(), firstBeat = args[2].asNumber();
+            return std::isfinite(deck) && deck == std::floor(deck) && deck >= 0 && deck < 2 &&
+                   std::isfinite(bpm) && std::isfinite(firstBeat) &&
+                   engine->deckSetBeatGrid(static_cast<std::uint32_t>(deck),
+                                           static_cast<float>(bpm), static_cast<float>(firstBeat));
           });
     }
     if (name == "deckFilter") {
@@ -93,6 +142,15 @@ class RealtimeControls final : public jsi::HostObject {
       return jsi::Function::createFromHostFunction(runtime, property, 0,
           [engine = engine_](jsi::Runtime&, const jsi::Value&, const jsi::Value*, std::size_t) -> jsi::Value {
             engine->stopAutoMix(); return true;
+          });
+    }
+    if (name == "setCrossfadeCurve") {
+      return jsi::Function::createFromHostFunction(runtime, property, 1,
+          [engine = engine_](jsi::Runtime&, const jsi::Value&, const jsi::Value* args, std::size_t count) -> jsi::Value {
+            if (count < 1 || !args[0].isNumber()) return false;
+            const double curve = args[0].asNumber();
+            if (!std::isfinite(curve) || curve != std::floor(curve) || curve < 0 || curve > 2) return false;
+            return engine->setCrossfadeCurve(static_cast<std::uint32_t>(curve));
           });
     }
     if (name == "crossfade") {

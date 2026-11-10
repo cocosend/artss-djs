@@ -6,6 +6,8 @@ export type PositionKey = `position${PadIndex}`;
 export interface RealtimeControls {
   readonly running: boolean;
   readonly peak: number;
+  readonly meterRmsL: number;
+  readonly meterRmsR: number;
   readonly frames: number;
   readonly droppedCommands: number;
   readonly renderOverruns: number;
@@ -21,6 +23,8 @@ export interface RealtimeControls {
   readonly position7: number;
   readonly deckPosition0: number;
   readonly deckPosition1: number;
+  readonly deckCuePosition0: number;
+  readonly deckCuePosition1: number;
   readonly deckBpm0: number;
   readonly deckBpm1: number;
   readonly deckRate0: number;
@@ -31,9 +35,16 @@ export interface RealtimeControls {
   readonly deckPlaying1: boolean;
   readonly currentStep: number;
   deckPlay(deck: 0 | 1, play: boolean): boolean;
+  deckSetCue(deck: 0 | 1): boolean;
+  deckCue(deck: 0 | 1): boolean;
+  deckSetHotCue(deck: 0 | 1, slot: number): boolean;
+  deckHotCue(deck: 0 | 1, slot: number): boolean;
+  deckHotCuePosition(deck: 0 | 1, slot: number): number;
+  deckBeatJump(deck: 0 | 1, beats: number): boolean;
   deckSeek(deck: 0 | 1, position: number): boolean;
   deckRate(deck: 0 | 1, rate: number): boolean;
   deckSync(deck: 0 | 1): boolean;
+  deckSetBeatGrid(deck: 0 | 1, bpm: number, firstBeatSeconds: number): boolean;
   deckFilter(deck: 0 | 1, amount: number): boolean;
   deckJog(deck: 0 | 1, speed: number, touching: boolean): boolean;
   deckLoop(deck: 0 | 1, start: number, end: number): boolean;
@@ -42,6 +53,7 @@ export interface RealtimeControls {
   startAutoMix(bars: number): boolean;
   stopAutoMix(): boolean;
   crossfade(position: number): boolean;
+  setCrossfadeCurve(curve: 0 | 1 | 2): boolean;
   setDeckEQ(deck: 0 | 1, low: number, mid: number, high: number): boolean;
   setDeckGain(deck: 0 | 1, gain: number): boolean;
   setEQ(lowDb: number, midDb: number, highDb: number): boolean;

@@ -13,6 +13,7 @@ constexpr std::size_t kPadCount = 8;
 constexpr std::size_t kVoiceCount = 48;
 constexpr std::size_t kWaveformBins = 96;
 constexpr std::size_t kDeckCount = 2;
+constexpr std::size_t kHotCueCount = 8;
 constexpr std::size_t kKitCount = 4; // original starter kit + 303/606/909
 constexpr std::size_t kSteps = 16;
 
@@ -47,13 +48,22 @@ class AudioEngine final {
   void loadDeck(std::uint32_t deck, Sample track);
   void loadDeck(std::uint32_t deck, Sample track, BeatGrid grid);
   bool deckPlay(std::uint32_t deck, bool play) noexcept;
+  bool deckSetCue(std::uint32_t deck) noexcept;
+  bool deckCue(std::uint32_t deck) noexcept;
+  float deckCuePosition(std::uint32_t deck) const noexcept;
+  bool deckSetHotCue(std::uint32_t deck, std::uint32_t slot) noexcept;
+  bool deckHotCue(std::uint32_t deck, std::uint32_t slot) noexcept;
+  float deckHotCuePosition(std::uint32_t deck, std::uint32_t slot) const noexcept;
+  bool deckBeatJump(std::uint32_t deck, std::int32_t beats) noexcept;
   bool deckSeek(std::uint32_t deck, float normalized) noexcept;
   bool deckRate(std::uint32_t deck, float rate) noexcept;
   bool deckFilter(std::uint32_t deck, float amount) noexcept;
   bool deckSync(std::uint32_t deck) noexcept;
+  bool deckSetBeatGrid(std::uint32_t deck, float bpm, float firstBeatSeconds) noexcept;
   bool deckJog(std::uint32_t deck, float speed, bool touching) noexcept;
   bool deckLoop(std::uint32_t deck, float start, float end) noexcept;
   bool crossfade(float position) noexcept;
+  bool setCrossfadeCurve(std::uint32_t curve) noexcept;
   bool startAutoMix(std::uint32_t bars) noexcept;
   void stopAutoMix() noexcept;
   std::uint32_t autoMixState() const noexcept { return autoMixState_.load(std::memory_order_acquire); }
@@ -78,6 +88,8 @@ class AudioEngine final {
 
   bool running() const noexcept { return active_.load(std::memory_order_acquire); }
   float peak() const noexcept { return peak_.load(std::memory_order_relaxed); }
+  float meterRmsL() const noexcept { return meterRmsL_.load(std::memory_order_relaxed); }
+  float meterRmsR() const noexcept { return meterRmsR_.load(std::memory_order_relaxed); }
   float progress(std::uint32_t pad) const noexcept;
   std::uint64_t renderedFrames() const noexcept {
     return renderedFrames_.load(std::memory_order_relaxed);
@@ -133,6 +145,7 @@ class AudioEngine final {
   std::atomic<std::uint64_t> noteEpoch_{0};
   std::atomic<std::uint64_t> renderedFrames_{0}, dropped_{0}, triggered_{0};
   std::atomic<float> peak_{0};
+  std::atomic<float> meterRmsL_{0}, meterRmsR_{0};
   std::atomic<float> requestedMaster_{0.75F};
   std::array<std::atomic<float>, kPadCount> progress_{};
   float master_{0.75F};
@@ -146,7 +159,8 @@ class AudioEngine final {
   struct Deck {
     Sample track;
     std::array<float, kWaveformBins> waveform{};
-    std::atomic<float> seek{-1}, rate{1}, jogRate{0}, position{0};
+    std::atomic<float> seek{-1}, cue{0}, rate{1}, jogRate{0}, position{0};
+    std::array<std::atomic<float>, kHotCueCount> hotCues{};
     std::atomic<std::uint32_t> jogRevision{0}, frameCount{0};
     std::atomic<std::uint64_t> loopRange{0x3f80000000000000ULL};
     std::atomic<float> gain{1}, lowDb{0}, midDb{0}, highDb{0};
@@ -161,6 +175,10 @@ class AudioEngine final {
     std::uint32_t seekFadeRemaining{0}, seenJogRevision{0}, jogIdleFrames{0};
   };
   std::array<Deck, kDeckCount> decks_{};
+  // Curve IDs: 0 smooth (S-curve), 1 sharp (scratch cut), 2 dipless (existing).
+  std::atomic<std::uint32_t> requestedCrossfadeCurve_{2};
+  float curveGainA_{0.707106781F}, curveGainB_{0.707106781F};
+  float curveBassA_{0.5F}, curveBassB_{0.5F};
   std::atomic<float> requestedCrossfade_{0.5F};
   float crossfade_{0.5F};
   std::atomic<float> crossfadePosition_{0.5F};

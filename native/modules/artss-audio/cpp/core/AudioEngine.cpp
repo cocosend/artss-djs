@@ -83,6 +83,8 @@ void AudioEngine::prepare(double sampleRate, SampleBank bank) {
     deck.waveform.fill(0);
     deck.cursor = 0;
     deck.position.store(0, std::memory_order_relaxed);
+    deck.cue.store(0, std::memory_order_relaxed);
+    for (auto& hotCue : deck.hotCues) hotCue.store(-1, std::memory_order_relaxed);
     deck.rate.store(1, std::memory_order_relaxed);
     deck.playing.store(false, std::memory_order_relaxed);
     deck.jogging.store(false, std::memory_order_relaxed);
@@ -145,6 +147,8 @@ void AudioEngine::deactivateAfterStop() noexcept {
   limiterHold_ = 0;
   lowL_ = lowR_ = highLpL_ = highLpR_ = 0;
   peak_.store(0, std::memory_order_relaxed);
+  meterRmsL_.store(0, std::memory_order_relaxed);
+  meterRmsR_.store(0, std::memory_order_relaxed);
   for (auto& progress : progress_) progress.store(-1, std::memory_order_relaxed);
   sequencerWasPlaying_ = false;
   sequenceFrame_ = 0;
@@ -193,6 +197,8 @@ void AudioEngine::loadDeck(std::uint32_t index, Sample track, BeatGrid grid) {
   deck.firstBeat.store(grid.firstBeatSeconds, std::memory_order_release);
   deck.cursor = 0;
   deck.position.store(0, std::memory_order_release);
+  deck.cue.store(0, std::memory_order_release);
+  for (auto& hotCue : deck.hotCues) hotCue.store(-1, std::memory_order_release);
   deck.rate.store(1, std::memory_order_release);
   deck.jogRate.store(0, std::memory_order_release);
   deck.jogging.store(false, std::memory_order_release);
@@ -214,6 +220,90 @@ void AudioEngine::loadDeck(std::uint32_t index, Sample track, BeatGrid grid) {
     deck.waveform[bin] = peak;
   }
   deck.loaded.store(true, std::memory_order_release);
+}
+
+// A stopped deck can capture either its committed playhead or a pending seek.
+// Both mailboxes are lock-free; the render callback remains the sole cursor owner.
+bool AudioEngine::deckSetCue(std::uint32_t index) noexcept {
+  if (index >= kDeckCount || !running()) return false;
+  auto& deck = decks_[index];
+  if (!deck.loaded.load(std::memory_order_acquire) ||
+      deck.playing.load(std::memory_order_acquire) ||
+      deck.jogging.load(std::memory_order_acquire)) return false;
+  const float pending = deck.seek.load(std::memory_order_acquire);
+  const float cue = pending >= 0 ? pending : deck.position.load(std::memory_order_acquire);
+  deck.cue.store(cue, std::memory_order_release);
+  return true;
+}
+
+bool AudioEngine::deckCue(std::uint32_t index) noexcept {
+  if (index >= kDeckCount || !running()) return false;
+  auto& deck = decks_[index];
+  if (!deck.loaded.load(std::memory_order_acquire)) return false;
+  // A DJ CUE press cancels automix, pauses the transport and returns to
+  // its saved point; the render thread applies the seek with a short fade.
+  stopAutoMix();
+  deck.playing.store(false, std::memory_order_release);
+  deck.jogging.store(false, std::memory_order_release);
+  deck.jogRate.store(0, std::memory_order_release);
+  deck.jogRevision.fetch_add(1, std::memory_order_release);
+  deck.seek.store(deck.cue.load(std::memory_order_acquire), std::memory_order_release);
+  return true;
+}
+
+float AudioEngine::deckCuePosition(std::uint32_t index) const noexcept {
+  return index < kDeckCount ? decks_[index].cue.load(std::memory_order_acquire) : 0;
+}
+
+// Hot cues are independent atomic position mailboxes; rendering only consumes
+// the existing seek mailbox, so there are no allocations or locks in RemoteIO.
+bool AudioEngine::deckSetHotCue(std::uint32_t index, std::uint32_t slot) noexcept {
+  if (index >= kDeckCount || slot >= kHotCueCount || !running()) return false;
+  auto& deck = decks_[index];
+  if (!deck.loaded.load(std::memory_order_acquire)) return false;
+  const float pending = deck.seek.load(std::memory_order_acquire);
+  const float current = pending >= 0 ? pending : deck.position.load(std::memory_order_acquire);
+  deck.hotCues[slot].store(std::clamp(current, 0.0F, 1.0F), std::memory_order_release);
+  return true;
+}
+
+bool AudioEngine::deckHotCue(std::uint32_t index, std::uint32_t slot) noexcept {
+  if (index >= kDeckCount || slot >= kHotCueCount || !running()) return false;
+  auto& deck = decks_[index];
+  if (!deck.loaded.load(std::memory_order_acquire)) return false;
+  const float point = deck.hotCues[slot].load(std::memory_order_acquire);
+  if (point < 0) return false;
+  stopAutoMix();
+  deck.jogging.store(false, std::memory_order_release);
+  deck.jogRate.store(0, std::memory_order_release);
+  deck.jogRevision.fetch_add(1, std::memory_order_release);
+  deck.seek.store(point, std::memory_order_release);
+  deck.playing.store(true, std::memory_order_release);
+  return true;
+}
+
+float AudioEngine::deckHotCuePosition(std::uint32_t index, std::uint32_t slot) const noexcept {
+  if (index >= kDeckCount || slot >= kHotCueCount) return -1.0F;
+  return decks_[index].hotCues[slot].load(std::memory_order_acquire);
+}
+
+bool AudioEngine::deckBeatJump(std::uint32_t index, std::int32_t beats) noexcept {
+  if (index >= kDeckCount || beats == 0 || beats < -64 || beats > 64 || !running()) return false;
+  auto& deck = decks_[index];
+  if (!deck.loaded.load(std::memory_order_acquire)) return false;
+  const auto frames = deck.frameCount.load(std::memory_order_acquire);
+  const float bpm = deck.bpm.load(std::memory_order_acquire);
+  if (!frames || !std::isfinite(bpm) || bpm < 30.0F || bpm > 200.0F) return false;
+  // Pending seeks win over the last published playhead, including back-to-back
+  // beat jumps within the same hardware render block.
+  const float pending = deck.seek.load(std::memory_order_acquire);
+  const double start = pending >= 0.0F ? pending : deck.position.load(std::memory_order_acquire);
+  const double offset = static_cast<double>(beats) * 60.0 * sampleRate_ /
+                        (static_cast<double>(bpm) * frames);
+  const double end = static_cast<double>(frames - 1) / frames;
+  deck.seek.store(static_cast<float>(std::clamp(start + offset, 0.0, end)),
+                  std::memory_order_release);
+  return true;
 }
 
 bool AudioEngine::deckPlay(std::uint32_t index, bool play) noexcept {
@@ -246,6 +336,20 @@ bool AudioEngine::deckFilter(std::uint32_t index, float amount) noexcept {
   decks_[index].filterAmount.store(amount, std::memory_order_release);
   return true;
 }
+bool AudioEngine::deckSetBeatGrid(std::uint32_t index, float bpm, float firstBeatSeconds) noexcept {
+  if (index >= kDeckCount || !running() || !std::isfinite(bpm) ||
+      bpm < 60.0F || bpm > 200.0F || !std::isfinite(firstBeatSeconds) ||
+      firstBeatSeconds < 0.0F) return false;
+  auto& deck = decks_[index];
+  if (!deck.loaded.load(std::memory_order_acquire)) return false;
+  const auto frames = deck.frameCount.load(std::memory_order_acquire);
+  if (!frames || static_cast<double>(firstBeatSeconds) >= frames / sampleRate_) return false;
+  deck.firstBeat.store(firstBeatSeconds, std::memory_order_release);
+  deck.bpm.store(bpm, std::memory_order_release);
+  stopAutoMix();
+  return true;
+}
+
 bool AudioEngine::deckSync(std::uint32_t index) noexcept {
   if (index >= kDeckCount || !running()) return false;
   auto& target = decks_[index];
@@ -293,6 +397,12 @@ bool AudioEngine::deckLoop(std::uint32_t index, float start, float end) noexcept
   decks_[index].loopRange.store(packed, std::memory_order_release);
   return true;
 }
+bool AudioEngine::setCrossfadeCurve(std::uint32_t curve) noexcept {
+  if (curve > 2) return false;
+  requestedCrossfadeCurve_.store(curve, std::memory_order_release);
+  return true;
+}
+
 bool AudioEngine::crossfade(float position) noexcept {
   if (!running() || !std::isfinite(position) || position < 0 || position > 1) return false;
   requestedCrossfade_.store(position, std::memory_order_release);
@@ -465,6 +575,7 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
   const bool sequenceOn = sequencerPlaying_.load(std::memory_order_relaxed);
   const double stepFrames = sampleRate_ * 15.0 / tempo_.load(std::memory_order_relaxed);
   float targetCrossfade = requestedCrossfade_.load(std::memory_order_relaxed);
+  const auto curve = requestedCrossfadeCurve_.load(std::memory_order_relaxed);
   int autoCommand = autoMixCommand_.exchange(0, std::memory_order_acq_rel);
   // After a transition, wait until the playing track approaches its end, then
   // bring the other deck back in. A manual fader move or pause cancels it.
@@ -532,6 +643,7 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
     loopEnds[index] = std::bit_cast<float>(static_cast<std::uint32_t>(loop >> 32));
   }
   float blockPeak = 0;
+  double sumSqL = 0, sumSqR = 0;
   for (std::uint32_t frame = 0; frame < frames; ++frame) {
     if (sequenceOn && !sequencerWasPlaying_) {
       sequenceFrame_ = 0;
@@ -594,8 +706,36 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
       }
     }
     crossfade_ += std::clamp(targetCrossfade - crossfade_, -gainSlew_, gainSlew_);
-    const float gainA = std::sqrt(std::max(0.0F, 1 - crossfade_));
-    const float gainB = std::sqrt(std::max(0.0F, crossfade_));
+    float targetGainA = 0, targetGainB = 0;
+    float targetBassA = 0, targetBassB = 0;
+    if (curve == 0) {
+      // Smoothstep: continuous value and first derivative at both endpoints.
+      const float t = crossfade_ * crossfade_ * (3.0F - 2.0F * crossfade_);
+      targetGainA = targetBassA = 1.0F - t;
+      targetGainB = targetBassB = t;
+    } else if (curve == 1) {
+      // A narrow 8% cut zone for scratch-style transitions.
+      const float t = std::clamp((crossfade_ - 0.46F) / 0.08F, 0.0F, 1.0F);
+      targetGainA = targetBassA = 1.0F - t;
+      targetGainB = targetBassB = t;
+    } else {
+      // Preserve FIX38's equal-power treble and correlated-bass behavior.
+      targetGainA = std::sqrt(std::max(0.0F, 1.0F - crossfade_));
+      targetGainB = std::sqrt(std::max(0.0F, crossfade_));
+      targetBassA = 1.0F - crossfade_;
+      targetBassB = crossfade_;
+    }
+    // Slew the gains themselves: switching curves at a static fader position
+    // must not make an abrupt PCM step.
+    const auto slew = [this](float& current, float target) noexcept {
+      current += std::clamp(target - current, -gainSlew_, gainSlew_);
+    };
+    slew(curveGainA_, targetGainA);
+    slew(curveGainB_, targetGainB);
+    slew(curveBassA_, targetBassA);
+    slew(curveBassB_, targetBassB);
+    const float gainA = curveGainA_;
+    const float gainB = curveGainB_;
     for (std::size_t index = 0; index < kDeckCount; ++index) {
       auto& deck = decks_[index];
       const auto total = deck.track.frames();
@@ -674,7 +814,7 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
         sampleR = channelEQ(sampleR, deck.eqLowR, deck.eqHighR);
         deck.bassL += bassCoefficient_ * (sampleL - deck.bassL);
         deck.bassR += bassCoefficient_ * (sampleR - deck.bassR);
-        const float bassSide = index == 0 ? 1 - crossfade_ : crossfade_;
+        const float bassSide = index == 0 ? curveBassA_ : curveBassB_;
         l += ((sampleL - deck.bassL) * side + deck.bassL * bassSide) * deck.envelope;
         r += ((sampleR - deck.bassR) * side + deck.bassR * bassSide) * deck.envelope;
       }
@@ -722,6 +862,8 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
     left[frame] = l * limiter_;
     right[frame] = r * limiter_;
     blockPeak = std::max({blockPeak, std::abs(left[frame]), std::abs(right[frame])});
+    sumSqL += static_cast<double>(left[frame]) * left[frame];
+    sumSqR += static_cast<double>(right[frame]) * right[frame];
   }
   std::array<std::uint64_t, kPadCount> newest{};
   std::array<float, kPadCount> progress;
@@ -737,6 +879,9 @@ void AudioEngine::render(float* left, float* right, std::uint32_t frames) noexce
     deck.position.store(static_cast<float>(deck.cursor / deck.track.frames()), std::memory_order_release);
   crossfadePosition_.store(crossfade_, std::memory_order_relaxed);
   peak_.store(blockPeak, std::memory_order_relaxed);
+  const double denominator = frames > 0 ? static_cast<double>(frames) : 1.0;
+  meterRmsL_.store(static_cast<float>(std::sqrt(sumSqL / denominator)), std::memory_order_relaxed);
+  meterRmsR_.store(static_cast<float>(std::sqrt(sumSqR / denominator)), std::memory_order_relaxed);
   renderedFrames_.fetch_add(frames, std::memory_order_relaxed);
 }
 
