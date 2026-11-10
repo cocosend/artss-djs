@@ -1446,5 +1446,13 @@
 		"ghcr.io/jartan-llc/enchantments/stripe-cli:1": {},
 		"ghcr.io/lodge104/devcontainer.features/aws-sam-cli:1": {},
 		"ghcr.io/mchawa/eidos/eidos:1": {}
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"MS-CEINTL.vscode-language-pack-ru",
+				"ms-vscode.cpptools"
+			]
+		}
 	}
 }
