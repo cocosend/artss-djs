@@ -46,4 +46,6 @@ test('server rate-limits requests before serving filesystem-backed static files'
   const server = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
   assert.match(server, /app\.use\(createRateLimiter\(\)\);\s*app\.use\(express\.static/);
   assert.match(server, /app\.get\('\/\{\*path\}'/);
+  assert.match(server, /const indexHtml = readFileSync\(join\(distDir, 'index\.html'\), 'utf8'\)/);
+  assert.match(server, /res\.type\('html'\)\.send\(indexHtml\)/);
 });
