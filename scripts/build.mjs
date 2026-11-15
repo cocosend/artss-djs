@@ -13,7 +13,7 @@ try{
  const buildDir=await mkdtemp(join(tmpdir(),'artss-kits-'));
  try{
   const binary=join(buildDir,'render-kits');
-  execFileSync(process.env.CXX||'c++',['-std=c++20','-O2','-Wall','-Wextra','-pedantic',join(root,'native/modules/artss-audio/cpp/core/DrumSynth.cpp'),join(root,'native/core/render_kits.cpp'),'-o',binary],{stdio:'inherit'});
+  execFileSync(process.platform==='darwin'?'clang++':'c++',['-std=c++20','-O2','-Wall','-Wextra','-pedantic',join(root,'native/modules/artss-audio/cpp/core/DrumSynth.cpp'),join(root,'native/core/render_kits.cpp'),'-o',binary],{stdio:'inherit'});
   execFileSync(binary,[join(out,'samples/abyss')],{stdio:'inherit'});
  }finally{await rm(buildDir,{recursive:true,force:true})}
 }catch{

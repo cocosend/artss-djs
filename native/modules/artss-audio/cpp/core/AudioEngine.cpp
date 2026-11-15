@@ -363,8 +363,8 @@ bool AudioEngine::deckSync(std::uint32_t index) noexcept {
   const auto rate = source.rate.load(std::memory_order_acquire) * sourceBpm / targetBpm;
   if (sourceBpm <= 0 || targetBpm <= 0 || !std::isfinite(rate) || rate < 0.5F || rate > 2.0F)
     return false;
-  const double sourceSeconds = source.position.load(std::memory_order_acquire) * source.frameCount.load(std::memory_order_acquire) / sampleRate_;
-  const double targetSeconds = target.position.load(std::memory_order_acquire) * target.frameCount.load(std::memory_order_acquire) / sampleRate_;
+  const double sourceSeconds = static_cast<double>(source.position.load(std::memory_order_acquire)) * source.frameCount.load(std::memory_order_acquire) / sampleRate_;
+  const double targetSeconds = static_cast<double>(target.position.load(std::memory_order_acquire)) * target.frameCount.load(std::memory_order_acquire) / sampleRate_;
   const double sourceBeats = (sourceSeconds - source.firstBeat.load(std::memory_order_acquire)) * sourceBpm / 60.0;
   const double phase = sourceBeats - std::floor(sourceBeats);
   const double targetBeatSeconds = 60.0 / targetBpm;

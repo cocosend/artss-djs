@@ -4,7 +4,7 @@ import {join} from 'node:path';
 
 const build = join(process.cwd(), 'build', 'tests');
 mkdirSync(build, {recursive: true});
-const compiler = process.env.CXX || (process.platform === 'darwin' ? 'clang++' : 'g++');
+const compiler = process.platform === 'darwin' ? 'clang++' : 'g++';
 const mode = process.env.SANITIZER;
 const flags = ['-std=c++20', '-Wall', '-Wextra', '-Werror', '-pedantic', '-pthread', '-O1', '-g'];
 if (mode) flags.push(`-fsanitize=${mode}`, '-fno-omit-frame-pointer');

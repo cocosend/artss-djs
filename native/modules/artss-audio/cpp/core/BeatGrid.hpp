@@ -31,9 +31,9 @@ inline BeatGrid analyzeBeatGrid(const Sample& track, double sampleRate) {
   for (std::size_t lag = 30; lag <= 100; ++lag) { // 60–200 BPM.
     double score = 0, normA = 0, normB = 0;
     for (std::size_t i = lag; i < bins; ++i) {
-      score += onset[i] * onset[i - lag];
-      normA += onset[i] * onset[i];
-      normB += onset[i - lag] * onset[i - lag];
+      score += static_cast<double>(onset[i]) * onset[i - lag];
+      normA += static_cast<double>(onset[i]) * static_cast<double>(onset[i]);
+      normB += static_cast<double>(onset[i - lag]) * static_cast<double>(onset[i - lag]);
     }
     const auto correlation = static_cast<float>(score / std::sqrt(normA * normB + 1.e-20));
     correlations[lag] = correlation;
