@@ -1,7 +1,8 @@
 import express from 'express';
-import {existsSync} from 'node:fs';
+import {existsSync, readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {execSync} from 'node:child_process';
+import {createRateLimiter} from './rate-limit.js';
 
 const app = express();
 const port = 3000;
@@ -12,6 +13,9 @@ if (!existsSync(join(distDir, 'index.html')) || !existsSync(join(distDir, 'sampl
   console.log('[AI Studio] Initializing build for production assets...');
   execSync('npm run build', {stdio: 'inherit'});
 }
+const indexHtml = readFileSync(join(distDir, 'index.html'), 'utf8');
+
+app.use(createRateLimiter());
 
 app.use(express.static(distDir, {
   setHeaders: (res, filePath) => {
@@ -21,8 +25,8 @@ app.use(express.static(distDir, {
   }
 }));
 
-app.get('*', (_req, res) => {
-  res.sendFile(join(distDir, 'index.html'));
+app.get('/{*path}', (_req, res) => {
+  res.type('html').send(indexHtml);
 });
 
 app.listen(port, host, () => {
