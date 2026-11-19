@@ -1,5 +1,6 @@
 #include "AudioEngine.hpp"
 #include "BeatGrid.hpp"
+#include "WaveformCache.hpp"
 #include "DrumSynth.hpp"
 
 #include <array>
@@ -731,6 +732,213 @@ void manualBeatGridRegression() {
   assert(!engine.deckBeatJump(0, -65));
 }
 
+void multiresolutionWaveformRegression() {
+  static_assert(artss::audio::kWaveformCacheBytes == 24192);
+  static_assert(std::atomic<int>::is_always_lock_free);
+  using namespace artss::audio;
+  Sample stereo;
+  stereo.stereo.resize(48000 * 2);
+  for (std::size_t i = 0; i < 48000; ++i) {
+    stereo.stereo[2 * i] = 0.5F;
+    stereo.stereo[2 * i + 1] = -0.25F;
+  }
+  const auto cache = precomputeWaveform(stereo, 48000);
+  for (std::size_t level = 0; level < kWaveformWidths.size(); ++level) {
+    const auto width = kWaveformWidths[level];
+    const auto* bytes = cache.rgba8.data() + waveformLevelOffset(level);
+    const std::size_t firstL = 0;
+    const std::size_t firstR = width * 4;
+    const std::size_t last = (width - 1) * 4;
+    assert(bytes[firstL] > 180 && bytes[firstL] < 200);   // +0.5 signed PCM
+    assert(bytes[firstL + 1] == bytes[firstL]);
+    assert(bytes[firstL + 2] >= 126 && bytes[firstL + 2] <= 128);
+    assert(bytes[firstR] > 90 && bytes[firstR] < 100);     // -0.25 signed PCM
+    assert(bytes[firstR + 2] > 62 && bytes[firstR + 2] < 65);
+    assert(bytes[last + 3] == 255);
+    const auto spectrum = (2 * width) * 4;
+    assert(bytes[spectrum] > 0);
+  }
+  Sample silence;
+  silence.stereo.assign(2048 * 2, 0);
+  const auto quiet = precomputeWaveform(silence, 44100);
+  for (std::size_t level = 0; level < kWaveformWidths.size(); ++level) {
+    const auto* pixels = quiet.rgba8.data() + waveformLevelOffset(level);
+    assert(pixels[2] == 0);
+    assert(pixels[(2 * kWaveformWidths[level]) * 4] == 0);
+  }
+  bool bad = false;
+  try { (void)precomputeWaveform(silence, 0); }
+  catch (const std::invalid_argument&) { bad = true; }
+  assert(bad);
+  // Spectral energy is precomputed, not estimated by a display shader.
+  const auto spectrumOf = [](double frequency) {
+    Sample tone;
+    tone.stereo.resize(48000 * 2);
+    for (std::size_t i = 0; i < 48000; ++i) {
+      const float v = 0.6F * std::sin(6.283185307179586 * frequency * i / 48000);
+      tone.stereo[2 * i] = tone.stereo[2 * i + 1] = v;
+    }
+    auto result = precomputeWaveform(tone, 48000);
+    return std::array<std::uint8_t, 3>{
+      result.rgba8[2 * kWaveformWidths[0] * 4],
+      result.rgba8[2 * kWaveformWidths[0] * 4 + 1],
+      result.rgba8[2 * kWaveformWidths[0] * 4 + 2]};
+  };
+  const auto bass = spectrumOf(70);
+  const auto treble = spectrumOf(7000);
+  assert(bass[0] > bass[2]);
+  assert(treble[2] > treble[0]);
+  Sample antiphase;
+  antiphase.stereo.resize(48000 * 2);
+  for (std::size_t i = 0; i < 48000; ++i) {
+    const float v = 0.6F * std::sin(6.283185307179586 * 70.0 * i / 48000);
+    antiphase.stereo[2 * i] = v;
+    antiphase.stereo[2 * i + 1] = -v;
+  }
+  const auto phaseCache = precomputeWaveform(antiphase, 48000);
+  assert(phaseCache.rgba8[2 * kWaveformWidths[0] * 4] > 0);
+}
+
+void shortWaveformEmptyBinsRegression() {
+  using namespace artss::audio;
+  Sample veryShort;
+  veryShort.stereo.resize(100 * 2);
+  for (std::size_t frame = 0; frame < 100; ++frame) {
+    veryShort.stereo[2 * frame] = (frame & 1U) ? 0.25F : -0.25F;
+    veryShort.stereo[2 * frame + 1] = (frame & 1U) ? -0.5F : 0.5F;
+  }
+  const auto result = precomputeWaveform(veryShort, 48000);
+  for (std::size_t level = 0; level < kWaveformWidths.size(); ++level) {
+    const auto width = kWaveformWidths[level];
+    const auto* pixels = result.rgba8.data() + waveformLevelOffset(level);
+    std::array<bool, 1536> populated{};
+    for (std::size_t frame = 0; frame < 100; ++frame)
+      populated[frame * width / 100] = true;
+
+    std::size_t emptyCount = 0;
+    for (std::size_t col = 0; col < width; ++col) {
+      for (std::size_t row = 0; row < kWaveformRows; ++row) {
+        const auto* rgba = pixels + (row * width + col) * kWaveformChannels;
+        if (!populated[col]) {
+          ++emptyCount;
+          for (std::size_t channel = 0; channel < 4; ++channel)
+            assert(rgba[channel] == 0);
+        } else {
+          assert(rgba[3] == 255);
+          for (std::size_t channel = 0; channel < 3; ++channel) {
+            const float decoded = static_cast<float>(rgba[channel]) / 255.0F;
+            assert(std::isfinite(decoded) && decoded >= 0.0F && decoded <= 1.0F);
+          }
+          if (row < 2) assert(rgba[0] <= rgba[1]);
+        }
+      }
+    }
+    if (width > 100) assert(emptyCount > 0);
+  }
+  // A one-frame file exercises the strongest empty-bin ratio (1535/1536).
+  Sample one;
+  one.stereo = {0.2F, -0.2F};
+  const auto single = precomputeWaveform(one, 48000);
+  for (std::size_t level = 0; level < kWaveformWidths.size(); ++level) {
+    const auto width = kWaveformWidths[level];
+    const auto* pixels = single.rgba8.data() + waveformLevelOffset(level);
+    for (std::size_t col = 1; col < width; ++col)
+      for (std::size_t row = 0; row < kWaveformRows; ++row)
+        for (std::size_t channel = 0; channel < kWaveformChannels; ++channel)
+          assert(pixels[(row * width + col) * 4 + channel] == 0);
+  }
+}
+
+void nativeFxChainRegression() {
+  // These tests use the real engine and callback, not a separate test DSP.
+  // All delay and reverb storage is allocated by prepare() before activation.
+  AudioEngine engine;
+  engine.prepare(48000, makeBank(8, 0));
+  Sample impulse, reverse;
+  impulse.stereo.assign(48000 * 3 * 2, 0);
+  reverse.stereo.assign(48000 * 3 * 2, 0);
+  for (std::size_t i = 0; i < 48000 * 3; ++i) {
+    if (i == 256) {
+      impulse.stereo[2 * i] = 0.7F;
+      impulse.stereo[2 * i + 1] = -0.7F;
+      reverse.stereo[2 * i] = -0.4F;
+      reverse.stereo[2 * i + 1] = 0.4F;
+    }
+  }
+  engine.loadDeck(0, std::move(impulse), {120, 0, 1});
+  engine.loadDeck(1, std::move(reverse), {120, 0, 1});
+  assert(!engine.setFx(0, 0, 1, 1200, 0.6F));
+  engine.activate();
+  assert(!engine.setFx(3, 0, 1, 800, 0.5F));
+  assert(!engine.setFx(0, 6, 0, 0, 0));
+  assert(!engine.setFx(0, 0, 1, NAN, 0.2F));
+  assert(!engine.setFx(0, 0, 1, 500, 1.2F));
+  assert(!engine.setFx(0, 5, 6, 0, 0));
+  assert(!engine.setFx(0, 1, 1, 150, 0.99F));
+  assert(engine.setFx(0, 0, 1, 150, 1));
+  assert(engine.setFx(0, 1, 0.6F, 120.0F, 0.7F));
+  assert(engine.setFx(0, 2, 0.7F, 0.8F, 0.5F));
+  assert(engine.setFx(0, 3, 0.6F, 0.7F, 0.8F));
+  assert(engine.setFx(0, 4, 0.5F, 10, 4));
+  assert(engine.setFx(1, 0, 2, 2600, 0.7F));
+  assert(engine.setFx(1, 1, 0.4F, 240, 0.55F));
+  assert(engine.setFx(2, 0, 1, 750, 0.5F));
+  assert(engine.setFx(2, 2, 0.5F, 0.5F, 0.35F));
+  assert(engine.crossfade(0.5F));
+  assert(engine.deckPlay(0, true));
+  assert(engine.deckPlay(1, true));
+  std::array<float, 512> left{}, right{};
+  float lastL = 0;
+  for (int block = 0; block < 120; ++block) {
+    if (block == 20) {
+      assert(engine.setFx(0, 0, 2, 10000, 0.95F));
+      assert(engine.setFx(2, 0, 2, 50, 1));
+    }
+    if (block == 40) {
+      assert(engine.setFx(0, 5, 3, 0, 0));
+      assert(engine.setFx(2, 5, 2, 0, 0));
+    }
+    if (block == 90) {
+      assert(engine.setFx(0, 5, 0, 0, 0));
+      assert(engine.setFx(2, 5, 0, 0, 0));
+    }
+    render(engine, left.data(), right.data(), left.size());
+    for (std::size_t i = 0; i < left.size(); ++i) {
+      assert(std::isfinite(left[i]) && std::isfinite(right[i]));
+      assert(std::abs(left[i]) <= 0.960001F);
+      assert(std::abs(right[i]) <= 0.960001F);
+    }
+    lastL = left.back();
+  }
+  (void)lastL;
+  engine.rejectCommands();
+  engine.deactivateAfterStop();
+  assert(!engine.setFx(0, 0, 1, 800, 0.5F));
+}
+
+void fxSvfImpulseSweepRegression() {
+  // All extreme cutoff/resonance sweeps are impulse-stable and finite.
+  for (const double sampleRate : {44100.0, 48000.0, 96000.0}) {
+    FxChain chain(sampleRate);
+    assert(!chain.set(0, 1, 25000, 0.5F));
+    for (int mode : {1, 2}) {
+      chain.reset();
+      for (int sweep = 0; sweep < 6; ++sweep) {
+        const float cutoff = sweep % 2 ? 20.0F : std::min(18000.0F, 0.44F * static_cast<float>(sampleRate));
+        assert(chain.set(0, static_cast<float>(mode), cutoff, sweep % 2 ? 1.0F : 0.0F));
+        chain.beginBlock();
+        for (int i = 0; i < 1024; ++i) {
+          float l = (i == 0) ? 0.8F : 0.0F;
+          float r = (i == 0) ? -0.8F : 0.0F;
+          chain.process(l, r, i + 1024.0 * sweep, 120.0F, 0);
+          assert(std::isfinite(l) && std::isfinite(r));
+          assert(std::abs(l) < 5.0F && std::abs(r) < 5.0F);
+        }
+      }
+    }
+  }
+}
+
 int main() {
   for (const unsigned sampleRate : {44100U, 48000U, 96000U}) {
     Sample click;
@@ -790,6 +998,10 @@ int main() {
 
   stereoRmsMeterRegression();
   selectableCrossfadeCurves();
+  fxSvfImpulseSweepRegression();
+  nativeFxChainRegression();
+  shortWaveformEmptyBinsRegression();
+  multiresolutionWaveformRegression();
   manualBeatGridRegression();
   hotCueAndBeatJumpRegression();
   cueTransportRegression();

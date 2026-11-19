@@ -1,9 +1,10 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {ActivityIndicator, Pressable, ScrollView, StatusBar, StyleSheet, Text, View} from 'react-native';
+import {ActivityIndicator, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View,
+  requireNativeComponent, type StyleProp, type ViewStyle} from 'react-native';
 import {Gesture, GestureDetector, GestureHandlerRootView} from 'react-native-gesture-handler';
 import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
 import {Canvas, Circle, LinearGradient, Path, Rect, Skia, vec} from '@shopify/react-native-skia';
-import Animated, {useAnimatedStyle, useDerivedValue, useFrameCallback, useSharedValue, type SharedValue} from 'react-native-reanimated';
+import Animated, {useAnimatedProps, useAnimatedStyle, useDerivedValue, useFrameCallback, useSharedValue, type SharedValue} from 'react-native-reanimated';
 import {scheduleOnRN} from 'react-native-worklets';
 import {generateTrack, loadPreset, pickTrack, type PadIndex, type RealtimeControls, type TrackInfo} from 'react-native-artss-audio';
 import {useAudioSession} from './audio/useAudioSession';
@@ -30,14 +31,34 @@ function Button({text, onPress, onLongPress, active = false, disabled = false, c
     <Text style={[s.buttonText, active && {color}]}>{text}</Text></Pressable>;
 }
 
-// One real PCM overview only. GPU geometry is rebuilt only when the source or width changes.
+type MetalWaveformProps = {
+  cache: string; zoom: number; duration: number;
+  position?: number; visibleStart?: number; bpm?: number; firstBeat?: number;
+  style?: StyleProp<ViewStyle>;
+};
+const MetalWaveform = Platform.OS === 'ios'
+  ? Animated.createAnimatedComponent(requireNativeComponent<MetalWaveformProps>('ARTSSWaveformMetal'))
+  : null;
+
+// Native Metal texture is uploaded only when the PCM track changes. The display
+// link renders the three precomputed RGBA8 rows, grid and moving playhead.
 const Stripe = memo(function StripeView({controls, deck, track, samples, pad, enabled}: {
   controls: RealtimeControls; deck: Deck; track: TrackInfo | null; samples: readonly number[];
   pad: PadIndex; enabled: boolean;
 }) {
   const [width, setWidth] = useState(1);
+  const [zoom, setZoom] = useState<0 | 1 | 2>(0);
   const progress = useSharedValue(0);
   const dragging = useSharedValue(false);
+  const gestureStart = useSharedValue(0);
+  const visibleSpan = zoom === 0 ? 1 : zoom === 1 ? 0.25 : 0.0625;
+  const metalProps = useAnimatedProps(() => ({
+    position: progress.value,
+    visibleStart: dragging.value ? gestureStart.value
+      : Math.max(0, Math.min(1 - visibleSpan, progress.value - visibleSpan / 2)),
+    bpm: deck === 0 ? controls.deckBpm0 : controls.deckBpm1,
+    firstBeat: deck === 0 ? controls.deckFirstBeat0 : controls.deckFirstBeat1,
+  }));
   useFrameCallback(() => {
     if (dragging.value) return;
     progress.value = track ? (deck === 0 ? controls.deckPosition0 : controls.deckPosition1)
@@ -55,16 +76,46 @@ const Stripe = memo(function StripeView({controls, deck, track, samples, pad, en
     return result;
   }, [samples, track, width]);
   const seek = Gesture.Pan().enabled(enabled && !!track).minDistance(0)
-    .onBegin(event => { dragging.value = true; progress.value = Math.max(0, Math.min(0.9999, event.x / width)); controls.deckSeek(deck, progress.value); })
-    .onUpdate(event => { progress.value = Math.max(0, Math.min(0.9999, event.x / width)); controls.deckSeek(deck, progress.value); })
+    .onBegin(event => {
+      dragging.value = true;
+      gestureStart.value = Math.max(0, Math.min(1 - visibleSpan, progress.value - visibleSpan / 2));
+      progress.value = Math.max(0, Math.min(0.9999,
+        gestureStart.value + (event.x / width) * visibleSpan));
+      controls.deckSeek(deck, progress.value);
+    })
+    .onUpdate(event => {
+      progress.value = Math.max(0, Math.min(0.9999,
+        gestureStart.value + (event.x / width) * visibleSpan));
+      controls.deckSeek(deck, progress.value);
+    })
     .onFinalize(() => { dragging.value = false; });
-  return <GestureDetector gesture={seek}><View style={s.stripe} onLayout={e => setWidth(Math.max(1, e.nativeEvent.layout.width))}>
-    <Canvas style={s.fill} accessible={false}>
-      <Path path={path} style="stroke" strokeWidth={Math.max(1, width / 180)}>
-        <LinearGradient start={vec(0, 0)} end={vec(width, 0)} colors={['#32D9EF','#677EFF','#BB74F2','#F9CD56','#FF8655']} />
-      </Path><Rect x={x} y={3} width={2} height={64} color="#FFFFFF" />
-    </Canvas>
-  </View></GestureDetector>;
+  return <View>
+    <GestureDetector gesture={seek}>
+      <View style={s.stripe} onLayout={e => setWidth(Math.max(1, e.nativeEvent.layout.width))}>
+        {track?.waveformCache && MetalWaveform
+          ? <MetalWaveform cache={track.waveformCache} zoom={zoom} duration={track.duration}
+              animatedProps={metalProps} style={s.fill} />
+          : <Canvas style={s.fill} accessible={false}>
+              <Path path={path} style="stroke" strokeWidth={Math.max(1, width / 180)}>
+                <LinearGradient start={vec(0, 0)} end={vec(width, 0)}
+                  colors={['#32D9EF','#677EFF','#BB74F2','#F9CD56','#FF8655']} />
+              </Path>
+              <Rect x={x} y={3} width={2} height={64} color="#FFFFFF" />
+            </Canvas>}
+      </View>
+    </GestureDetector>
+    {track && <View style={s.waveZoomControls}>
+      <Pressable accessibilityRole="button" disabled={zoom === 0}
+        onPress={() => setZoom(z => (z - 1) as 0 | 1 | 2)}>
+        <Text style={s.waveZoomText}>− ZOOM</Text>
+      </Pressable>
+      <Text style={s.waveZoomText}>{zoom === 0 ? 'OVERVIEW' : zoom === 1 ? 'MID 4×' : 'DETAIL 16×'}</Text>
+      <Pressable accessibilityRole="button" disabled={zoom === 2}
+        onPress={() => setZoom(z => (z + 1) as 0 | 1 | 2)}>
+        <Text style={s.waveZoomText}>+ ZOOM</Text>
+      </Pressable>
+    </View>}
+  </View>;
 });
 
 
@@ -303,6 +354,107 @@ function ChannelStrip({deck, controls, enabled}: {deck: Deck; controls: Realtime
     {(['FILTER','HIGH','MID','LOW'] as const).map(name => <Dial key={name} name={name} deck={deck} controls={controls} state={state} enabled={enabled} />)}
     <ChannelFader deck={deck} controls={controls} enabled={enabled} state={state} /></View>;
 }
+
+type FxBus = 0 | 1 | 2;
+type FxId = 0 | 1 | 2 | 3 | 4 | 5;
+type FxTriple = [number, number, number];
+const FX_NAMES = ['SVF FILTER','PING-PONG','REVERB','FLANGER','BITCRUSH','ROLL'] as const;
+const FX_LABELS = [
+  ['MODE','CUTOFF Hz','RESONANCE'],
+  ['MIX','TIME ms','FEEDBACK'],
+  ['MIX','ROOM','DAMPING'],
+  ['MIX','SPEED Hz','DEPTH'],
+  ['MIX','BITS','HOLD'],
+  ['BEATS','—','—'],
+] as const;
+const FX_MIN = [
+  [0,20,0],[0,50,0],[0,0,0],[0,0.05,0],[0,4,1],[0,0,0],
+] as const;
+const FX_MAX = [
+  [2,18000,1],[1,1500,0.85],[1,1,1],[1,5,1],[1,16,32],[5,0,0],
+] as const;
+const FX_STEP = [
+  [1,200,0.05],[0.1,25,0.05],[0.1,0.05,0.05],
+  [0.1,0.1,0.1],[0.1,1,1],[1,0,0],
+] as const;
+const FX_START = (): FxTriple[][] => Array.from({length:3}, () => [
+  [0,1200,0.35],[0,375,0.45],[0,0.65,0.4],
+  [0,0.5,0.5],[0,10,3],[0,0,0],
+]);
+
+function FxPanel({controls, enabled}: {controls: RealtimeControls; enabled: boolean}) {
+  const [open, setOpen] = useState(false);
+  const [bus, setBus] = useState<FxBus>(0);
+  const [fx, setFx] = useState<FxId>(0);
+  const [values, setValues] = useState(FX_START);
+  const current: FxTriple = values[bus]?.[fx] ?? [0, 1200, 0.35];
+  function write(index: 0 | 1 | 2, next: number) {
+    if (!enabled) return;
+    const fixed = [...current] as FxTriple;
+    const min = FX_MIN[fx][index], max = FX_MAX[fx][index];
+    fixed[index] = Math.min(max, Math.max(min, Math.round(next * 1000) / 1000));
+    if (!controls.setFx(bus, fx, fixed[0], fixed[1], fixed[2])) return;
+    setValues(old => old.map((groups, b) => b === bus
+      ? groups.map((triple, e) => e === fx ? fixed : triple)
+      : groups));
+  }
+  const enabledFlag = current[0] > 0;
+  const parameter = (index: 0 | 1 | 2) => {
+    const step = FX_STEP[fx][index];
+    if (step === 0) return null;
+    const value = current[index];
+    const name = FX_LABELS[fx][index];
+    const display = fx === 5 && index === 0
+      ? ['OFF','1/4','1/2','1','2','4'][Math.round(value)]
+      : fx === 0 && index === 0
+        ? ['OFF','LPF','HPF'][Math.round(value)]
+        : value.toFixed(step < 1 ? 2 : 0);
+    return <View key={name} style={s.fxParameter}>
+      <Text style={s.fxParamTitle}>{name}</Text>
+      <View style={s.fxParamButtons}>
+        <Pressable accessibilityRole="button" disabled={!enabled || value <= FX_MIN[fx][index]}
+          onPress={() => write(index, value - step)}>
+          <Text style={s.fxStep}>−</Text>
+        </Pressable>
+        <Text style={s.fxParamValue}>{display}</Text>
+        <Pressable accessibilityRole="button" disabled={!enabled || value >= FX_MAX[fx][index]}
+          onPress={() => write(index, value + step)}>
+          <Text style={s.fxStep}>+</Text>
+        </Pressable>
+      </View>
+    </View>;
+  };
+  return <View style={s.fxContainer}>
+    <Pressable accessibilityRole="button" onPress={() => setOpen(v => !v)} style={s.fxHeader}>
+      <Text style={s.fxTitle}>ARTSS FX · A / B / MASTER</Text>
+      <Text style={s.fxTitle}>{open ? '−' : '+'}</Text>
+    </Pressable>
+    {open && <>
+      <View style={s.row}>{(['DECK A','DECK B','MASTER'] as const).map((label,index) =>
+        <Button key={label} text={label} active={bus === index}
+          color={ACCENT[index === 2 ? 0 : index]}
+          disabled={!enabled}
+          onPress={() => setBus(index as FxBus)} />)}</View>
+      <View style={s.fxChoices}>{FX_NAMES.map((label,index) =>
+        <Pressable key={label} accessibilityRole="button" disabled={!enabled}
+          onPress={() => setFx(index as FxId)}
+          style={[s.fxChoice,fx === index && s.fxChoiceActive]}>
+          <Text style={[s.fxChoiceText,fx === index && s.fxChoiceTextActive]}>
+            {label}
+          </Text>
+        </Pressable>)}</View>
+      <View style={s.fxParameters}>
+        {parameter(0)}{parameter(1)}{parameter(2)}
+      </View>
+      {fx !== 0 && fx !== 5
+        ? <Button text={enabledFlag ? 'BYPASS FX' : 'ENABLE FX'}
+            active={enabledFlag} disabled={!enabled}
+            onPress={() => write(0, enabledFlag ? 0 : 0.5)} />
+        : null}
+    </>}
+  </View>;
+}
+
 function Mixer({controls, enabled, track, deck}: {controls: RealtimeControls; enabled: boolean; track: TrackInfo | null; deck: Deck}) {
   const [rate, setRate] = useState<[number, number]>([1,1]);
   const [loop, setLoop] = useState<[number, number]>([0,0]);
@@ -429,6 +581,7 @@ function Mixer({controls, enabled, track, deck}: {controls: RealtimeControls; en
     <View style={s.row}>{([-16,-4,-1,1,4,16] as const).map(beats =>
       <Button key={beats} text={beats > 0 ? `+${beats}` : `${beats}`}
         disabled={!enabled || !track} onPress={() => { controls.deckBeatJump(deck, beats); }} />)}</View>
+    <FxPanel controls={controls} enabled={enabled} />
     <MasterFader controls={controls} enabled={enabled} />
   </ScrollView>;
 }
@@ -537,12 +690,28 @@ const s=StyleSheet.create({
   vuRow:{flexDirection:'row',alignItems:'center',paddingHorizontal:14,gap:8,paddingTop:4},
   vuCaption:{fontSize:9,color:'#7E8C9E',fontWeight:'700',width:30},
   vuCanvas:{height:17,flex:1,backgroundColor:'#151E29',borderRadius:3,overflow:'hidden'},
+  waveZoomControls:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',paddingHorizontal:18,paddingTop:3},
+  waveZoomText:{fontSize:9,fontWeight:'800',letterSpacing:0.5,color:'#80BCCA'},
   trackRow:{flexDirection:'row',gap:10,paddingHorizontal:14},trackTitle:{flex:1,flexDirection:'row',alignItems:'center',gap:7,borderBottomWidth:2,borderColor:'#202A36',paddingVertical:7},
   deckBadge:{fontWeight:'900',fontSize:15},trackName:{flex:1,color:'#EDF3F7',fontSize:12,fontWeight:'600'},stripe:{height:70,marginHorizontal:14,backgroundColor:'#0B1119',borderRadius:6,overflow:'hidden'},
   stripeCaption:{flexDirection:'row',justifyContent:'space-between',paddingHorizontal:16,paddingTop:5,paddingBottom:10},hint:{fontSize:9,color:'#8695A9',letterSpacing:.5},importLabel:{color:ACCENT[0],fontSize:10,fontWeight:'800'},
   pocket:{flex:1,borderTopWidth:1,borderBottomWidth:1,borderColor:'#27313E',backgroundColor:'#10161F'},page:{padding:14,paddingBottom:24,gap:9},section:{color:'#9CAEC1',fontSize:10,fontWeight:'800',letterSpacing:1.5,marginVertical:5},
   pads:{flexDirection:'row',flexWrap:'wrap',justifyContent:'space-between',rowGap:8},bpm:{color:'#FFF',fontSize:23,fontWeight:'700',textAlign:'center',minWidth:50,fontVariant:['tabular-nums']},
   steps:{flexDirection:'row',gap:3,alignItems:'center',marginBottom:5},lane:{width:34,color:'#94A5B8',fontSize:8},step:{width:24,height:29,borderWidth:1,borderColor:'#34414D',borderRadius:4,backgroundColor:'#182230'},stepOn:{backgroundColor:'#278B9D'},stepCurrent:{borderColor:'#FFF'},
+  fxContainer:{borderWidth:1,borderColor:'#263C4A',borderRadius:10,padding:10,backgroundColor:'#0D1823',marginTop:6},
+  fxHeader:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingVertical:7},
+  fxTitle:{fontSize:11,fontWeight:'900',color:'#3EDCEE',letterSpacing:0.6},
+  fxChoices:{flexDirection:'row',flexWrap:'wrap',gap:6,marginVertical:7},
+  fxChoice:{width:'31%',minHeight:37,justifyContent:'center',alignItems:'center',borderWidth:1,borderRadius:7,borderColor:'#344455',padding:4},
+  fxChoiceActive:{borderColor:'#3EDCEE',backgroundColor:'#15303B'},
+  fxChoiceText:{fontSize:9,fontWeight:'800',color:'#8598AA'},
+  fxChoiceTextActive:{color:'#E5FCFF'},
+  fxParameters:{gap:5,marginVertical:7},
+  fxParameter:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingVertical:5},
+  fxParamTitle:{fontSize:10,color:'#9DB3C3',fontWeight:'700'},
+  fxParamButtons:{flexDirection:'row',alignItems:'center',gap:15},
+  fxStep:{color:'#3EDCEE',fontSize:18,fontWeight:'900',minWidth:24,textAlign:'center'},
+  fxParamValue:{minWidth:65,color:'#EAF7FA',fontSize:12,fontWeight:'800',textAlign:'center'},
   gridValue:{color:'#E4F1F7',fontSize:12,fontWeight:'700',minWidth:76,textAlign:'center'},
   hotCueGrid:{flexDirection:'row',flexWrap:'wrap',gap:7,justifyContent:'space-between'},
   hotCueButton:{width:'23%',minHeight:45,backgroundColor:'#18222F',borderRadius:8,

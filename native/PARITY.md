@@ -78,3 +78,47 @@ Checked items are implemented in the native source; no physical-device latency/F
 - Keep independent loop start/active state for A/B; track reload clears only that deck.
 - Reject zero-length and sub-50ms manual loops in UI; C++ validates normalized loop boundaries.
 - Existing native tests cover loop range checks, wrap persistence and sample bounds.
+
+## Cycle 9: RGBA8 multiresolution waveform cache (native offline stage)
+
+- Verified stopAutoMix() already uses autoMixCommand_ release/acq_rel handoff; audio-thread-only bool is race-free.
+- Compile-time assertion requires lock-free atomic<int> on the target toolchain.
+- PCM is scanned once on the iOS lifecycle/decoder queue *before* audio is stopped for deck replacement.
+- Fixed 24,192-byte uint8 RGBA8 cache: 96/384/1536 columns, 3 texture rows each.
+- Texture rows: stereo signed min/max and RMS (L/R), plus low/mid/high spectral RMS.
+- Cache is transferred in track metadata as base64; this work does not allocate inside the render callback.
+- Native tests cover output sizes, bounds, stereo channels, silence, bass/treble discrimination and invalid PCM.
+
+## Cycle 10: Metal waveform view
+
+- iOS MTKView uploads all three PCM waveform resolutions as three RGBA8 textures via replaceRegion (on track changes only).
+- Metal vertex/fragment stages render L/R min/max with RMS brightness and low/mid/high spectral color.
+- GPU beat-grid markers (including every fourth beat) and moving playhead use native BPM and position state.
+- React Native receives the immutable 24,192-byte packed cache in metadata and forwards it once; worklets update native position and grid props.
+- Three zoom scales: overview, 4x and 16x with a position-following scroll window and gesture scrubbing.
+- Android and missing-cache paths retain the existing Skia stripe fallback.
+- All new Metal allocations and shader compilation are on the native UI thread, not the audio callback.
+
+## Cycle 11: short-track / empty-bin safety
+
+- `encodeLevel()` tests count==0 before any RMS division; empty L/R/spectrum RGBA8 texels are **fully zero**.
+- Metal vertex shader skips alpha==0 columns, avoiding phantom spikes at empty bins.
+- C++ regression covers 100-frame track at all 3 zooms, plus a 1-frame boundary case,
+  exact zero byte fill and finite/normalized decoded values.
+
+## Cycle 12: real-time stereo FX chain
+
+- Three independent FxChain instances: deck A, deck B, master. No second audio engine.
+- FX instances preallocate bounded delay/reverb/flanger/4-beat Roll buffers in constructor, during prepare while RemoteIO stopped.
+- Audio callback snapshots controls once per block, filters cutoff and resonance per sample, processes stereo signals before deck mix/master limiter.
+- Ping-pong Delay, 4-comb 2-allpass stereo Reverb, 2-pole TPT LPF/HPF, stereo Flanger, bit-depth/sample-rate Bitcrusher and beat-grid quantized frozen Roll.
+- Roll uses preceding PCM ring without copying during callback, arms on the next musical beat boundary, and crossfades short seams.
+- Runtime regression covers impulse filter sweeps at 44.1/48/96 kHz, invalid params, dual-deck/master FX, roll, finite PCM and limiter output.
+- JSI / TypeScript method setFx(bus 0/1/2, effect 0..5, a,b,c) updates lock-free atomics.
+
+## Cycle 12 UI — FX panel
+
+- Collapsible ARTSS FX controls in Mixer, independently targeting Deck A, Deck B or Master.
+- Six effects expose their real C++ parameters through validated setFx() with ranges.
+- Quantized Roll beat selection and LPF/HPF mode toggles; wet-effect bypass is atomic.
+- All heavy DSP remains native; UI contains only controls, no Web Audio or React processing.

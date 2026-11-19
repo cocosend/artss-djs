@@ -9,6 +9,7 @@
 
 #include "IOSAudioBackend.hpp"
 #include "../cpp/core/BeatGrid.hpp"
+#include "../cpp/core/WaveformCache.hpp"
 #include "ArtssAudioModuleProvider.h"
 
 #include <algorithm>
@@ -233,7 +234,10 @@ struct IOSAudioBackend::Impl {
 
   std::string installDeck(std::uint32_t deck, Sample track, NSString* title) {
     if (!engine->running() || !unit) throw std::runtime_error("Включите звук перед загрузкой");
+    // Run expensive analysis on the lifecycle/decoder queue BEFORE stopping
+    // RemoteIO and before moving the PCM onto the deck.
     const auto grid = analyzeBeatGrid(track, sampleRate);
+    const auto cache = precomputeWaveform(track, sampleRate);
     engine->rejectCommands();
     check(AudioOutputUnitStop(unit), "Stop output before track swap");
     // RemoteIO is stopped, but retain the other deck, voices and sequencer clock.
@@ -245,8 +249,12 @@ struct IOSAudioBackend::Impl {
     }
     NSMutableArray* peaks = [NSMutableArray arrayWithCapacity:kWaveformBins];
     for (float value : engine->deckWaveform(deck)) [peaks addObject:@(value)];
+    const NSData* textureBytes = [NSData dataWithBytes:cache.rgba8.data()
+                                               length:cache.rgba8.size()];
+    const NSString* textureBase64 = [textureBytes base64EncodedStringWithOptions:0];
     NSDictionary* data = @{ @"title": title,
-        @"duration": @(engine->deckDuration(deck, sampleRate)), @"waveform": peaks };
+        @"duration": @(engine->deckDuration(deck, sampleRate)), @"waveform": peaks,
+        @"waveformCache": textureBase64 };
     NSData* json = [NSJSONSerialization dataWithJSONObject:data options:0 error:nil];
     if (!json) throw std::runtime_error("Track metadata serialization failed");
     engine->activate();

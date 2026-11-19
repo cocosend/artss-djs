@@ -56,6 +56,8 @@ export interface RealtimeControls {
   setCrossfadeCurve(curve: 0 | 1 | 2): boolean;
   setDeckEQ(deck: 0 | 1, low: number, mid: number, high: number): boolean;
   setDeckGain(deck: 0 | 1, gain: number): boolean;
+  setFx(bus: 0 | 1 | 2, effect: 0 | 1 | 2 | 3 | 4 | 5,
+        a: number, b: number, c: number): boolean;
   setEQ(lowDb: number, midDb: number, highDb: number): boolean;
   setKit(kit: 1 | 2 | 3): boolean;
   setTempo(bpm: number): boolean;
@@ -116,6 +118,7 @@ export interface TrackInfo {
   readonly title: string;
   readonly duration: number;
   readonly waveform: readonly number[];
+  readonly waveformCache: string; // 24,192 fixed RGBA8 bytes, base64 encoded.
 }
 
 export async function pickTrack(deck: 0 | 1): Promise<TrackInfo> {
@@ -137,7 +140,9 @@ function parseTrack(json: string): TrackInfo {
   if (!isRecord(raw) || typeof raw.title !== 'string' || typeof raw.duration !== 'number' ||
       !Number.isFinite(raw.duration) || raw.duration <= 0 || !Array.isArray(raw.waveform) ||
       raw.waveform.length !== 96 || !raw.waveform.every((value: unknown) =>
-        typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1)) {
+        typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1) ||
+      typeof raw.waveformCache !== 'string' || raw.waveformCache.length !== 32256 ||
+      !/^[A-Za-z0-9+/]+$/.test(raw.waveformCache)) {
     throw new Error('Некорректные данные трека');
   }
   return raw as unknown as TrackInfo;

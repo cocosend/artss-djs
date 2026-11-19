@@ -1,5 +1,7 @@
 # ARTSS native iOS integration
 
+**CHAPTER 100 / M100 (10% milestone):** [Контрольная точка · новое начало](./RELEASE_100.md). Текущий milestone — исходный код + unsigned IPA для подписи; аппаратная валидация и релиз в Store ещё впереди.
+
 The uploaded React Native iOS host is integrated with one C++ AudioEngine and CoreAudio RemoteIO backend. The earlier standalone AudioCore/TurboModule skeleton has been replaced by this host. The PWA remains a separate target.
 
 Implemented source: dual track import/playback, cue, rate, loops and crossfader; 303/606/909 kits, eight UI-worklet pads, and a 16-step audio-thread sequencer. Kit PCM is generated before rendering. Existing voices retain immutable sample storage during kit changes. Patterns survive audio preparation; session stop and restart reset the sequence clock.
